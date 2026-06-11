@@ -1,7 +1,7 @@
 "use client";
 
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Layers, Navigation, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { ExperienceCard } from "@/components/ExperienceCard";
 import { ExperienceFeedCard } from "@/components/ExperienceFeedCard";
@@ -376,31 +376,8 @@ export default function HawaiiDestinationPage() {
                 value={searchQuery}
               />
             </div>
-            <button
-              aria-label="Filters"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
-              type="button"
-            >
-              <SlidersHorizontal aria-hidden="true" size={21} />
-            </button>
           </div>
           {mode === "explore" ? <FilterChips /> : null}
-        </div>
-        <div className="absolute bottom-[41%] right-4 z-20 flex flex-col gap-3">
-          <button
-            aria-label="Use current location"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-ink shadow-lift"
-            type="button"
-          >
-            <Navigation aria-hidden="true" fill="currentColor" size={19} />
-          </button>
-          <button
-            aria-label="Map layers"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-ink shadow-lift"
-            type="button"
-          >
-            <Layers aria-hidden="true" size={20} />
-          </button>
         </div>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-3 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${
