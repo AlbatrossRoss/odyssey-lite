@@ -1,7 +1,7 @@
 "use client";
 
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, BatteryFull, Layers, Navigation, Signal, SlidersHorizontal, Wifi } from "lucide-react";
+import { ArrowLeft, Layers, Navigation, SlidersHorizontal } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { ExperienceCard } from "@/components/ExperienceCard";
 import { ExperienceFeedCard } from "@/components/ExperienceFeedCard";
@@ -353,15 +353,7 @@ export default function HawaiiDestinationPage() {
           selectedSlug={selected?.slug}
           zoom={1.35}
         />
-        <div className="absolute inset-x-0 top-0 z-40 flex h-12 items-center justify-between px-8 text-ink">
-          <span className="text-lg font-black">9:41</span>
-          <div className="flex items-center gap-1.5">
-            <Signal aria-hidden="true" fill="currentColor" size={18} />
-            <Wifi aria-hidden="true" size={18} strokeWidth={3} />
-            <BatteryFull aria-hidden="true" size={22} strokeWidth={2.4} />
-          </div>
-        </div>
-        <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-16">
+        <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(env(safe-area-inset-top)+18px)]">
           <div className="flex items-center gap-3">
             {mode === "explore" ? (
               <button
