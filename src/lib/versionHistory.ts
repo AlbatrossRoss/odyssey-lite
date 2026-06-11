@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 11, 2026",
+    id: "v1.0",
+    title: "Temporary App Icon",
+    summary:
+      "Updated the installable app icon and Apple touch icon to use the temporary Odyssey ship logo without placing the logo inside the app UI.",
+  },
+  {
+    date: "June 11, 2026",
     id: "v0.9",
     title: "Public Experience Posts",
     summary:
