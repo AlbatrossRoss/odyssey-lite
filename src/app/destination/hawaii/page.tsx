@@ -12,6 +12,7 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import type { Experience, FriendPost } from "@/lib/data";
 import { experiences, friendPosts } from "@/lib/data";
+import { readPublicExperiences } from "@/lib/publicExperienceStore";
 import { fetchFriendPosts } from "@/lib/supabase/queries";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
@@ -53,7 +54,7 @@ const baseSuggestions: SearchSuggestion[] = [
   { label: "Haleakalā Sunrise", description: "Sarah's sunrise recommendation", center: [-156.2533, 20.7097], zoom: 11 },
 ];
 
-function searchHasHawaiiContent(query: string) {
+function searchHasContent(query: string, searchableExperiences: Experience[]) {
   const normalizedQuery = query.trim().toLowerCase();
   const hawaiiAliases = ["hawaii", "maui", "kona", "oahu", "o‘ahu", "big island", "wailea", "hana", "haleakalā", "haleakala", "punalu"];
 
@@ -65,7 +66,7 @@ function searchHasHawaiiContent(query: string) {
     return true;
   }
 
-  return experiences.some((experience) => {
+  return searchableExperiences.some((experience) => {
     const searchableText = `${experience.name} ${experience.location} ${experience.island}`.toLowerCase();
     return searchableText.includes(normalizedQuery);
   });
@@ -79,6 +80,8 @@ export default function HawaiiDestinationPage() {
   const [activeDestination, setActiveDestination] = useState("");
   const [latestPosts, setLatestPosts] = useState(friendPosts);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
+  const [publicExperiences, setPublicExperiences] = useState<Experience[]>([]);
+  const [activeFilter, setActiveFilter] = useState("Friends");
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragStartY = useRef<number | null>(null);
@@ -98,6 +101,7 @@ export default function HawaiiDestinationPage() {
       return true;
     });
   }, [mapboxSuggestions]);
+  const allExperiences = useMemo(() => [...publicExperiences, ...experiences], [publicExperiences]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -172,6 +176,19 @@ export default function HawaiiDestinationPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const syncPublicExperiences = () => setPublicExperiences(readPublicExperiences());
+
+    syncPublicExperiences();
+    window.addEventListener("storage", syncPublicExperiences);
+    window.addEventListener("odyssey:public-experiences-changed", syncPublicExperiences);
+
+    return () => {
+      window.removeEventListener("storage", syncPublicExperiences);
+      window.removeEventListener("odyssey:public-experiences-changed", syncPublicExperiences);
+    };
+  }, []);
+
   const handleSelect = useCallback((experience: Experience) => {
     setMode("explore");
     setSelected(experience);
@@ -185,6 +202,7 @@ export default function HawaiiDestinationPage() {
     setMode("explore");
     setSelected(null);
     setActiveDestination(destination);
+    setActiveFilter("Friends");
     setSheetExpanded(false);
     setMapTarget({ center, zoom });
   }, []);
@@ -201,7 +219,7 @@ export default function HawaiiDestinationPage() {
       return;
     }
 
-    const matchingExperience = experiences.find((experience) => {
+    const matchingExperience = allExperiences.find((experience) => {
       const searchableText = `${experience.name} ${experience.location} ${experience.island}`.toLowerCase();
       return searchableText.includes(normalizedQuery);
     });
@@ -242,7 +260,7 @@ export default function HawaiiDestinationPage() {
     } catch {
       // Keep the current map position if geocoding is unavailable.
     }
-  }, [enterExploreAt, handleSelect]);
+  }, [allExperiences, enterExploreAt, handleSelect]);
 
   const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
     const query = suggestion.query ?? suggestion.label;
@@ -317,8 +335,9 @@ export default function HawaiiDestinationPage() {
     }
   }, [mode]);
 
-  const hasExploreContent = mode === "explore" && searchHasHawaiiContent(activeDestination || searchQuery);
-  const visibleExperiences = hasExploreContent ? experiences : [];
+  const searchableExperiences = activeFilter === "All" ? allExperiences : experiences;
+  const hasExploreContent = mode === "explore" && searchHasContent(activeDestination || searchQuery, searchableExperiences);
+  const visibleExperiences = hasExploreContent ? searchableExperiences : [];
 
   function handleSheetPointerDown(event: PointerEvent<HTMLElement>) {
     dragStartY.current = event.clientY;
@@ -346,7 +365,7 @@ export default function HawaiiDestinationPage() {
       <section className="relative h-full bg-white">
         <MapboxMap
           className="absolute inset-x-0 top-0 h-[66%] w-full"
-          experiences={mode === "home" || hasExploreContent ? experiences : []}
+          experiences={mode === "home" ? experiences : visibleExperiences}
           mapTarget={mapTarget}
           onMoveEnd={handleMapMoveEnd}
           onSelect={handleSelect}
@@ -377,7 +396,7 @@ export default function HawaiiDestinationPage() {
               />
             </div>
           </div>
-          {mode === "explore" ? <FilterChips /> : null}
+          {mode === "explore" ? <FilterChips active={activeFilter} onChange={setActiveFilter} /> : null}
         </div>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-3 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${

@@ -1,13 +1,10 @@
 "use client";
 
 import { UsersRound } from "lucide-react";
-import { useState } from "react";
 
 const filters = ["Friends", "All", "Nature", "Beaches", "Food", "Adventure", "Diving"];
 
-export function FilterChips() {
-  const [active, setActive] = useState("Friends");
-
+export function FilterChips({ active = "Friends", onChange }: { active?: string; onChange?: (filter: string) => void }) {
   return (
     <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 py-3">
       {filters.map((filter) => (
@@ -16,7 +13,7 @@ export function FilterChips() {
             active === filter ? "bg-ink text-white" : "bg-white/88 text-ink/72 hover:bg-white"
           }`}
           key={filter}
-          onClick={() => setActive(filter)}
+          onClick={() => onChange?.(filter)}
           type="button"
         >
           {filter === "Friends" ? <UsersRound aria-hidden="true" size={15} /> : null}

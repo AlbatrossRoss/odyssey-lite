@@ -20,6 +20,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
 import { boards } from "@/lib/data";
+import { addPublicExperience } from "@/lib/publicExperienceStore";
 
 type Stop = {
   id: string;
@@ -103,6 +104,7 @@ export default function CreatePage() {
   const [experienceTitle, setExperienceTitle] = useState("");
   const [experienceLocation, setExperienceLocation] = useState("");
   const [experienceDate, setExperienceDate] = useState("");
+  const [experienceCoordinates, setExperienceCoordinates] = useState<[number, number] | undefined>();
   const [metadataNote, setMetadataNote] = useState("Select media to check for date and location metadata.");
   const [tripDates, setTripDates] = useState("May 10 - May 24, 2026");
   const [visibility, setVisibility] = useState("Friends");
@@ -132,9 +134,15 @@ export default function CreatePage() {
     };
   }, [experienceMedia]);
 
-  function next() {
+  async function next() {
     if (postType === "experience") {
-      setStep((current) => (current === 0 ? 1 : 6));
+      if (step === 1) {
+        await shareExperiencePost();
+        setStep(6);
+        return;
+      }
+
+      setStep(1);
       return;
     }
 
@@ -153,6 +161,7 @@ export default function CreatePage() {
   function resetCreate() {
     setStep(0);
     setExperienceTitle("");
+    setExperienceCoordinates(undefined);
   }
 
   function toggleMedia(index: number) {
@@ -181,33 +190,72 @@ export default function CreatePage() {
 
     experienceMedia.forEach((item) => URL.revokeObjectURL(item.url));
     setExperienceMedia(uploads);
-    applyFirstMediaMetadata(uploads[0]);
+    await applyBestMediaMetadata(uploads);
     setIsReadingMetadata(false);
   }
 
-  function applyFirstMediaMetadata(upload?: SelectedUpload) {
+  async function applyBestMediaMetadata(uploads: SelectedUpload[]) {
+    const upload = uploads.find((item) => item.metadata.coordinates || item.metadata.date) ?? uploads[0];
+
     if (!upload) {
       setExperienceLocation("");
       setExperienceDate("");
+      setExperienceCoordinates(undefined);
       setMetadataNote("No media selected yet.");
       return;
     }
 
     const date = upload.metadata.date ?? fallbackDateFromFile(upload.file);
-    const location = upload.metadata.location ?? "";
+    const place = upload.metadata.coordinates ? await reverseGeocodeCoordinates(upload.metadata.coordinates) : undefined;
+    const location = place ?? upload.metadata.location ?? "";
 
     setExperienceDate(date);
     setExperienceLocation(location);
+    setExperienceCoordinates(upload.metadata.coordinates);
 
-    if (upload.metadata.date && upload.metadata.location) {
-      setMetadataNote("Using date and location metadata from your first selected file.");
-    } else if (upload.metadata.location) {
-      setMetadataNote("Using location metadata from your first selected file. Date metadata was not available, so file date is shown.");
+    const mediaPosition = uploads.indexOf(upload) + 1;
+    const sourceLabel = mediaPosition === 1 ? "first selected file" : `selected file ${mediaPosition}`;
+
+    if (upload.metadata.date && location) {
+      setMetadataNote(`Using date and location metadata from your ${sourceLabel}.`);
+    } else if (location) {
+      setMetadataNote(`Using location metadata from your ${sourceLabel}. Date metadata was not available, so file date is shown.`);
     } else if (upload.metadata.date) {
-      setMetadataNote("Using date metadata from your first selected file. Location metadata was not available.");
+      setMetadataNote(`Using date metadata from your ${sourceLabel}. Location metadata was not available.`);
     } else {
-      setMetadataNote("No embedded location metadata was available. File date is shown if your browser provided one.");
+      setMetadataNote("No embedded location metadata was available in the selected files. File date is shown if your browser provided one.");
     }
+  }
+
+  async function shareExperiencePost() {
+    if (visibility !== "Public" || !experienceMedia.length) {
+      return;
+    }
+
+    const coordinates = experienceCoordinates ?? (experienceLocation ? await geocodePlace(experienceLocation) : undefined);
+
+    if (!coordinates) {
+      return;
+    }
+
+    const id = `public-${Date.now()}`;
+
+    addPublicExperience({
+      alsoExperiencedBy: [],
+      caption: "Posted from Odyssey Lite.",
+      coordinates,
+      createdAt: new Date().toISOString(),
+      highlight: "New public post",
+      id,
+      imageUrl: await fileToDataUrl(experienceMedia[0].file),
+      island: experienceLocation || "Public post",
+      location: experienceLocation || formatCoordinates(coordinates),
+      name: experienceTitle.trim() || "New experience",
+      slug: id,
+      tripId: "public-post",
+      userId: "maya",
+      visibility: "Public",
+    });
   }
 
   function renameStop(stopId: string) {
@@ -258,12 +306,12 @@ export default function CreatePage() {
 
   return (
     <MobileFrame>
-      <section className="relative h-full bg-shell pb-24">
-        <header className="px-5 pb-3 pt-6">
-          <div className="mb-4 flex items-center justify-between">
+      <section className={`relative h-full pb-24 ${postType === "experience" ? "bg-white" : "bg-shell"}`}>
+        <header className="bg-white px-5 pb-3 pt-6">
+          <div className="mb-3 flex items-center justify-between border-b border-ink/8 pb-3">
             <button
               aria-label="Back"
-              className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink shadow-lift"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink"
               onClick={step === 0 ? undefined : back}
               type="button"
             >
@@ -273,22 +321,26 @@ export default function CreatePage() {
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Create</p>
               <h1 className="text-lg font-black text-ink">{headerTitle}</h1>
             </div>
-            <button
-              aria-label="More"
-              className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink shadow-lift"
-              type="button"
-            >
-              <MoreHorizontal aria-hidden="true" size={19} />
-            </button>
+            {postType === "experience" && step === 1 ? (
+              <button className="text-sm font-black text-[#4676d8]" disabled={!canContinue} onClick={next} type="button">
+                Share
+              </button>
+            ) : (
+              <button aria-label="More" className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink" type="button">
+                <MoreHorizontal aria-hidden="true" size={19} />
+              </button>
+            )}
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-white">
-            <div className="h-full rounded-full bg-ink transition-all" style={{ width: `${progress}%` }} />
-          </div>
+          {postType === "trip" ? (
+            <div className="h-1.5 overflow-hidden rounded-full bg-shell">
+              <div className="h-full rounded-full bg-ink transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          ) : null}
         </header>
 
-        <div className="h-[calc(100%-94px)] overflow-y-auto px-5 pb-5">
+        <div className={`h-[calc(100%-94px)] overflow-y-auto pb-5 ${postType === "experience" ? "" : "px-5"}`}>
           {step === 0 ? (
-            <section>
+            <section className={postType === "experience" ? "px-5" : ""}>
               <div className="mb-4 grid grid-cols-2 gap-2 rounded-[22px] bg-white p-1 shadow-soft">
                 {[
                   ["trip", "Post a trip"],
@@ -628,15 +680,15 @@ function ExperienceMediaPicker({
         type="file"
       />
       <button
-        className="flex min-h-72 w-full flex-col items-center justify-center rounded-[32px] border border-dashed border-ink/16 bg-white px-5 text-center shadow-soft"
+        className="flex aspect-square w-full flex-col items-center justify-center rounded-[6px] border border-dashed border-ink/18 bg-shell px-5 text-center"
         onClick={() => fileInputRef.current?.click()}
         type="button"
       >
-        <span className="grid h-16 w-16 place-items-center rounded-full bg-ink text-white">
+        <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-ink shadow-lift">
           <ImagePlus aria-hidden="true" size={28} />
         </span>
-        <h2 className="mt-5 text-2xl font-black text-ink">Choose from camera roll</h2>
-        <p className="mt-2 max-w-64 text-sm font-semibold leading-relaxed text-ink/54">
+        <h2 className="mt-5 text-xl font-black text-ink">Choose from camera roll</h2>
+        <p className="mt-2 max-w-64 text-sm font-semibold leading-relaxed text-ink/50">
           Select one photo or video, or choose a small set for a carousel-style experience post.
         </p>
       </button>
@@ -645,7 +697,7 @@ function ExperienceMediaPicker({
           <div className="flex items-center justify-between">
             <p className="text-sm font-black text-ink">{media.length} selected</p>
             <button
-              className="rounded-full bg-white px-3 py-2 text-xs font-black text-ink shadow-lift"
+              className="rounded-full bg-shell px-3 py-2 text-xs font-black text-ink"
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
@@ -667,7 +719,7 @@ function ExperienceMediaPicker({
               </div>
             ))}
           </div>
-          <p className="rounded-[20px] bg-white px-4 py-3 text-xs font-semibold leading-relaxed text-ink/52 shadow-soft">
+          <p className="border-t border-ink/8 px-1 pt-3 text-xs font-semibold leading-relaxed text-ink/52">
             {isReadingMetadata ? "Reading metadata..." : metadataNote}
           </p>
         </div>
@@ -702,8 +754,8 @@ function ExperienceDetails({
   const firstMedia = media[0];
 
   return (
-    <section className="space-y-4">
-      <article className="overflow-hidden rounded-[30px] bg-white shadow-soft">
+    <section className="space-y-0">
+      <article className="bg-white">
         <div className="relative aspect-square bg-ink">
           {firstMedia ? <MediaPreview className="h-full w-full object-cover" item={firstMedia} /> : null}
           {media.length > 1 ? (
@@ -713,9 +765,9 @@ function ExperienceDetails({
           ) : null}
         </div>
         {media.length > 1 ? (
-          <div className="flex gap-2 overflow-x-auto px-3 py-3">
+          <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-ink/8 px-4 py-3">
             {media.map((item) => (
-              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[14px] bg-ink" key={item.id}>
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[6px] bg-ink" key={item.id}>
                 <MediaPreview className="h-full w-full object-cover" item={item} />
               </div>
             ))}
@@ -723,18 +775,18 @@ function ExperienceDetails({
         ) : null}
       </article>
 
-      <section className="rounded-[28px] bg-white p-4 shadow-soft">
-        <Field label="Experience title">
+      <section className="bg-white">
+        <PlainField label="Experience title">
           <input
             autoFocus
-            className="w-full bg-transparent text-xl font-black text-ink outline-none placeholder:text-ink/25"
+            className="w-full bg-transparent text-base font-semibold text-ink outline-none placeholder:text-ink/28"
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder="Add a title"
             value={title}
           />
-        </Field>
-        <div className="mt-3 grid gap-3">
-          <Field label="Location">
+        </PlainField>
+        <div>
+          <PlainField label="Location">
             <div className="flex items-center gap-2">
               <MapPin aria-hidden="true" className="text-coral" size={17} />
               <input
@@ -744,8 +796,8 @@ function ExperienceDetails({
                 value={location}
               />
             </div>
-          </Field>
-          <Field label="Date">
+          </PlainField>
+          <PlainField label="Date">
             <div className="flex items-center gap-2">
               <Calendar aria-hidden="true" className="text-coral" size={17} />
               <input
@@ -755,12 +807,12 @@ function ExperienceDetails({
                 value={date}
               />
             </div>
-          </Field>
-          <Field label="Visibility">
+          </PlainField>
+          <PlainField label="Visibility">
             <VisibilityPicker onChange={onVisibilityChange} value={visibility} />
-          </Field>
+          </PlainField>
         </div>
-        <p className="mt-3 rounded-[18px] bg-shell px-3 py-2 text-xs font-semibold leading-relaxed text-ink/50">{metadataNote}</p>
+        <p className="px-5 py-3 text-xs font-semibold leading-relaxed text-ink/48">{metadataNote}</p>
       </section>
     </section>
   );
@@ -818,6 +870,15 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <label className="block rounded-[20px] bg-shell p-3">
       <span className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-ink/46">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function PlainField({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <label className="block border-b border-ink/8 px-5 py-4">
+      <span className="mb-2 block text-[11px] font-black uppercase tracking-[0.12em] text-ink/38">{label}</span>
       {children}
     </label>
   );
@@ -934,7 +995,6 @@ function readTiffExif(view: DataView, tiffStart: number): MediaMetadata {
   return {
     coordinates,
     date: rawDate ? normalizeExifDate(rawDate) : undefined,
-    location: coordinates ? formatCoordinates(coordinates) : undefined,
   };
 }
 
@@ -1024,4 +1084,65 @@ function fallbackDateFromFile(file: File) {
 
 function formatCoordinates([longitude, latitude]: [number, number]) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+async function reverseGeocodeCoordinates([longitude, latitude]: [number, number]) {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+  if (!token) {
+    return undefined;
+  }
+
+  const params = new URLSearchParams({
+    access_token: token,
+    language: "en",
+    limit: "1",
+    types: "poi,neighborhood,locality,place,region,country",
+  });
+
+  try {
+    const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?${params}`);
+    const data = (await response.json()) as {
+      features?: Array<{
+        place_name?: string;
+        text?: string;
+      }>;
+    };
+
+    return data.features?.[0]?.place_name ?? data.features?.[0]?.text;
+  } catch {
+    return undefined;
+  }
+}
+
+async function geocodePlace(place: string) {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+  if (!token || !place.trim()) {
+    return undefined;
+  }
+
+  const params = new URLSearchParams({
+    access_token: token,
+    language: "en",
+    limit: "1",
+    types: "poi,neighborhood,locality,place,region,country,address",
+  });
+
+  try {
+    const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place)}.json?${params}`);
+    const data = (await response.json()) as { features?: Array<{ center?: [number, number] }> };
+    return data.features?.[0]?.center;
+  } catch {
+    return undefined;
+  }
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.addEventListener("error", () => reject(reader.error));
+    reader.readAsDataURL(file);
+  });
 }

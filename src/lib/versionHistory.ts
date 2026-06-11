@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 11, 2026",
+    id: "v0.9",
+    title: "Public Experience Posts",
+    summary:
+      "Improved experience posting with place-name metadata, fallback metadata checks across selected media, a cleaner Instagram-style post UI, and public posts that appear on the Explore map when All is selected.",
+  },
+  {
+    date: "June 11, 2026",
     id: "v0.8",
     title: "Navigation and Version History",
     summary:
