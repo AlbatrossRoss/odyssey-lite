@@ -3,6 +3,40 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      app_accounts: {
+        Row: {
+          id: string;
+          username: string;
+          password: string;
+          profile_photo_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          username: string;
+          password: string;
+          profile_photo_url?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["app_accounts"]["Insert"]>;
+        Relationships: [];
+      };
+      account_follows: {
+        Row: {
+          id: string;
+          follower_id: string;
+          following_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          follower_id: string;
+          following_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["account_follows"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

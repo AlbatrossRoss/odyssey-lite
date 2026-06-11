@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { AccountGate } from "@/components/AccountGate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,7 +38,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <AccountGate>{children}</AccountGate>
+      </body>
     </html>
   );
 }
