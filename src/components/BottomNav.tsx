@@ -1,21 +1,22 @@
 "use client";
 
-import { Compass, Home, Plus, SquareStack } from "lucide-react";
+import { History, Plus, Search, SquareStack } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { label: "Home", href: "/", icon: Home },
-  { label: "Explore", href: "/destination/hawaii", icon: Compass },
+  { label: "Explore", href: "/destination/hawaii", icon: Search },
   { label: "Create", href: "/create", icon: Plus },
   { label: "Boards", href: "/boards", icon: SquareStack },
+  { label: "Versions", href: "/versions", icon: History },
 ];
 
 type BottomNavProps = {
-  activeTab?: "Home" | "Explore" | "Create" | "Boards";
+  activeTab?: "Explore" | "Create" | "Boards" | "Versions";
+  onExploreClick?: () => void;
 };
 
-export function BottomNav({ activeTab }: BottomNavProps) {
+export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
   const pathname = usePathname();
 
   return (
@@ -33,6 +34,7 @@ export function BottomNav({ activeTab }: BottomNavProps) {
               }`}
               href={item.href}
               key={item.label}
+              onClick={item.label === "Explore" ? onExploreClick : undefined}
             >
               <Icon aria-hidden="true" size={18} strokeWidth={2.2} />
               <span>{item.label}</span>

@@ -463,7 +463,7 @@ export default function HawaiiDestinationPage() {
             </div>
           )}
         </section>
-        <BottomNav activeTab={mode === "home" ? "Home" : "Explore"} />
+        <BottomNav activeTab="Explore" onExploreClick={handleResetToWorld} />
       </section>
     </MobileFrame>
   );
