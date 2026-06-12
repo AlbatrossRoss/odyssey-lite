@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.8",
+    title: "Single Rec Posting Flow",
+    summary:
+      "Rebuilt Create as a stripped-down recommendation poster: choose one camera-roll item, extract date/location metadata, review/edit title, location, and date, then publish with one plain Share button.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.7",
     title: "Plain Share Button and Body Fix",
     summary:
