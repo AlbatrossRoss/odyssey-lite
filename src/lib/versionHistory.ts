@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.1",
+    title: "PWA Bottom Nav Placement",
+    summary:
+      "Moved the bottom nav controls into the filled iOS PWA chin area while keeping the Create share bar above the nav so users can navigate away after posting.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.0",
     title: "iOS Chin Gap Fill",
     summary:

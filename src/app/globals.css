@@ -5,7 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --chin-fill: 96px;
+  --chin-fill: 0px;
+  --chin-nav-shift: 0px;
   color: #18231f;
   background: #ffffff;
 }
@@ -114,18 +115,34 @@ body > * {
   stroke-width: 3;
 }
 
+.chin-nav-content {
+  transform: translateY(var(--chin-nav-shift));
+}
+
+.create-share-bar {
+  bottom: calc(84px + var(--chin-nav-shift));
+}
+
+@media (max-width: 639px) and (display-mode: standalone) {
+  :root {
+    --chin-fill: 112px;
+    --chin-nav-shift: 72px;
+  }
+}
+
+@media (max-width: 639px) {
+  .standalone-pwa {
+    --chin-fill: 112px;
+    --chin-nav-shift: 72px;
+  }
+}
+
 .safe-bottom {
   padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--chin-fill));
 }
 
 .chin-fill {
   bottom: calc(var(--chin-fill) * -1);
-}
-
-@media (min-width: 640px) {
-  :root {
-    --chin-fill: 0px;
-  }
 }
 
 .app-viewport {

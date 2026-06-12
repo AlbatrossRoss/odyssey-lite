@@ -22,7 +22,7 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
 
   return (
     <nav className="safe-bottom chin-fill fixed inset-x-0 z-40 border-t border-white/60 bg-white px-5 pt-2 shadow-[0_-10px_30px_rgba(24,35,31,0.08)] backdrop-blur-xl sm:absolute">
-      <div className="mx-auto flex max-w-[22rem] items-center justify-between">
+      <div className="chin-nav-content mx-auto flex max-w-[22rem] items-center justify-between">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab ? activeTab === item.label : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));

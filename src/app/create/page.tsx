@@ -252,7 +252,7 @@ export default function CreatePage() {
           </section>
         </div>
 
-        <footer className="absolute inset-x-0 bottom-[84px] z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
+        <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
           <button
             className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift"
             onClick={shareRecommendation}
