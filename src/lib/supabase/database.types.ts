@@ -37,6 +37,38 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["account_follows"]["Insert"]>;
         Relationships: [];
       };
+      app_posts: {
+        Row: {
+          id: string;
+          account_id: string;
+          type: "trip" | "experience";
+          title: string;
+          location: string;
+          caption: string;
+          image_url: string;
+          latitude: number;
+          longitude: number;
+          date_label: string;
+          visibility: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: string;
+          type: "trip" | "experience";
+          title: string;
+          location: string;
+          caption: string;
+          image_url: string;
+          latitude: number;
+          longitude: number;
+          date_label: string;
+          visibility?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["app_posts"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

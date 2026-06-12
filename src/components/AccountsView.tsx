@@ -12,8 +12,10 @@ import {
   setAccountFollow,
   updateAccountPhoto,
 } from "@/lib/accounts";
+import { AppPostTile } from "@/components/AppPostCard";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
+import { fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
 
 type AccountsViewProps = {
   username?: string;
@@ -23,6 +25,7 @@ export function AccountsView({ username }: AccountsViewProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountWithStats[]>([]);
+  const [profilePosts, setProfilePosts] = useState<AppPost[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [message, setMessage] = useState("");
 
@@ -64,6 +67,31 @@ export function AccountsView({ username }: AccountsViewProps) {
   }, [accounts, username, viewer]);
   const otherAccounts = useMemo(() => accounts.filter((account) => account.id !== viewerId), [accounts, viewerId]);
   const isOwnProfile = Boolean(profile && profile.id === viewerId);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!profile) {
+      setProfilePosts([]);
+      return;
+    }
+
+    fetchAppPostsByAccount(profile.id)
+      .then((posts) => {
+        if (active) {
+          setProfilePosts(posts);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setProfilePosts([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [profile]);
 
   async function toggleFollow(account: AccountWithStats) {
     if (!viewerId || account.id === viewerId) {
@@ -189,6 +217,29 @@ export function AccountsView({ username }: AccountsViewProps) {
                 <StatTile label="Following" value={profile.stats.following} />
                 <StatTile label="Posts" value={profile.stats.posts} />
               </div>
+
+              <section className="mt-7 overflow-hidden rounded-[26px] bg-white shadow-lift">
+                <div className="flex items-end justify-between border-b border-ink/8 px-4 py-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-coral">Posts</p>
+                    <h2 className="text-lg font-black text-ink">Travel grid</h2>
+                  </div>
+                  <p className="text-xs font-black text-ink/42">{profilePosts.length}</p>
+                </div>
+                {profilePosts.length ? (
+                  <div className="grid grid-cols-3 gap-px bg-white">
+                    {profilePosts.map((post) => (
+                      <AppPostTile key={post.id} post={post} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-5 py-8 text-center">
+                    <p className="text-sm font-bold leading-relaxed text-ink/52">
+                      {isOwnProfile ? "Share a trip or experience to start your grid." : "No posts here yet."}
+                    </p>
+                  </div>
+                )}
+              </section>
             </section>
           ) : (
             <section className="mt-8 rounded-[28px] bg-white p-5 text-center shadow-lift">

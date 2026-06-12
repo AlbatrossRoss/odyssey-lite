@@ -2,6 +2,8 @@
 
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import { AppPostCard } from "@/components/AppPostCard";
+import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
 import { ExperienceCard } from "@/components/ExperienceCard";
 import { ExperienceFeedCard } from "@/components/ExperienceFeedCard";
@@ -13,6 +15,7 @@ import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import type { Experience, FriendPost } from "@/lib/data";
 import { experiences, friendPosts } from "@/lib/data";
 import { readPublicExperiences } from "@/lib/publicExperienceStore";
+import { fetchAppPosts, type AppPost } from "@/lib/posts";
 import { fetchFriendPosts } from "@/lib/supabase/queries";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
@@ -72,6 +75,23 @@ function searchHasContent(query: string, searchableExperiences: Experience[]) {
   });
 }
 
+function postSearchHasContent(query: string, post: AppPost) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return false;
+  }
+
+  const searchableText = `${post.title} ${post.location} ${post.caption}`.toLowerCase();
+  const hawaiiAliases = ["hawaii", "maui", "kona", "oahu", "o‘ahu", "big island", "wailea", "hana", "haleakalā", "haleakala", "punalu"];
+
+  if (hawaiiAliases.some((alias) => normalizedQuery.includes(alias))) {
+    return hawaiiAliases.some((alias) => searchableText.includes(alias));
+  }
+
+  return searchableText.includes(normalizedQuery);
+}
+
 export default function HawaiiDestinationPage() {
   const [mode, setMode] = useState<"home" | "explore">("home");
   const [selected, setSelected] = useState<Experience | null>(null);
@@ -79,6 +99,7 @@ export default function HawaiiDestinationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDestination, setActiveDestination] = useState("");
   const [latestPosts, setLatestPosts] = useState(friendPosts);
+  const [appPosts, setAppPosts] = useState<AppPost[]>([]);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [publicExperiences, setPublicExperiences] = useState<Experience[]>([]);
   const [activeFilter, setActiveFilter] = useState("Friends");
@@ -161,11 +182,17 @@ export default function HawaiiDestinationPage() {
   useEffect(() => {
     let active = true;
 
-    fetchFriendPosts()
-      .then((posts) => {
-        if (active && posts.length) {
+    Promise.all([fetchFriendPosts(), fetchAppPosts()])
+      .then(([posts, sharedPosts]) => {
+        if (!active) {
+          return;
+        }
+
+        if (posts.length) {
           setLatestPosts(posts);
         }
+
+        setAppPosts(sharedPosts);
       })
       .catch(() => {
         // Keep local prototype data if Supabase is unavailable.
@@ -338,6 +365,10 @@ export default function HawaiiDestinationPage() {
   const searchableExperiences = activeFilter === "All" ? allExperiences : experiences;
   const hasExploreContent = mode === "explore" && searchHasContent(activeDestination || searchQuery, searchableExperiences);
   const visibleExperiences = hasExploreContent ? searchableExperiences : [];
+  const visibleAppPosts =
+    mode === "explore"
+      ? appPosts.filter((post) => postSearchHasContent(activeDestination || searchQuery, post))
+      : [];
 
   function handleSheetPointerDown(event: PointerEvent<HTMLElement>) {
     dragStartY.current = event.clientY;
@@ -421,7 +452,7 @@ export default function HawaiiDestinationPage() {
               <p className="text-[11px] font-semibold text-ink/52">
                 {mode === "home"
                   ? "Recent trips and saves around the world"
-                  : hasExploreContent
+                  : hasExploreContent || visibleAppPosts.length
                     ? "Real moments from real trips"
                     : "No friend posts here yet"}
               </p>
@@ -434,13 +465,19 @@ export default function HawaiiDestinationPage() {
           </div>
           {mode === "home" ? (
             <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
+              {appPosts.map((post) => (
+                <AppPostCard key={post.id} post={post} />
+              ))}
               {latestPosts.map((post) => (
                 <FriendPostCard key={post.id} onSelect={handleHomePostSelect} post={post} />
               ))}
             </div>
           ) : sheetExpanded ? (
-            visibleExperiences.length ? (
+            visibleExperiences.length || visibleAppPosts.length ? (
               <div className="no-scrollbar h-[calc(100%-74px)] space-y-4 overflow-y-auto pb-5">
+                {visibleAppPosts.map((post) => (
+                  <AppPostFeedCard key={post.id} post={post} />
+                ))}
                 {visibleExperiences.map((experience) => (
                   <ExperienceFeedCard
                     active={selected?.slug === experience.slug}
@@ -457,8 +494,11 @@ export default function HawaiiDestinationPage() {
                 </p>
               </div>
             )
-          ) : visibleExperiences.length ? (
+          ) : visibleExperiences.length || visibleAppPosts.length ? (
             <div className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
+              {visibleAppPosts.map((post) => (
+                <AppPostCard key={post.id} post={post} />
+              ))}
               {visibleExperiences.map((experience) => (
                 <div
                   key={experience.slug}

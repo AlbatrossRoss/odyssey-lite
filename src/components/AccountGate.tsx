@@ -41,7 +41,7 @@ export function AccountGate({ children }: AccountGateProps) {
       }
 
       try {
-        const restored = await fetchAccountById(accountId);
+        const restored = await withTimeout(fetchAccountById(accountId), 2500);
 
         if (active) {
           setAccount(restored);
@@ -227,6 +227,15 @@ function fileToDataUrl(file: File) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return Promise.race<T | null>([
+    promise,
+    new Promise<null>((resolve) => {
+      window.setTimeout(() => resolve(null), timeoutMs);
+    }),
+  ]);
 }
 
 function formatError(error: unknown) {

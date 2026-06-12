@@ -20,7 +20,8 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
 import { boards } from "@/lib/data";
-import { addPublicExperience } from "@/lib/publicExperienceStore";
+import { readAccountSessionId } from "@/lib/accounts";
+import { createAppPost } from "@/lib/posts";
 
 type Stop = {
   id: string;
@@ -106,6 +107,7 @@ export default function CreatePage() {
   const [experienceDate, setExperienceDate] = useState("");
   const [experienceCoordinates, setExperienceCoordinates] = useState<[number, number] | undefined>();
   const [metadataNote, setMetadataNote] = useState("Select media to check for date and location metadata.");
+  const [publishMessage, setPublishMessage] = useState("");
   const [tripDates, setTripDates] = useState("May 10 - May 24, 2026");
   const [visibility, setVisibility] = useState("Friends");
   const [associatedBoard, setAssociatedBoard] = useState("hawaii-2026");
@@ -135,14 +137,30 @@ export default function CreatePage() {
   }, [experienceMedia]);
 
   async function next() {
+    setPublishMessage("");
+
     if (postType === "experience") {
       if (step === 1) {
-        await shareExperiencePost();
-        setStep(6);
+        const published = await shareExperiencePost();
+
+        if (published) {
+          setStep(6);
+        }
+
         return;
       }
 
       setStep(1);
+      return;
+    }
+
+    if (step === 5) {
+      const published = await shareTripPost();
+
+      if (published) {
+        setStep(6);
+      }
+
       return;
     }
 
@@ -228,34 +246,70 @@ export default function CreatePage() {
   }
 
   async function shareExperiencePost() {
-    if (visibility !== "Public" || !experienceMedia.length) {
-      return;
+    const accountId = readAccountSessionId();
+
+    if (!accountId) {
+      setPublishMessage("Log in again before sharing.");
+      return false;
+    }
+
+    if (!experienceMedia.length) {
+      return false;
     }
 
     const coordinates = experienceCoordinates ?? (experienceLocation ? await geocodePlace(experienceLocation) : undefined);
 
     if (!coordinates) {
-      return;
+      setPublishMessage("Add a location before sharing this post.");
+      return false;
     }
 
-    const id = `public-${Date.now()}`;
+    try {
+      await createAppPost({
+        accountId,
+        caption: "Posted from Odyssey Lite.",
+        coordinates,
+        dateLabel: experienceDate || "Just now",
+        imageUrl: await fileToDataUrl(experienceMedia[0].file),
+        location: experienceLocation || formatCoordinates(coordinates),
+        title: experienceTitle.trim() || "New experience",
+        type: "experience",
+        visibility,
+      });
 
-    addPublicExperience({
-      alsoExperiencedBy: [],
-      caption: "Posted from Odyssey Lite.",
-      coordinates,
-      createdAt: new Date().toISOString(),
-      highlight: "New public post",
-      id,
-      imageUrl: await fileToDataUrl(experienceMedia[0].file),
-      island: experienceLocation || "Public post",
-      location: experienceLocation || formatCoordinates(coordinates),
-      name: experienceTitle.trim() || "New experience",
-      slug: id,
-      tripId: "public-post",
-      userId: "maya",
-      visibility: "Public",
-    });
+      return true;
+    } catch (error) {
+      setPublishMessage(formatPublishError(error));
+      return false;
+    }
+  }
+
+  async function shareTripPost() {
+    const accountId = readAccountSessionId();
+
+    if (!accountId) {
+      setPublishMessage("Log in again before publishing.");
+      return false;
+    }
+
+    try {
+      await createAppPost({
+        accountId,
+        caption: stops.map((stop) => stop.note).filter(Boolean).join(" ") || "Posted from Odyssey Lite.",
+        coordinates: [-156.45, 20.55],
+        dateLabel: tripDates || "Just now",
+        imageUrl: coverImage,
+        location: "Hawaii",
+        title: tripName.trim() || "New trip",
+        type: "trip",
+        visibility,
+      });
+
+      return true;
+    } catch (error) {
+      setPublishMessage(formatPublishError(error));
+      return false;
+    }
   }
 
   function renameStop(stopId: string) {
@@ -566,6 +620,10 @@ export default function CreatePage() {
               stopCount={stops.length}
               title={postType === "experience" ? experienceTitle : tripName}
             />
+          ) : null}
+
+          {publishMessage ? (
+            <p className="mx-5 mt-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{publishMessage}</p>
           ) : null}
         </div>
 
@@ -1145,4 +1203,21 @@ function fileToDataUrl(file: File) {
     reader.addEventListener("error", () => reject(reader.error));
     reader.readAsDataURL(file);
   });
+}
+
+function formatPublishError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const candidate = error as { message?: unknown; details?: unknown; code?: unknown };
+    const message = typeof candidate.message === "string" ? candidate.message : undefined;
+    const details = typeof candidate.details === "string" ? candidate.details : undefined;
+    const code = typeof candidate.code === "string" ? candidate.code : undefined;
+
+    return [message, details, code].filter(Boolean).join(" ") || "Unable to publish this post.";
+  }
+
+  return "Unable to publish this post.";
 }

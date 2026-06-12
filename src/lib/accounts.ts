@@ -150,7 +150,7 @@ export async function fetchAccountsWithStats(viewerId: string) {
     await Promise.all([
       supabase.from("app_accounts").select("*").order("created_at", { ascending: true }),
       supabase.from("account_follows").select("follower_id, following_id"),
-      supabase.from("friend_posts").select("user_id"),
+      supabase.from("app_posts").select("account_id"),
     ]);
 
   if (accountsError) {
@@ -161,9 +161,7 @@ export async function fetchAccountsWithStats(viewerId: string) {
     throw followsError;
   }
 
-  if (postsError) {
-    throw postsError;
-  }
+  const accountPosts = postsError ? [] : posts;
 
   return accounts.map((account) => {
     const mapped = mapAccount(account);
@@ -173,7 +171,7 @@ export async function fetchAccountsWithStats(viewerId: string) {
       stats: {
         followers: follows.filter((follow) => follow.following_id === mapped.id).length,
         following: follows.filter((follow) => follow.follower_id === mapped.id).length,
-        posts: posts.filter((post) => post.user_id === mapped.username).length,
+        posts: accountPosts.filter((post) => post.account_id === mapped.id).length,
       },
       isFollowedByViewer: follows.some((follow) => follow.follower_id === viewerId && follow.following_id === mapped.id),
     };

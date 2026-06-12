@@ -7,6 +7,20 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 12, 2026",
+    id: "v1.2",
+    title: "Shared Posts and Profile Grids",
+    summary:
+      "Added database-backed trip and experience posts, Explore feed placement, Instagram-style account post grids, and clickable post detail pages.",
+  },
+  {
+    date: "June 12, 2026",
+    id: "v1.1",
+    title: "Accounts and Follows",
+    summary:
+      "Added create account/login, persistent app accounts, optional profile photos, account pages, follower/following counts, and follow actions.",
+  },
+  {
     date: "June 11, 2026",
     id: "v1.0",
     title: "Temporary App Icon",
