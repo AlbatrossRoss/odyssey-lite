@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.5",
+    title: "iPhone Viewport and Share Button",
+    summary:
+      "Synced the app height to the live iPhone viewport, fixed the mobile Share bar to the physical screen, and added a touch pointer handler so Share responds reliably in the PWA.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.4",
     title: "Bottom Edge and Share Tap Fix",
     summary:

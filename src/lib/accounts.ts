@@ -44,16 +44,30 @@ export function readAccountSessionId() {
     return null;
   }
 
-  return window.localStorage.getItem(SESSION_KEY);
+  try {
+    return window.localStorage.getItem(SESSION_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function writeAccountSessionId(accountId: string) {
-  window.localStorage.setItem(SESSION_KEY, accountId);
+  try {
+    window.localStorage.setItem(SESSION_KEY, accountId);
+  } catch {
+    // Keep the account in the database even if browser storage is unavailable.
+  }
+
   window.dispatchEvent(new CustomEvent("odyssey:account-session-changed", { detail: accountId }));
 }
 
 export function clearAccountSessionId() {
-  window.localStorage.removeItem(SESSION_KEY);
+  try {
+    window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Nothing to clear when browser storage is unavailable.
+  }
+
   window.dispatchEvent(new CustomEvent("odyssey:account-session-changed"));
 }
 

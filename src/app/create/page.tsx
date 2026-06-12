@@ -622,7 +622,7 @@ export default function CreatePage() {
         </div>
 
         {step < 6 ? (
-          <footer className="absolute inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[80] px-4">
+          <footer className="fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[100] px-4 sm:absolute">
             <div className="pointer-events-auto flex gap-3 rounded-[30px] bg-white/96 p-2 shadow-soft backdrop-blur-xl">
               <button
                 aria-label="Cancel post"
@@ -637,6 +637,12 @@ export default function CreatePage() {
                 className="relative z-[81] flex min-h-16 flex-1 touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-ink/35"
                 disabled={!canContinue}
                 onClick={next}
+                onPointerUp={(event) => {
+                  if (event.pointerType === "touch" && canContinue) {
+                    event.preventDefault();
+                    void next();
+                  }
+                }}
                 type="button"
               >
                 {postType === "experience" && step === 1 ? "Share" : step === 5 ? "Publish Trip" : "Next"}
@@ -645,7 +651,7 @@ export default function CreatePage() {
             </div>
           </footer>
         ) : (
-          <footer className="absolute inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[80] px-4">
+          <footer className="fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[100] px-4 sm:absolute">
             <button
               className="relative z-[81] flex min-h-16 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-soft"
               onClick={resetCreate}

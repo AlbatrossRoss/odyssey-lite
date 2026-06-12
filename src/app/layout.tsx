@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AccountGate } from "@/components/AccountGate";
+import { ViewportSync } from "@/components/ViewportSync";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
+        <ViewportSync />
         <AccountGate>{children}</AccountGate>
       </body>
     </html>

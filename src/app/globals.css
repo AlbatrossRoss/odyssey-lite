@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 :root {
-  --app-height: 100dvh;
+  --app-height: 100vh;
   color: #18231f;
   background: #f7f2e9;
 }
@@ -35,7 +35,7 @@ body {
 }
 
 html {
-  height: -webkit-fill-available;
+  height: var(--app-height);
 }
 
 body > * {
@@ -122,7 +122,7 @@ body > * {
 
 .app-viewport {
   height: var(--app-height);
-  min-height: -webkit-fill-available;
+  min-height: var(--app-height);
   overflow: hidden;
   overscroll-behavior: none;
   position: relative;
