@@ -440,7 +440,7 @@ export default function HawaiiDestinationPage() {
         </div>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-3 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${
-            sheetExpanded ? "bottom-[76px] top-[92px] pb-4" : "bottom-[76px] h-[36%] pb-3"
+            sheetExpanded ? "nav-cleared-bottom top-[92px] pb-4" : "nav-cleared-bottom h-[36%] pb-3"
           }`}
           onPointerCancel={handleSheetPointerCancel}
           onPointerDown={handleSheetPointerDown}

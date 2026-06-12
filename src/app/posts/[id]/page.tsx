@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Bookmark, Calendar, Check, MapPin, Plus, UserRound, X } from "lucide-react";
+import { BottomNav } from "@/components/BottomNav";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { fetchAppPostById, type AppPost } from "@/lib/posts";
@@ -98,6 +99,7 @@ export default function PostDetailPage() {
         <main className="grid h-full place-items-center bg-shell px-8 text-center">
           <p className="text-sm font-black text-ink/52">Loading post...</p>
         </main>
+        <BottomNav />
       </MobileFrame>
     );
   }
@@ -114,6 +116,7 @@ export default function PostDetailPage() {
             </Link>
           </div>
         </main>
+        <BottomNav />
       </MobileFrame>
     );
   }
@@ -137,6 +140,7 @@ export default function PostDetailPage() {
             ? {
                 ...item,
                 coverImageUrl: item.coverImageUrl === "/hawaii-reference-map.png" ? post.imageUrl : item.coverImageUrl,
+                previewImageUrls: Array.from(new Set([post.imageUrl, ...item.previewImageUrls])).slice(0, 3),
                 postIds: Array.from(new Set([...item.postIds, post.id])),
               }
             : item,
@@ -169,7 +173,7 @@ export default function PostDetailPage() {
       });
 
       await savePostToBoard(board.id, post.id, post.imageUrl);
-      const savedBoard = { ...board, postIds: [post.id] };
+      const savedBoard = { ...board, previewImageUrls: [post.imageUrl], postIds: [post.id] };
       setBoards((current) => [...current, savedBoard]);
       setNewBoardTitle("");
       setNewBoardSubtitle("");
@@ -184,7 +188,7 @@ export default function PostDetailPage() {
 
   return (
     <MobileFrame>
-      <article className="h-full overflow-y-auto bg-shell pb-8">
+      <article className="h-full overflow-y-auto bg-shell pb-28">
         <div className="relative h-[430px] bg-ink">
           <img alt={post.title} className="h-full w-full object-cover" src={post.imageUrl} />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
@@ -339,6 +343,7 @@ export default function PostDetailPage() {
           </section>
         </div>
       ) : null}
+      <BottomNav />
     </MobileFrame>
   );
 }

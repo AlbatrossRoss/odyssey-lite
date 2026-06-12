@@ -102,7 +102,7 @@ export default function BoardDetailPage() {
 
     try {
       const updatedBoard = await updateAppBoard(board.id, { title: form.title, subtitle: form.subtitle });
-      setBoard({ ...updatedBoard, postIds: board.postIds });
+      setBoard({ ...updatedBoard, previewImageUrls: board.previewImageUrls, postIds: board.postIds });
       setSettingsOpen(false);
     } catch (error) {
       setMessage(formatError(error));

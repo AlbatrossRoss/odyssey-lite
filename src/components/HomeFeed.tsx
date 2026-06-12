@@ -2,7 +2,7 @@ import { trips, users } from "@/lib/data";
 
 export function HomeFeed() {
   return (
-    <section className="absolute inset-x-0 bottom-[76px] z-30 rounded-t-[34px] bg-shell/98 px-4 pb-5 pt-3 shadow-[0_-18px_40px_rgba(24,35,31,0.18)] backdrop-blur-xl">
+    <section className="nav-cleared-bottom absolute inset-x-0 z-30 rounded-t-[34px] bg-shell/98 px-4 pb-5 pt-3 shadow-[0_-18px_40px_rgba(24,35,31,0.18)] backdrop-blur-xl">
       <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-ink/18" />
       <div className="mb-3 flex items-end justify-between">
         <div>

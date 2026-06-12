@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.1",
+    title: "Board Preview Collages",
+    summary:
+      "Added bottom navigation to post detail pages, upgraded board cards to Pinterest-style image collages, and adjusted recommendation sheets to clear the PWA bottom nav.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.0",
     title: "Cleaner Recommendation Cards",
     summary:

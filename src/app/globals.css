@@ -123,6 +123,10 @@ body > * {
   bottom: calc(84px + var(--chin-nav-shift));
 }
 
+.nav-cleared-bottom {
+  bottom: calc(76px + var(--chin-nav-shift));
+}
+
 @media (max-width: 639px) and (display-mode: standalone) {
   :root {
     --chin-fill: 112px;

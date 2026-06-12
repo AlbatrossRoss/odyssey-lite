@@ -9,6 +9,7 @@ export type AppBoard = {
   title: string;
   subtitle: string;
   coverImageUrl: string;
+  previewImageUrls: string[];
   postIds: string[];
   createdAt: string;
 };
@@ -35,6 +36,11 @@ type AppBoardPostRow = {
   post_id: string;
 };
 
+type BoardPreviewPostRow = {
+  id: string;
+  image_url: string;
+};
+
 const defaultBoardCover = "/hawaii-reference-map.png";
 
 function assertBoardsConfigured() {
@@ -43,7 +49,13 @@ function assertBoardsConfigured() {
   }
 }
 
-function mapBoard(board: AppBoardRow, boardPosts: AppBoardPostRow[] = []): AppBoard {
+function mapBoard(board: AppBoardRow, boardPosts: AppBoardPostRow[] = [], previewPosts: BoardPreviewPostRow[] = []): AppBoard {
+  const postIds = boardPosts.filter((item) => item.board_id === board.id).map((item) => item.post_id);
+  const previewImageUrls = postIds
+    .map((postId) => previewPosts.find((post) => post.id === postId)?.image_url)
+    .filter((imageUrl): imageUrl is string => Boolean(imageUrl))
+    .slice(0, 3);
+
   return {
     id: board.id,
     accountId: board.account_id,
@@ -51,7 +63,8 @@ function mapBoard(board: AppBoardRow, boardPosts: AppBoardPostRow[] = []): AppBo
     title: board.title,
     subtitle: board.subtitle,
     coverImageUrl: board.cover_image_url,
-    postIds: boardPosts.filter((item) => item.board_id === board.id).map((item) => item.post_id),
+    previewImageUrls,
+    postIds,
     createdAt: board.created_at,
   };
 }
@@ -100,7 +113,23 @@ export async function fetchBoardsByAccount(accountId: string) {
     throw postsError;
   }
 
-  return (boards as AppBoardRow[]).map((board) => mapBoard(board, (boardPosts as AppBoardPostRow[]) ?? []));
+  const boardPostRows = ((boardPosts as AppBoardPostRow[]) ?? []).filter((item) =>
+    (boards as AppBoardRow[]).some((board) => board.id === item.board_id),
+  );
+  const postIds = Array.from(new Set(boardPostRows.map((item) => item.post_id)));
+  let previewPosts: BoardPreviewPostRow[] = [];
+
+  if (postIds.length) {
+    const { data: posts, error: previewError } = await supabase.from("app_posts").select("id, image_url").in("id", postIds);
+
+    if (previewError) {
+      throw previewError;
+    }
+
+    previewPosts = posts as BoardPreviewPostRow[];
+  }
+
+  return (boards as AppBoardRow[]).map((board) => mapBoard(board, boardPostRows, previewPosts));
 }
 
 export async function fetchBoardBySlug(accountId: string, slug: string) {
