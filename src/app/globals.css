@@ -126,14 +126,14 @@ body > * {
 @media (max-width: 639px) and (display-mode: standalone) {
   :root {
     --chin-fill: 112px;
-    --chin-nav-shift: 72px;
+    --chin-nav-shift: 36px;
   }
 }
 
 @media (max-width: 639px) {
   .standalone-pwa {
     --chin-fill: 112px;
-    --chin-nav-shift: 72px;
+    --chin-nav-shift: 36px;
   }
 }
 

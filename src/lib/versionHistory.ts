@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.2",
+    title: "PWA Nav Shift Tuning",
+    summary:
+      "Reduced the standalone PWA bottom-nav shift so the nav stays pulled toward the bottom edge without sliding under the iPhone chin area.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.1",
     title: "PWA Bottom Nav Placement",
     summary:
