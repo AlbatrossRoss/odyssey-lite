@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v4.1",
+    title: "iOS Viewport Recalculation",
+    summary:
+      "Aligned the PWA viewport meta with the fullscreen iOS guide and added a standalone-mode viewport-fit toggle to force safe-area recalculation on cold start.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v4.0",
     title: "Edge-to-Edge PWA Shell",
     summary:
