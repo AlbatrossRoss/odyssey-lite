@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.2",
+    title: "Explore Grid Sheet",
+    summary:
+      "Slimmed the recommendation preview cards, tightened the sheet header spacing, and changed the expanded recommendations view into a mixed-size explore grid.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.1",
     title: "Board Preview Collages",
     summary:

@@ -3,8 +3,7 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { AppPostCard } from "@/components/AppPostCard";
-import { AppPostFeedCard } from "@/components/AppPostFeedCard";
+import { AppPostCard, AppPostExploreTile } from "@/components/AppPostCard";
 import { BottomNav } from "@/components/BottomNav";
 import { FilterChips } from "@/components/FilterChips";
 import { MapboxMap } from "@/components/MapboxMap";
@@ -439,7 +438,7 @@ export default function HawaiiDestinationPage() {
           <FilterChips active={activeFilter} onChange={setActiveFilter} />
         </div>
         <section
-          className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-3 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${
+          className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-1 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${
             sheetExpanded ? "nav-cleared-bottom top-[92px] pb-4" : "nav-cleared-bottom h-[36%] pb-3"
           }`}
           onPointerCancel={handleSheetPointerCancel}
@@ -449,7 +448,7 @@ export default function HawaiiDestinationPage() {
         >
           <button
             aria-label={sheetExpanded ? "Collapse friend feed" : "Expand friend feed"}
-            className="mx-auto mb-2 block h-5 w-16 rounded-full"
+            className="mx-auto mb-1 block h-4 w-16 rounded-full"
             onClick={() => setSheetExpanded((expanded) => !expanded)}
             type="button"
           >
@@ -463,9 +462,9 @@ export default function HawaiiDestinationPage() {
           </div>
           {sheetExpanded ? (
             visibleAppPosts.length ? (
-              <div className="no-scrollbar h-[calc(100%-74px)] space-y-4 overflow-y-auto pb-5">
-                {visibleAppPosts.map((post) => (
-                  <AppPostFeedCard key={post.id} post={post} />
+              <div className="no-scrollbar grid h-[calc(100%-58px)] grid-flow-dense auto-rows-[118px] grid-cols-3 gap-2 overflow-y-auto pb-5">
+                {visibleAppPosts.map((post, index) => (
+                  <AppPostExploreTile featured={index % 9 === 0 || index % 9 === 5} key={post.id} post={post} />
                 ))}
               </div>
             ) : (

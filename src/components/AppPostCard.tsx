@@ -10,7 +10,7 @@ type AppPostCardProps = {
 
 export function AppPostCard({ post }: AppPostCardProps) {
   return (
-    <Link className="relative block h-[260px] w-[156px] shrink-0 overflow-hidden rounded-[20px] bg-ink text-left shadow-soft" href={`/posts/${post.id}`}>
+    <Link className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[20px] bg-ink text-left shadow-soft" href={`/posts/${post.id}`}>
       <span className="absolute inset-0 block bg-shell">
         <img
           alt={post.title}
@@ -45,6 +45,40 @@ export function AppPostCard({ post }: AppPostCardProps) {
           <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
           <span className="line-clamp-2">{post.location}</span>
         </span>
+      </span>
+    </Link>
+  );
+}
+
+export function AppPostExploreTile({ post, featured = false }: AppPostCardProps & { featured?: boolean }) {
+  return (
+    <Link
+      className={`group relative block overflow-hidden bg-ink text-left shadow-soft ${
+        featured ? "col-span-2 row-span-2 rounded-[24px]" : "rounded-[18px]"
+      }`}
+      href={`/posts/${post.id}`}
+    >
+      <img
+        alt={post.title}
+        className="absolute inset-0 h-full w-full object-cover opacity-[0.84] transition duration-300 group-hover:scale-105"
+        onError={(event) => {
+          const fallback = fallbackPostImageUrl(post.title, post.location);
+          if (event.currentTarget.src !== fallback) {
+            event.currentTarget.src = fallback;
+          }
+        }}
+        src={post.imageUrl}
+      />
+      <span className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/76" />
+      <span className="absolute left-2.5 top-2.5 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border-2 border-white/90 bg-shell text-ink shadow-lift">
+        {post.profilePhotoUrl ? (
+          <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} />
+        ) : (
+          <UserRound aria-hidden="true" size={15} />
+        )}
+      </span>
+      <span className="absolute bottom-2.5 left-2.5 right-2.5 text-white">
+        <span className={`line-clamp-2 block font-normal leading-tight drop-shadow-sm ${featured ? "text-base" : "text-xs"}`}>{post.title}</span>
       </span>
     </Link>
   );
