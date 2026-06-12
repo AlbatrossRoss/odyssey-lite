@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.7",
+    title: "Image-Forward Rec Cards",
+    summary:
+      "Restyled recommendation cards to be taller and image-led, with softer photo opacity, darker overlays, and smaller white text for better readability.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.6",
     title: "Recommendations Feed Filters",
     summary:

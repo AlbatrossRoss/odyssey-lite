@@ -10,26 +10,12 @@ type AppPostFeedCardProps = {
 
 export function AppPostFeedCard({ post }: AppPostFeedCardProps) {
   return (
-    <article className="overflow-hidden rounded-[24px] bg-white shadow-soft">
-      <Link className="flex w-full items-center gap-3 p-3 text-left" href={`/accounts/${post.username}`}>
-        <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/50">
-          {post.profilePhotoUrl ? (
-            <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} />
-          ) : (
-            <UserRound aria-hidden="true" size={22} />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-extrabold text-ink">@{post.username}</span>
-          <span className="block truncate text-xs font-semibold text-ink/50">{post.dateLabel} · {post.type}</span>
-        </span>
-        <span className="text-xl font-black leading-none text-ink/38">...</span>
-      </Link>
-      <Link className="block text-left" href={`/posts/${post.id}`}>
-        <span className="block aspect-[4/5] overflow-hidden bg-shell">
+    <article className="overflow-hidden rounded-[24px] bg-ink shadow-soft">
+      <Link className="relative block min-h-[430px] text-left" href={`/posts/${post.id}`}>
+        <span className="absolute inset-0 block bg-shell">
           <img
             alt={post.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover opacity-[0.82]"
             onError={(event) => {
               const fallback = fallbackPostImageUrl(post.title, post.location);
               if (event.currentTarget.src !== fallback) {
@@ -39,13 +25,28 @@ export function AppPostFeedCard({ post }: AppPostFeedCardProps) {
             src={post.imageUrl}
           />
         </span>
-        <span className="block px-4 pb-4 pt-3">
-          <span className="block text-lg font-black leading-tight text-ink">{post.title}</span>
-          <span className="mt-2 flex items-start gap-1.5 text-sm font-extrabold leading-tight text-ink/62">
+        <span className="absolute inset-0 bg-gradient-to-b from-ink/30 via-ink/10 to-ink/82" />
+        <span className="absolute left-4 right-4 top-4 flex items-center gap-3 text-white">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/85 bg-shell text-ink/50">
+            {post.profilePhotoUrl ? (
+              <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} />
+            ) : (
+              <UserRound aria-hidden="true" size={22} />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-extrabold text-white">@{post.username}</span>
+            <span className="block truncate text-xs font-semibold text-white/72">{post.dateLabel}</span>
+          </span>
+          <span className="text-xl font-black leading-none text-white/82">...</span>
+        </span>
+        <span className="absolute bottom-5 left-4 right-4 text-white">
+          <span className="block text-base font-black leading-tight drop-shadow-sm">{post.title}</span>
+          <span className="mt-3 block text-sm font-semibold italic leading-snug text-white/90 drop-shadow-sm">{post.caption}</span>
+          <span className="mt-4 flex items-start gap-1.5 text-sm font-extrabold leading-tight text-white/88">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={16} />
             <span>{post.location}</span>
           </span>
-          <span className="mt-3 block text-sm font-semibold leading-relaxed text-ink/58">{post.caption}</span>
         </span>
       </Link>
     </article>
