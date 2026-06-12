@@ -5,6 +5,7 @@
 @tailwind utilities;
 
 :root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
   --raw-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-bottom: min(var(--raw-safe-area-bottom), 1rem);
   --bottom-nav-height: 4.75rem;
@@ -43,6 +44,60 @@ body > * {
   height: 100%;
   min-height: 100dvh;
   overflow: hidden;
+}
+
+.mobile-frame {
+  background: #ffffff;
+  bottom: 0;
+  color: #18231f;
+  height: calc(100dvh + var(--safe-area-top));
+  inset-inline: 0;
+  min-height: calc(100dvh + var(--safe-area-top));
+  overflow: hidden;
+  padding: 0;
+  position: fixed;
+  top: calc(var(--safe-area-top) * -1);
+  width: 100%;
+}
+
+.mobile-frame-inner {
+  background: #f4f0e8;
+  bottom: 0;
+  box-shadow: 0 18px 60px rgba(24, 35, 31, 0.16);
+  height: calc(100dvh + var(--safe-area-top));
+  inset-inline: 0;
+  min-height: calc(100dvh + var(--safe-area-top));
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+}
+
+@media (min-width: 640px) {
+  .mobile-frame {
+    align-items: center;
+    background: transparent;
+    display: flex;
+    height: 100dvh;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: 1.5rem;
+    top: 0;
+  }
+
+  .mobile-frame-inner {
+    border-radius: 34px;
+    box-shadow: 0 18px 60px rgba(24, 35, 31, 0.16);
+    height: 852px;
+    inset: auto;
+    max-height: calc(100vh - 48px);
+    min-height: 0;
+    position: relative;
+    width: 393px;
+    --tw-ring-color: rgb(255 255 255 / 0.55);
+    --tw-ring-offset-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 0 calc(8px + var(--tw-ring-offset-width, 0px)) var(--tw-ring-color);
+    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), 0 18px 60px rgba(24, 35, 31, 0.16);
+  }
 }
 
 .mapboxgl-control-container {

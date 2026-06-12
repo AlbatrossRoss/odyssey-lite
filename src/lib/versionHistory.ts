@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.8",
+    title: "Top Safe-Area Stretch",
+    summary:
+      "Pulled the mobile app frame upward by the iOS top safe-area inset so the PWA can fill the status-bar gap without restoring the bottom chin issue.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.7",
     title: "Top Safe-Area Background",
     summary:
