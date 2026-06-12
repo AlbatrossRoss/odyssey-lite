@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.9",
+    title: "PWA Cold-Start Height",
+    summary:
+      "Replaced dynamic viewport shell heights with 100vh and removed the top safe-area stretch experiment to avoid iOS PWA cold-start geometry gaps.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.8",
     title: "Top Safe-Area Stretch",
     summary:
