@@ -26,7 +26,7 @@ export function AccountGate({ children }: AccountGateProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<"checking" | "ready" | "saving">("checking");
+  const [status, setStatus] = useState<"ready" | "saving">("ready");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -36,7 +36,6 @@ export function AccountGate({ children }: AccountGateProps) {
       const accountId = readAccountSessionId();
 
       if (!accountId || !isSupabaseConfigured()) {
-        setStatus("ready");
         return;
       }
 
@@ -45,12 +44,9 @@ export function AccountGate({ children }: AccountGateProps) {
 
         if (active) {
           setAccount(restored);
-          setStatus("ready");
         }
       } catch {
-        if (active) {
-          setStatus("ready");
-        }
+        // Let the user log in again if session restore fails.
       }
     }
 
@@ -100,14 +96,6 @@ export function AccountGate({ children }: AccountGateProps) {
     }
 
     setPhotoUrl(await fileToDataUrl(file));
-  }
-
-  if (status === "checking") {
-    return (
-      <main className="grid min-h-[100dvh] place-items-center bg-shell px-6 text-ink">
-        <Image alt="Odyssey Lite" className="h-16 w-16 rounded-[18px]" height={64} src="/icon-192.png" width={64} />
-      </main>
-    );
   }
 
   if (account) {

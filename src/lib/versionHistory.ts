@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.7",
+    title: "Plain Share Button and Body Fix",
+    summary:
+      "Removed fixed body sizing, custom touch handlers, and the blocking startup splash; kept the app frame fixed to the screen and made experience Share a plain always-tappable button.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.6",
     title: "Fixed Shell and Inline Share",
     summary:

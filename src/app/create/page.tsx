@@ -140,6 +140,11 @@ export default function CreatePage() {
     setPublishMessage("");
 
     if (postType === "experience") {
+      if (!experienceMedia.length) {
+        setPublishMessage("Add a photo or video before sharing.");
+        return;
+      }
+
       if (step === 1) {
         const published = await shareExperiencePost();
 
@@ -437,14 +442,7 @@ export default function CreatePage() {
               <div className="px-5 pt-4">
                 <button
                   className="flex min-h-16 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:bg-ink/35"
-                  disabled={!canContinue}
                   onClick={next}
-                  onTouchEnd={(event) => {
-                    if (canContinue) {
-                      event.preventDefault();
-                      void next();
-                    }
-                  }}
                   type="button"
                 >
                   Share
@@ -656,12 +654,6 @@ export default function CreatePage() {
                 className="relative z-[81] flex min-h-16 flex-1 touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-ink/35"
                 disabled={!canContinue}
                 onClick={next}
-                onPointerUp={(event) => {
-                  if (event.pointerType === "touch" && canContinue) {
-                    event.preventDefault();
-                    void next();
-                  }
-                }}
                 type="button"
               >
                 {postType === "experience" && step === 1 ? "Share" : step === 5 ? "Publish Trip" : "Next"}
