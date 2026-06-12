@@ -421,18 +421,37 @@ export default function CreatePage() {
           ) : null}
 
           {step === 1 && postType === "experience" ? (
-            <ExperienceDetails
-              date={experienceDate}
-              location={experienceLocation}
-              media={experienceMedia}
-              metadataNote={metadataNote}
-              onDateChange={setExperienceDate}
-              onLocationChange={setExperienceLocation}
-              onTitleChange={setExperienceTitle}
-              onVisibilityChange={setVisibility}
-              title={experienceTitle}
-              visibility={visibility}
-            />
+            <>
+              <ExperienceDetails
+                date={experienceDate}
+                location={experienceLocation}
+                media={experienceMedia}
+                metadataNote={metadataNote}
+                onDateChange={setExperienceDate}
+                onLocationChange={setExperienceLocation}
+                onTitleChange={setExperienceTitle}
+                onVisibilityChange={setVisibility}
+                title={experienceTitle}
+                visibility={visibility}
+              />
+              <div className="px-5 pt-4">
+                <button
+                  className="flex min-h-16 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:bg-ink/35"
+                  disabled={!canContinue}
+                  onClick={next}
+                  onTouchEnd={(event) => {
+                    if (canContinue) {
+                      event.preventDefault();
+                      void next();
+                    }
+                  }}
+                  type="button"
+                >
+                  Share
+                  <ChevronRight aria-hidden="true" size={18} />
+                </button>
+              </div>
+            </>
           ) : null}
 
           {step === 1 && postType === "trip" ? (
@@ -621,7 +640,7 @@ export default function CreatePage() {
           ) : null}
         </div>
 
-        {step < 6 ? (
+        {step < 6 && !(postType === "experience" && step === 1) ? (
           <footer className="fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[100] px-4 sm:absolute">
             <div className="pointer-events-auto flex gap-3 rounded-[30px] bg-white/96 p-2 shadow-soft backdrop-blur-xl">
               <button

@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.6",
+    title: "Fixed Shell and Inline Share",
+    summary:
+      "Replaced the measured viewport approach with a fixed full-screen shell, set the outside safe-area background to white, and moved experience sharing into the normal details screen as an inline button.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.5",
     title: "iPhone Viewport and Share Button",
     summary:
