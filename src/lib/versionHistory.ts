@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.9",
+    title: "Viewport-Pinned Bottom Nav",
+    summary:
+      "Pinned the bottom navigation directly to the phone viewport and made the mobile app shell explicitly full-screen so the nav should fill the bottom edge instead of stopping above it.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.8",
     title: "Single Rec Posting Flow",
     summary:
