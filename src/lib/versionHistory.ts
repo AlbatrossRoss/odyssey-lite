@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.6",
+    title: "Default iOS Status Bar",
+    summary:
+      "Removed the black-translucent iOS web app status bar setting while keeping standalone display and viewport-fit cover to avoid the reported PWA chin offset bug.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.5",
     title: "Capped PWA Chin Inset",
     summary:
