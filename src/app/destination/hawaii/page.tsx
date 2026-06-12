@@ -6,18 +6,12 @@ import { useRouter } from "next/navigation";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
-import { ExperienceCard } from "@/components/ExperienceCard";
-import { ExperienceFeedCard } from "@/components/ExperienceFeedCard";
 import { FilterChips } from "@/components/FilterChips";
-import { FriendPostCard } from "@/components/FriendPostCard";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
-import type { Experience, FriendPost } from "@/lib/data";
-import { experiences, friendPosts } from "@/lib/data";
-import { readPublicExperiences } from "@/lib/publicExperienceStore";
+import { fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
-import { fetchFriendPosts } from "@/lib/supabase/queries";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
@@ -80,24 +74,6 @@ const baseSuggestions: SearchSuggestion[] = [
   { label: "Haleakalā Sunrise", description: "Sarah's sunrise recommendation", center: [-156.2533, 20.7097], zoom: 11 },
 ];
 
-function searchHasContent(query: string, searchableExperiences: Experience[]) {
-  const normalizedQuery = query.trim().toLowerCase();
-  const hawaiiAliases = ["hawaii", "maui", "kona", "oahu", "o‘ahu", "big island", "wailea", "hana", "haleakalā", "haleakala", "punalu"];
-
-  if (!normalizedQuery) {
-    return false;
-  }
-
-  if (hawaiiAliases.some((alias) => normalizedQuery.includes(alias))) {
-    return true;
-  }
-
-  return searchableExperiences.some((experience) => {
-    const searchableText = `${experience.name} ${experience.location} ${experience.island}`.toLowerCase();
-    return searchableText.includes(normalizedQuery);
-  });
-}
-
 function postSearchHasContent(query: string, post: AppPost) {
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -130,22 +106,17 @@ function mapAreaLabel(center: [number, number]) {
 
 export default function HawaiiDestinationPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"home" | "explore">("home");
   const [exploreSource, setExploreSource] = useState<"search" | "map">("search");
-  const [selected, setSelected] = useState<Experience | null>(null);
   const [mapTarget, setMapTarget] = useState<{ center: [number, number]; zoom?: number }>(worldView);
   const [mapArea, setMapArea] = useState<MapArea | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDestination, setActiveDestination] = useState("");
-  const [latestPosts, setLatestPosts] = useState(friendPosts);
   const [appPosts, setAppPosts] = useState<AppPost[]>([]);
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
-  const [publicExperiences, setPublicExperiences] = useState<Experience[]>([]);
   const [activeFilter, setActiveFilter] = useState("Friends");
   const [sheetExpanded, setSheetExpanded] = useState(false);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragStartPoint = useRef<{ x: number; y: number } | null>(null);
-  const reverseGeocodeRequestId = useRef(0);
   const searchSuggestions = useMemo(() => {
     const suggestions = [...mapboxSuggestions, ...baseSuggestions];
     const seen = new Set<string>();
@@ -161,7 +132,6 @@ export default function HawaiiDestinationPage() {
       return true;
     });
   }, [mapboxSuggestions]);
-  const allExperiences = useMemo(() => [...publicExperiences, ...experiences], [publicExperiences]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -221,20 +191,16 @@ export default function HawaiiDestinationPage() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchFriendPosts(), fetchAppPosts()])
-      .then(([posts, sharedPosts]) => {
+    fetchAppPosts()
+      .then((sharedPosts) => {
         if (!active) {
           return;
-        }
-
-        if (posts.length) {
-          setLatestPosts(posts);
         }
 
         setAppPosts(sharedPosts);
       })
       .catch(() => {
-        // Keep local prototype data if Supabase is unavailable.
+        // Keep an empty recommendations feed if Supabase is unavailable.
       });
 
     return () => {
@@ -243,36 +209,36 @@ export default function HawaiiDestinationPage() {
   }, []);
 
   useEffect(() => {
-    const syncPublicExperiences = () => setPublicExperiences(readPublicExperiences());
+    const viewerId = readAccountSessionId();
 
-    syncPublicExperiences();
-    window.addEventListener("storage", syncPublicExperiences);
-    window.addEventListener("odyssey:public-experiences-changed", syncPublicExperiences);
+    if (!viewerId) {
+      setFollowingIds([]);
+      return;
+    }
+
+    let active = true;
+
+    fetchFollowingIds(viewerId)
+      .then((ids) => {
+        if (active) {
+          setFollowingIds(ids);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setFollowingIds([]);
+        }
+      });
 
     return () => {
-      window.removeEventListener("storage", syncPublicExperiences);
-      window.removeEventListener("odyssey:public-experiences-changed", syncPublicExperiences);
+      active = false;
     };
   }, []);
 
-  const handleSelect = useCallback((experience: Experience) => {
-    setMode("explore");
-    setExploreSource("search");
-    setMapArea(null);
-    setSelected(experience);
-    setSearchQuery(experience.name);
-    setActiveDestination(experience.location);
-    setMapTarget({ center: experience.coordinates, zoom: 11 });
-    cardRefs.current[experience.slug]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  }, []);
-
   const enterExploreAt = useCallback((center: [number, number], zoom = 10.5, destination = "") => {
-    setMode("explore");
     setExploreSource("search");
     setMapArea(null);
-    setSelected(null);
     setActiveDestination(destination);
-    setActiveFilter("Friends");
     setSheetExpanded(false);
     setMapTarget({ center, zoom });
   }, []);
@@ -281,23 +247,11 @@ export default function HawaiiDestinationPage() {
     const normalizedQuery = query.trim().toLowerCase();
 
     if (!normalizedQuery) {
-      setSelected(null);
       setActiveDestination("");
       setMapArea(null);
       setExploreSource("search");
       setMapTarget(worldView);
-      setMode("home");
       setSheetExpanded(false);
-      return;
-    }
-
-    const matchingExperience = allExperiences.find((experience) => {
-      const searchableText = `${experience.name} ${experience.location} ${experience.island}`.toLowerCase();
-      return searchableText.includes(normalizedQuery);
-    });
-
-    if (matchingExperience) {
-      handleSelect(matchingExperience);
       return;
     }
 
@@ -332,7 +286,7 @@ export default function HawaiiDestinationPage() {
     } catch {
       // Keep the current map position if geocoding is unavailable.
     }
-  }, [allExperiences, enterExploreAt, handleSelect]);
+  }, [enterExploreAt]);
 
   const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
     const query = suggestion.query ?? suggestion.label;
@@ -348,99 +302,53 @@ export default function HawaiiDestinationPage() {
 
   const handleResetToWorld = useCallback(() => {
     setSearchQuery("");
-    setMode("home");
     setExploreSource("search");
-    setSelected(null);
     setActiveDestination("");
     setMapArea(null);
     setSheetExpanded(false);
     setMapTarget(worldView);
   }, []);
 
-  const handleHomePostSelect = useCallback((post: FriendPost) => {
-    setSearchQuery(post.destination);
-    enterExploreAt(post.coordinates, 10.5, post.destination);
-  }, [enterExploreAt]);
-
   const handleAppPostSelect = useCallback((post: AppPost) => {
     router.push(`/posts/${post.id}`);
   }, [router]);
 
   const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
-    const areaExperiences = allExperiences.filter((experience) => coordinateInBounds(experience.coordinates, bounds));
-    const areaPosts = appPosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
-    const hasAreaContent = areaExperiences.length > 0 || areaPosts.length > 0;
+    const sourcePosts = activeFilter === "All" ? appPosts : appPosts.filter((post) => followingIds.includes(post.accountId));
+    const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
     const canUseMapArea = zoom >= mapExploreZoomThreshold;
 
-    if ((mode === "home" && canUseMapArea && hasAreaContent) || (mode === "explore" && exploreSource === "map")) {
+    if (canUseMapArea && (areaPosts.length > 0 || exploreSource === "map")) {
       const coordinateLabel = mapAreaLabel(center);
-      setMode("explore");
       setExploreSource("map");
       setMapArea({ bounds, center, label: coordinateLabel, zoom });
-      setSelected(null);
-      setSearchQuery("");
       setActiveDestination(coordinateLabel);
       return;
     }
 
-    if (mode !== "explore" || exploreSource === "map") {
-      return;
+    if (!canUseMapArea && exploreSource === "map") {
+      setExploreSource("search");
+      setMapArea(null);
+      setActiveDestination("");
     }
+  }, [activeFilter, appPosts, exploreSource, followingIds]);
 
-    const requestId = reverseGeocodeRequestId.current + 1;
-    reverseGeocodeRequestId.current = requestId;
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-
-    if (!token) {
-      const coordinateLabel = `${center[1].toFixed(2)}, ${center[0].toFixed(2)}`;
-      setSearchQuery(coordinateLabel);
-      setActiveDestination(coordinateLabel);
-      return;
-    }
-
-    const params = new URLSearchParams({
-      access_token: token,
-      language: "en",
-      limit: "1",
-      types: zoom > 9 ? "place,locality,neighborhood,poi" : "country,region,place",
-    });
-
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${center[0]},${center[1]}.json?${params.toString()}`,
-      );
-      const data = (await response.json()) as {
-        features?: Array<{
-          place_name?: string;
-          text?: string;
-        }>;
-      };
-      const nextDestination = data.features?.[0]?.place_name ?? data.features?.[0]?.text;
-
-      if (requestId !== reverseGeocodeRequestId.current || !nextDestination) {
-        return;
-      }
-
-      setSelected(null);
-      setSearchQuery(nextDestination);
-      setActiveDestination(nextDestination);
-    } catch {
-      // Keep the previous search label if reverse geocoding is unavailable.
-    }
-  }, [allExperiences, appPosts, exploreSource, mode]);
-
-  const searchableExperiences = activeFilter === "All" ? allExperiences : experiences;
-  const mapAreaExperiences = mapArea ? searchableExperiences.filter((experience) => coordinateInBounds(experience.coordinates, mapArea.bounds)) : [];
-  const mapAreaPosts = mapArea ? appPosts.filter((post) => coordinateInBounds(post.coordinates, mapArea.bounds)) : [];
-  const hasSearchExploreContent = mode === "explore" && searchHasContent(activeDestination || searchQuery, searchableExperiences);
-  const hasExploreContent = exploreSource === "map" ? mapAreaExperiences.length > 0 || mapAreaPosts.length > 0 : hasSearchExploreContent;
-  const visibleExperiences = exploreSource === "map" ? mapAreaExperiences : hasSearchExploreContent ? searchableExperiences : [];
-  const visibleAppPosts =
-    mode === "explore"
-      ? exploreSource === "map"
-        ? mapAreaPosts
-        : appPosts.filter((post) => postSearchHasContent(activeDestination || searchQuery, post))
-      : [];
+  const followedPosts = useMemo(
+    () => appPosts.filter((post) => followingIds.includes(post.accountId)),
+    [appPosts, followingIds],
+  );
+  const filteredPosts = activeFilter === "All" ? appPosts : followedPosts;
+  const searchText = activeDestination || searchQuery;
+  const searchPosts = searchText ? filteredPosts.filter((post) => postSearchHasContent(searchText, post)) : filteredPosts;
+  const mapAreaPosts = mapArea ? filteredPosts.filter((post) => coordinateInBounds(post.coordinates, mapArea.bounds)) : [];
+  const visibleAppPosts = exploreSource === "map" ? mapAreaPosts : searchPosts;
+  const recommendationCount = visibleAppPosts.length;
+  const recommendationSubtitle =
+    recommendationCount > 0
+      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${activeFilter === "Friends" ? "from people you follow" : "from all travelers"}`
+      : activeFilter === "Friends"
+        ? "Follow accounts to see their recommendations here"
+        : "No recommendations in this area yet";
 
   function handleSheetPointerDown(event: PointerEvent<HTMLElement>) {
     dragStartPoint.current = { x: event.clientX, y: event.clientY };
@@ -496,19 +404,17 @@ export default function HawaiiDestinationPage() {
     <MobileFrame>
       <section className="relative h-full bg-white">
         <MapboxMap
-          appPosts={mode === "home" ? appPosts : visibleAppPosts}
+          appPosts={visibleAppPosts}
           className="absolute inset-x-0 top-0 h-[66%] w-full"
-          experiences={mode === "home" ? experiences : visibleExperiences}
+          experiences={[]}
           mapTarget={mapTarget}
           onMoveEnd={handleMapMoveEnd}
           onPostSelect={handleAppPostSelect}
-          onSelect={handleSelect}
-          selectedSlug={selected?.slug}
           zoom={1.35}
         />
         <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(env(safe-area-inset-top)+18px)]">
           <div className="flex items-center gap-3">
-            {mode === "explore" ? (
+            {searchQuery || activeDestination || mapArea ? (
               <button
                 aria-label="Clear search and show world map"
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
@@ -530,11 +436,11 @@ export default function HawaiiDestinationPage() {
               />
             </div>
           </div>
-          {mode === "explore" ? <FilterChips active={activeFilter} onChange={setActiveFilter} /> : null}
+          <FilterChips active={activeFilter} onChange={setActiveFilter} />
         </div>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-3 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${
-            sheetExpanded ? "bottom-[76px] top-[92px] pb-4" : mode === "home" ? "bottom-[76px] h-[34%] pb-3" : "bottom-[76px] h-[36%] pb-3"
+            sheetExpanded ? "bottom-[76px] top-[92px] pb-4" : "bottom-[76px] h-[36%] pb-3"
           }`}
           onPointerCancel={handleSheetPointerCancel}
           onPointerDown={handleSheetPointerDown}
@@ -551,78 +457,34 @@ export default function HawaiiDestinationPage() {
           </button>
           <div className="mb-2 flex items-end justify-between px-1">
             <div>
-              <h1 className="text-base font-black text-ink">
-                {mode === "home" ? "My friends' latest posts" : "From your friends"}
-              </h1>
-              <p className="text-[11px] font-semibold text-ink/52">
-                {mode === "home"
-                  ? "Recent trips and saves around the world"
-                  : hasExploreContent || visibleAppPosts.length
-                    ? "Real moments from real trips"
-                    : "No friend posts here yet"}
-              </p>
+              <h1 className="text-base font-black text-ink">Recommendations</h1>
+              <p className="text-[11px] font-semibold text-ink/52">{recommendationSubtitle}</p>
             </div>
-            {mode === "home" ? (
-              <button className="pb-1 text-xs font-bold text-[#7c5fd6]" type="button">
-                View all
-              </button>
-            ) : null}
           </div>
-          {mode === "home" ? (
-            <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
-              {appPosts.map((post) => (
-                <AppPostCard key={post.id} post={post} />
-              ))}
-              {latestPosts.map((post) => (
-                <FriendPostCard key={post.id} onSelect={handleHomePostSelect} post={post} />
-              ))}
-            </div>
-          ) : sheetExpanded ? (
-            visibleExperiences.length || visibleAppPosts.length ? (
+          {sheetExpanded ? (
+            visibleAppPosts.length ? (
               <div className="no-scrollbar h-[calc(100%-74px)] space-y-4 overflow-y-auto pb-5">
                 {visibleAppPosts.map((post) => (
                   <AppPostFeedCard key={post.id} post={post} />
-                ))}
-                {visibleExperiences.map((experience) => (
-                  <ExperienceFeedCard
-                    active={selected?.slug === experience.slug}
-                    experience={experience}
-                    key={experience.slug}
-                    onSelect={handleSelect}
-                  />
                 ))}
               </div>
             ) : (
               <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
                 <p className="text-sm font-semibold leading-relaxed text-ink/54">
-                  None of your friends have posted about this destination yet.
+                  {activeFilter === "Friends" ? "No followed accounts have recommendations here yet." : "No recommendations here yet."}
                 </p>
               </div>
             )
-          ) : visibleExperiences.length || visibleAppPosts.length ? (
+          ) : visibleAppPosts.length ? (
             <div className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
               {visibleAppPosts.map((post) => (
                 <AppPostCard key={post.id} post={post} />
-              ))}
-              {visibleExperiences.map((experience) => (
-                <div
-                  key={experience.slug}
-                  ref={(node) => {
-                    cardRefs.current[experience.slug] = node;
-                  }}
-                >
-                  <ExperienceCard
-                    active={selected?.slug === experience.slug}
-                    experience={experience}
-                    onSelect={handleSelect}
-                  />
-                </div>
               ))}
             </div>
           ) : (
             <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
               <p className="text-sm font-semibold leading-relaxed text-ink/54">
-                None of your friends have posted about this destination yet.
+                {activeFilter === "Friends" ? "No followed accounts have recommendations here yet." : "No recommendations here yet."}
               </p>
             </div>
           )}

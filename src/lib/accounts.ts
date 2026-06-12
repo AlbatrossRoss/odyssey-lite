@@ -221,6 +221,19 @@ export async function setAccountFollow(viewerId: string, accountId: string, shou
   }
 }
 
+export async function fetchFollowingIds(viewerId: string) {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.from("account_follows").select("following_id").eq("follower_id", viewerId);
+
+  if (error) {
+    throw error;
+  }
+
+  return data.map((follow) => follow.following_id);
+}
+
 export function normalizeUsername(username: string) {
   return username.trim().replace(/^@+/, "").toLowerCase();
 }

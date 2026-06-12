@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.6",
+    title: "Recommendations Feed Filters",
+    summary:
+      "Replaced the latest-posts home sheet with a persistent Recommendations feed and made Friends/All filters control both map markers and content cards.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.5",
     title: "Cleaner Rec Images and Logout",
     summary:

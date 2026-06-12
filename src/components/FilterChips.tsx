@@ -2,7 +2,7 @@
 
 import { UsersRound } from "lucide-react";
 
-const filters = ["Friends", "All", "Nature", "Beaches", "Food", "Adventure", "Diving"];
+const filters = ["Friends", "All"];
 
 export function FilterChips({ active = "Friends", onChange }: { active?: string; onChange?: (filter: string) => void }) {
   return (
