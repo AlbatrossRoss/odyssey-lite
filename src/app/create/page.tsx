@@ -375,15 +375,9 @@ export default function CreatePage() {
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Create</p>
               <h1 className="text-lg font-black text-ink">{headerTitle}</h1>
             </div>
-            {postType === "experience" && step === 1 ? (
-              <button className="text-sm font-black text-[#4676d8]" disabled={!canContinue} onClick={next} type="button">
-                Share
-              </button>
-            ) : (
-              <button aria-label="More" className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink" type="button">
-                <MoreHorizontal aria-hidden="true" size={19} />
-              </button>
-            )}
+            <button aria-label="More" className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink" type="button">
+              <MoreHorizontal aria-hidden="true" size={19} />
+            </button>
           </div>
           {postType === "trip" ? (
             <div className="h-1.5 overflow-hidden rounded-full bg-shell">
@@ -392,7 +386,7 @@ export default function CreatePage() {
           ) : null}
         </header>
 
-        <div className={`app-scroll h-[calc(100%-94px)] overflow-y-auto pb-32 ${postType === "experience" ? "" : "px-5"}`}>
+        <div className={`app-scroll h-[calc(100%-94px)] overflow-y-auto pb-40 ${postType === "experience" ? "" : "px-5"}`}>
           {step === 0 ? (
             <section className={postType === "experience" ? "px-5" : ""}>
               <div className="mb-4 grid grid-cols-2 gap-2 rounded-[22px] bg-white p-1 shadow-soft">
@@ -628,8 +622,8 @@ export default function CreatePage() {
         </div>
 
         {step < 6 ? (
-          <footer className="absolute inset-x-0 bottom-[calc(76px+max(0.75rem,env(safe-area-inset-bottom)))] z-50 px-4">
-            <div className="flex gap-3 rounded-full bg-white/94 p-2 shadow-soft backdrop-blur-xl">
+          <footer className="absolute inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[80] px-4">
+            <div className="pointer-events-auto flex gap-3 rounded-[30px] bg-white/96 p-2 shadow-soft backdrop-blur-xl">
               <button
                 aria-label="Cancel post"
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
@@ -640,7 +634,7 @@ export default function CreatePage() {
               </button>
               <button
                 aria-label={postType === "experience" && step === 1 ? "Share experience" : step === 5 ? "Publish Trip" : "Next step"}
-                className="flex min-h-14 flex-1 touch-manipulation items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-ink/35"
+                className="relative z-[81] flex min-h-16 flex-1 touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-ink/35"
                 disabled={!canContinue}
                 onClick={next}
                 type="button"
@@ -651,9 +645,9 @@ export default function CreatePage() {
             </div>
           </footer>
         ) : (
-          <footer className="absolute inset-x-0 bottom-[calc(76px+max(0.75rem,env(safe-area-inset-bottom)))] z-50 px-4">
+          <footer className="absolute inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-[80] px-4">
             <button
-              className="flex min-h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-soft"
+              className="relative z-[81] flex min-h-16 w-full touch-manipulation select-none items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-soft"
               onClick={resetCreate}
               type="button"
             >

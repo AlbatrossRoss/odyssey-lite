@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.4",
+    title: "Bottom Edge and Share Tap Fix",
+    summary:
+      "Pinned the PWA viewport to all screen edges to remove the bottom gap, removed the tiny header Share action, and enlarged the bottom Share button with higher tap priority.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.3",
     title: "PWA Fullscreen and Share Fix",
     summary:
