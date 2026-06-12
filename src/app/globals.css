@@ -130,11 +130,11 @@ body > * {
 }
 
 .create-share-bar {
-  bottom: calc(84px + var(--chin-nav-shift));
+  bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 .nav-cleared-bottom {
-  bottom: 84px;
+  bottom: 0;
 }
 
 @media (max-width: 639px) and (display-mode: standalone) {
