@@ -145,7 +145,7 @@ export default function CreatePage() {
   return (
     <MobileFrame>
       <section className="relative h-full overflow-hidden bg-white pb-24">
-        <header className="border-b border-ink/8 bg-white px-5 pb-4 pt-7">
+        <header className="safe-top-bar border-b border-ink/8 bg-white px-5 pb-4">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-coral">Create</p>
           <h1 className="mt-1 text-2xl font-black text-ink">Post a rec</h1>
         </header>

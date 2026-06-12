@@ -88,7 +88,7 @@ export default function BoardsPage() {
 
   return (
     <MobileFrame>
-      <section className="h-full overflow-y-auto bg-shell px-5 pb-28 pt-7">
+      <section className="safe-page h-full overflow-y-auto bg-shell px-5">
         <header className="mb-5 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <Link

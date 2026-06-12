@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
+    statusBarStyle: "black-translucent",
     title: "Odyssey Lite",
   },
   formatDetection: {

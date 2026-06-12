@@ -7,7 +7,7 @@ export default function VersionsPage() {
   return (
     <MobileFrame>
       <section className="relative h-full bg-shell">
-        <div className="h-full overflow-y-auto px-5 pb-28 pt-7">
+        <div className="safe-page h-full overflow-y-auto px-5">
           <header className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Version history</p>
             <h1 className="mt-1 text-3xl font-black leading-tight text-ink">What changed</h1>

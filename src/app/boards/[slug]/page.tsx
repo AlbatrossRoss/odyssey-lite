@@ -126,20 +126,20 @@ export default function BoardDetailPage() {
 
   return (
     <MobileFrame>
-      <section className="h-full overflow-y-auto bg-shell pb-28">
+      <section className="safe-page-bottom h-full overflow-y-auto bg-shell">
         <header className="relative h-64">
           <img alt={board.title} className="h-full w-full object-cover" src={board.coverImageUrl} />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/20 via-transparent to-ink/76" />
           <Link
             aria-label="Back to Boards"
-            className="absolute left-4 top-5 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
+            className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
             href="/boards"
           >
             <ArrowLeft aria-hidden="true" size={20} />
           </Link>
           <button
             aria-label="Board settings"
-            className="absolute right-4 top-5 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
+            className="safe-top-control absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
             onClick={() => setSettingsOpen(true)}
             type="button"
           >

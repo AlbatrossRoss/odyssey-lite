@@ -5,8 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --raw-safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-area-bottom: min(var(--raw-safe-area-bottom), 1rem);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-nav-height: 4.75rem;
   --bottom-nav-clearance: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
   color: #18231f;
@@ -22,9 +22,9 @@ body {
   background: #18231f;
   height: 100vh;
   margin: 0;
-  min-height: 100vh;
   overflow: hidden;
   overscroll-behavior: none;
+  padding: 0;
   width: 100%;
 }
 
@@ -41,34 +41,27 @@ html {
 
 body > * {
   height: 100vh;
-  min-height: 100vh;
   overflow: hidden;
 }
 
 .mobile-frame {
-  background: #ffffff;
-  bottom: 0;
+  background: #18231f;
   color: #18231f;
   height: 100vh;
-  inset-inline: 0;
-  min-height: 100vh;
+  inset: 0;
   overflow: hidden;
   padding: 0;
   position: fixed;
-  top: 0;
   width: 100%;
 }
 
 .mobile-frame-inner {
-  background: #f4f0e8;
-  bottom: 0;
+  background: #18231f;
   box-shadow: 0 18px 60px rgba(24, 35, 31, 0.16);
   height: 100vh;
-  inset-inline: 0;
-  min-height: 100vh;
+  inset: 0;
   overflow: hidden;
   position: absolute;
-  top: 0;
 }
 
 @media (min-width: 640px) {
@@ -78,9 +71,7 @@ body > * {
     display: flex;
     height: 100vh;
     justify-content: center;
-    min-height: 100vh;
     padding: 1.5rem;
-    top: 0;
   }
 
   .mobile-frame-inner {
@@ -183,6 +174,23 @@ body > * {
 
 .bottom-nav-content {
   padding-bottom: max(0.75rem, var(--safe-area-bottom));
+}
+
+.safe-page {
+  padding-bottom: calc(var(--bottom-nav-clearance) + 1rem);
+  padding-top: calc(var(--safe-area-top) + 1.75rem);
+}
+
+.safe-page-bottom {
+  padding-bottom: calc(var(--bottom-nav-clearance) + 1rem);
+}
+
+.safe-top-bar {
+  padding-top: calc(var(--safe-area-top) + 1.75rem);
+}
+
+.safe-top-control {
+  top: calc(var(--safe-area-top) + 1.25rem);
 }
 
 .create-share-bar {

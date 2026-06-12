@@ -188,13 +188,13 @@ export default function PostDetailPage() {
 
   return (
     <MobileFrame>
-      <article className="h-full overflow-y-auto bg-shell pb-28">
+      <article className="safe-page-bottom h-full overflow-y-auto bg-shell">
         <div className="relative h-[430px] bg-ink">
           <img alt={post.title} className="h-full w-full object-cover" src={post.imageUrl} />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
           <Link
             aria-label="Back to Explore"
-            className="absolute left-4 top-5 flex h-11 w-11 items-center justify-center rounded-full bg-white/88 text-ink shadow-lift backdrop-blur"
+            className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/88 text-ink shadow-lift backdrop-blur"
             href="/destination/hawaii"
           >
             <ArrowLeft aria-hidden="true" size={20} />

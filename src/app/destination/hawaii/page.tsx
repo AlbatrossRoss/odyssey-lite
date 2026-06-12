@@ -396,7 +396,7 @@ export default function HawaiiDestinationPage() {
           onPostSelect={handleAppPostSelect}
           zoom={1.35}
         />
-        <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(env(safe-area-inset-top)+18px)]">
+        <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
           <div className="flex items-center gap-3">
             {searchQuery || activeDestination || mapArea ? (
               <button

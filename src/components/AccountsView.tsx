@@ -132,11 +132,11 @@ export function AccountsView({ username }: AccountsViewProps) {
 
   return (
     <MobileFrame>
-      <section className="h-full overflow-y-auto bg-shell pb-28">
+      <section className="safe-page-bottom h-full overflow-y-auto bg-shell">
         <header className="relative h-52 overflow-hidden bg-mist">
           <div className="absolute inset-0 bg-[url('/hawaii-reference-map.png')] bg-cover bg-center opacity-80" />
           <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/20 to-shell" />
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 pt-7">
+          <div className="safe-top-bar absolute inset-x-0 top-0 flex items-center justify-between px-5">
             <Link
               aria-label="Back to Explore"
               className="flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift"

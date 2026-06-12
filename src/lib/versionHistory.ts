@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v4.0",
+    title: "Edge-to-Edge PWA Shell",
+    summary:
+      "Rebuilt the installed iOS PWA shell around viewport-fit cover, a black-translucent status bar, fixed inset 100vh layout, and inner-only safe-area spacing.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.9",
     title: "PWA Cold-Start Height",
     summary:
