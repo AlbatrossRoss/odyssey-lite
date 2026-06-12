@@ -62,7 +62,7 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
   }, []);
 
   return (
-    <nav className="safe-bottom chin-fill fixed inset-x-0 z-40 border-t border-white/60 bg-white px-5 pt-3 shadow-[0_-10px_30px_rgba(24,35,31,0.08)] backdrop-blur-xl sm:absolute">
+    <nav className="pointer-events-none safe-bottom chin-fill fixed inset-x-0 z-40 border-t border-transparent bg-transparent px-5 pt-3 sm:absolute">
       <div className="chin-nav-content mx-auto grid max-w-[22rem] grid-cols-5 items-center gap-2">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -73,10 +73,10 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
           return (
             <Link
               aria-label={item.label}
-              className={`mx-auto flex items-center justify-center rounded-full transition ${
+              className={`pointer-events-auto mx-auto flex items-center justify-center rounded-full transition ${
                 isCreate
                   ? `h-16 w-16 shadow-lift ${active ? "bg-coral text-white" : "bg-ink text-white hover:bg-ink/88"}`
-                  : `h-12 w-12 ${active ? "bg-ink text-white" : "text-ink/58 hover:bg-ink/5 hover:text-ink"}`
+                  : `h-12 w-12 ${active ? "bg-ink text-white shadow-lift" : "bg-white/86 text-ink/68 shadow-lift backdrop-blur hover:bg-white hover:text-ink"}`
               }`}
               href={item.href}
               key={item.label}
