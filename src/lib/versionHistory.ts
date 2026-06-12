@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.5",
+    title: "Cleaner Rec Images and Logout",
+    summary:
+      "Refreshed the sample rec image sources, cleaned up expanded post cards to avoid awkward image bands, and added a visible Log out action on your account page.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.4",
     title: "Map-Driven Explore",
     summary:

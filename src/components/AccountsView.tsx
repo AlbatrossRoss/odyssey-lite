@@ -209,7 +209,19 @@ export function AccountsView({ username }: AccountsViewProps) {
                   <Map aria-hidden="true" size={14} />
                   Account
                 </p>
-                <h1 className="mt-1 text-3xl font-black text-ink">{accountDisplayName(profile)}</h1>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <h1 className="min-w-0 truncate text-3xl font-black text-ink">{accountDisplayName(profile)}</h1>
+                  {isOwnProfile ? (
+                    <button
+                      className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-white px-4 text-xs font-black text-ink shadow-lift"
+                      onClick={logout}
+                      type="button"
+                    >
+                      <LogOut aria-hidden="true" size={15} />
+                      Log out
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="mt-5 grid grid-cols-3 gap-3">

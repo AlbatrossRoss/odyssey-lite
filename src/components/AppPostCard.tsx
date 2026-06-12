@@ -11,8 +11,18 @@ type AppPostCardProps = {
 export function AppPostCard({ post }: AppPostCardProps) {
   return (
     <Link className="w-[126px] shrink-0 overflow-hidden rounded-[18px] bg-white text-left shadow-soft" href={`/posts/${post.id}`}>
-      <span className="relative block h-[104px] bg-ink">
-        <img alt={post.title} className="h-full w-full object-cover" src={post.imageUrl} />
+      <span className="relative block h-[104px] bg-shell">
+        <img
+          alt={post.title}
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            const fallback = fallbackPostImageUrl(post.title, post.location);
+            if (event.currentTarget.src !== fallback) {
+              event.currentTarget.src = fallback;
+            }
+          }}
+          src={post.imageUrl}
+        />
         <span className="absolute inset-0 bg-gradient-to-b from-ink/35 via-transparent to-ink/40" />
         <span className="absolute left-2 top-2 flex items-center gap-1.5 text-white">
           <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-shell text-ink shadow-lift">
@@ -38,8 +48,18 @@ export function AppPostCard({ post }: AppPostCardProps) {
 
 export function AppPostTile({ post }: AppPostCardProps) {
   return (
-    <Link className="group relative block aspect-square overflow-hidden bg-ink" href={`/posts/${post.id}`}>
-      <img alt={post.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" src={post.imageUrl} />
+    <Link className="group relative block aspect-square overflow-hidden bg-shell" href={`/posts/${post.id}`}>
+      <img
+        alt={post.title}
+        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+        onError={(event) => {
+          const fallback = fallbackPostImageUrl(post.title, post.location);
+          if (event.currentTarget.src !== fallback) {
+            event.currentTarget.src = fallback;
+          }
+        }}
+        src={post.imageUrl}
+      />
       <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-ink/62 opacity-90" />
       <span className="absolute bottom-2 left-2 right-2">
         <span className="block truncate text-xs font-black text-white">{post.title}</span>
@@ -47,4 +67,14 @@ export function AppPostTile({ post }: AppPostCardProps) {
       </span>
     </Link>
   );
+}
+
+function fallbackPostImageUrl(title: string, location: string) {
+  const terms = `${title} ${location}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ",")
+    .replace(/,+/g, ",")
+    .replace(/^,|,$/g, "");
+
+  return `https://loremflickr.com/1200/1600/${terms || "travel"}?lock=91227`;
 }
