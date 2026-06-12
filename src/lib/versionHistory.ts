@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.5",
+    title: "Capped PWA Chin Inset",
+    summary:
+      "Capped the iOS bottom safe-area value used by the nav so standalone PWA inset glitches cannot create a large blank shelf under the bottom navigation.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.4",
     title: "Safe-Area Padding Cleanup",
     summary:

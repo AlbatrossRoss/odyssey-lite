@@ -5,7 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --raw-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-bottom: min(var(--raw-safe-area-bottom), 1rem);
   --bottom-nav-height: 5.75rem;
   --bottom-nav-clearance: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
   color: #18231f;
