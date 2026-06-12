@@ -20,6 +20,21 @@ import { fetchAppPosts, type AppPost } from "@/lib/posts";
 import { fetchFriendPosts } from "@/lib/supabase/queries";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
+const mapExploreZoomThreshold = 3.25;
+
+type MapBounds = {
+  east: number;
+  north: number;
+  south: number;
+  west: number;
+};
+
+type MapArea = {
+  bounds: MapBounds;
+  center: [number, number];
+  label: string;
+  zoom: number;
+};
 
 const knownLocations: Record<string, [number, number]> = {
   hawaii: [-156.45, 20.55],
@@ -100,11 +115,26 @@ function postSearchHasContent(query: string, post: AppPost) {
   return searchableText.includes(normalizedQuery);
 }
 
+function coordinateInBounds(coordinates: [number, number], bounds: MapBounds) {
+  const [longitude, latitude] = coordinates;
+  const isInLatitude = latitude >= bounds.south && latitude <= bounds.north;
+  const isInLongitude =
+    bounds.west <= bounds.east ? longitude >= bounds.west && longitude <= bounds.east : longitude >= bounds.west || longitude <= bounds.east;
+
+  return isInLatitude && isInLongitude;
+}
+
+function mapAreaLabel(center: [number, number]) {
+  return `${center[1].toFixed(2)}, ${center[0].toFixed(2)}`;
+}
+
 export default function HawaiiDestinationPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"home" | "explore">("home");
+  const [exploreSource, setExploreSource] = useState<"search" | "map">("search");
   const [selected, setSelected] = useState<Experience | null>(null);
   const [mapTarget, setMapTarget] = useState<{ center: [number, number]; zoom?: number }>(worldView);
+  const [mapArea, setMapArea] = useState<MapArea | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeDestination, setActiveDestination] = useState("");
   const [latestPosts, setLatestPosts] = useState(friendPosts);
@@ -114,7 +144,7 @@ export default function HawaiiDestinationPage() {
   const [activeFilter, setActiveFilter] = useState("Friends");
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const dragStartY = useRef<number | null>(null);
+  const dragStartPoint = useRef<{ x: number; y: number } | null>(null);
   const reverseGeocodeRequestId = useRef(0);
   const searchSuggestions = useMemo(() => {
     const suggestions = [...mapboxSuggestions, ...baseSuggestions];
@@ -227,6 +257,8 @@ export default function HawaiiDestinationPage() {
 
   const handleSelect = useCallback((experience: Experience) => {
     setMode("explore");
+    setExploreSource("search");
+    setMapArea(null);
     setSelected(experience);
     setSearchQuery(experience.name);
     setActiveDestination(experience.location);
@@ -236,6 +268,8 @@ export default function HawaiiDestinationPage() {
 
   const enterExploreAt = useCallback((center: [number, number], zoom = 10.5, destination = "") => {
     setMode("explore");
+    setExploreSource("search");
+    setMapArea(null);
     setSelected(null);
     setActiveDestination(destination);
     setActiveFilter("Friends");
@@ -249,6 +283,8 @@ export default function HawaiiDestinationPage() {
     if (!normalizedQuery) {
       setSelected(null);
       setActiveDestination("");
+      setMapArea(null);
+      setExploreSource("search");
       setMapTarget(worldView);
       setMode("home");
       setSheetExpanded(false);
@@ -313,8 +349,10 @@ export default function HawaiiDestinationPage() {
   const handleResetToWorld = useCallback(() => {
     setSearchQuery("");
     setMode("home");
+    setExploreSource("search");
     setSelected(null);
     setActiveDestination("");
+    setMapArea(null);
     setSheetExpanded(false);
     setMapTarget(worldView);
   }, []);
@@ -328,8 +366,24 @@ export default function HawaiiDestinationPage() {
     router.push(`/posts/${post.id}`);
   }, [router]);
 
-  const handleMapMoveEnd = useCallback(async ({ center, zoom }: { center: [number, number]; zoom: number }) => {
-    if (mode !== "explore") {
+  const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
+    const areaExperiences = allExperiences.filter((experience) => coordinateInBounds(experience.coordinates, bounds));
+    const areaPosts = appPosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
+    const hasAreaContent = areaExperiences.length > 0 || areaPosts.length > 0;
+    const canUseMapArea = zoom >= mapExploreZoomThreshold;
+
+    if ((mode === "home" && canUseMapArea && hasAreaContent) || (mode === "explore" && exploreSource === "map")) {
+      const coordinateLabel = mapAreaLabel(center);
+      setMode("explore");
+      setExploreSource("map");
+      setMapArea({ bounds, center, label: coordinateLabel, zoom });
+      setSelected(null);
+      setSearchQuery("");
+      setActiveDestination(coordinateLabel);
+      return;
+    }
+
+    if (mode !== "explore" || exploreSource === "map") {
       return;
     }
 
@@ -373,35 +427,69 @@ export default function HawaiiDestinationPage() {
     } catch {
       // Keep the previous search label if reverse geocoding is unavailable.
     }
-  }, [mode]);
+  }, [allExperiences, appPosts, exploreSource, mode]);
 
   const searchableExperiences = activeFilter === "All" ? allExperiences : experiences;
-  const hasExploreContent = mode === "explore" && searchHasContent(activeDestination || searchQuery, searchableExperiences);
-  const visibleExperiences = hasExploreContent ? searchableExperiences : [];
+  const mapAreaExperiences = mapArea ? searchableExperiences.filter((experience) => coordinateInBounds(experience.coordinates, mapArea.bounds)) : [];
+  const mapAreaPosts = mapArea ? appPosts.filter((post) => coordinateInBounds(post.coordinates, mapArea.bounds)) : [];
+  const hasSearchExploreContent = mode === "explore" && searchHasContent(activeDestination || searchQuery, searchableExperiences);
+  const hasExploreContent = exploreSource === "map" ? mapAreaExperiences.length > 0 || mapAreaPosts.length > 0 : hasSearchExploreContent;
+  const visibleExperiences = exploreSource === "map" ? mapAreaExperiences : hasSearchExploreContent ? searchableExperiences : [];
   const visibleAppPosts =
     mode === "explore"
-      ? appPosts.filter((post) => postSearchHasContent(activeDestination || searchQuery, post))
+      ? exploreSource === "map"
+        ? mapAreaPosts
+        : appPosts.filter((post) => postSearchHasContent(activeDestination || searchQuery, post))
       : [];
 
   function handleSheetPointerDown(event: PointerEvent<HTMLElement>) {
-    dragStartY.current = event.clientY;
+    dragStartPoint.current = { x: event.clientX, y: event.clientY };
   }
 
-  function handleSheetPointerUp(event: PointerEvent<HTMLElement>) {
-    if (dragStartY.current === null) {
+  function handleSheetPointerMove(event: PointerEvent<HTMLElement>) {
+    const start = dragStartPoint.current;
+
+    if (!start) {
       return;
     }
 
-    const deltaY = event.clientY - dragStartY.current;
-    dragStartY.current = null;
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
 
-    if (deltaY < -36) {
+    if (Math.abs(deltaY) < 52 || Math.abs(deltaY) < Math.abs(deltaX) * 1.2) {
+      return;
+    }
+
+    setSheetExpanded(deltaY < 0);
+    dragStartPoint.current = null;
+  }
+
+  function handleSheetPointerUp(event: PointerEvent<HTMLElement>) {
+    const start = dragStartPoint.current;
+
+    if (!start) {
+      return;
+    }
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    dragStartPoint.current = null;
+
+    if (Math.abs(deltaY) < 28 || Math.abs(deltaY) < Math.abs(deltaX) * 1.1) {
+      return;
+    }
+
+    if (deltaY < 0) {
       setSheetExpanded(true);
     }
 
-    if (deltaY > 36) {
+    if (deltaY > 0) {
       setSheetExpanded(false);
     }
+  }
+
+  function handleSheetPointerCancel() {
+    dragStartPoint.current = null;
   }
 
   return (
@@ -448,7 +536,9 @@ export default function HawaiiDestinationPage() {
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-3 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${
             sheetExpanded ? "bottom-[76px] top-[92px] pb-4" : mode === "home" ? "bottom-[76px] h-[34%] pb-3" : "bottom-[76px] h-[36%] pb-3"
           }`}
+          onPointerCancel={handleSheetPointerCancel}
           onPointerDown={handleSheetPointerDown}
+          onPointerMove={handleSheetPointerMove}
           onPointerUp={handleSheetPointerUp}
         >
           <button

@@ -17,7 +17,16 @@ type MapboxMapProps = {
     center: [number, number];
     zoom?: number;
   };
-  onMoveEnd?: (view: { center: [number, number]; zoom: number }) => void;
+  onMoveEnd?: (view: {
+    bounds: {
+      east: number;
+      north: number;
+      south: number;
+      west: number;
+    };
+    center: [number, number];
+    zoom: number;
+  }) => void;
   className?: string;
   zoom?: number;
   interactive?: boolean;
@@ -187,7 +196,18 @@ export function MapboxMap({
       }
 
       const center = mapRef.current.getCenter();
+      const bounds = mapRef.current.getBounds();
+      if (!bounds) {
+        return;
+      }
+
       onMoveEndRef.current?.({
+        bounds: {
+          east: bounds.getEast(),
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          west: bounds.getWest(),
+        },
         center: [center.lng, center.lat],
         zoom: mapRef.current.getZoom(),
       });

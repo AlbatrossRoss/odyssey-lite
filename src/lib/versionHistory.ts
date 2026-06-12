@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.4",
+    title: "Map-Driven Explore",
+    summary:
+      "Made Explore activate from map movement when the visible map area contains posts, and improved bottom-sheet swipe gestures for expanding and collapsing content cards.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.3",
     title: "Shared Posts on Map",
     summary:
