@@ -3,13 +3,13 @@
 import { ArrowLeft, Settings, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { AppPostCard } from "@/components/AppPostCard";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
-import type { Board } from "@/lib/data";
-import { boards, experiences } from "@/lib/data";
-import { readBoards, writeBoards } from "@/lib/boardStore";
-import { readSavedSlugs } from "@/lib/saveStore";
+import { deleteAppBoard, fetchBoardBySlug, updateAppBoard, type AppBoard } from "@/lib/boards";
+import { readAccountSessionId } from "@/lib/accounts";
+import { fetchAppPostsByIds, type AppPost } from "@/lib/posts";
 
 type BoardFormState = {
   title: string;
@@ -19,32 +19,62 @@ type BoardFormState = {
 export default function BoardDetailPage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
-  const [board, setBoard] = useState<Board | null>(null);
+  const [board, setBoard] = useState<AppBoard | null>(null);
+  const [posts, setPosts] = useState<AppPost[]>([]);
   const [form, setForm] = useState<BoardFormState>({ title: "", subtitle: "" });
   const [loaded, setLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [savedSlugs, setSavedSlugs] = useState<string[]>([]);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const matchingBoard = readBoards().find((item) => item.slug === params.slug) ?? null;
+    const accountId = readAccountSessionId();
 
-    setBoard(matchingBoard);
-    setForm({
-      title: matchingBoard?.title ?? "",
-      subtitle: matchingBoard?.subtitle ?? "",
-    });
-    setSavedSlugs(readSavedSlugs(boards[0].experienceSlugs));
-    setLoaded(true);
-  }, [params.slug]);
-
-  const savedExperiences = useMemo(() => {
-    if (!board) {
-      return [];
+    if (!accountId) {
+      setLoaded(true);
+      return;
     }
 
-    const merged = Array.from(new Set([...board.experienceSlugs, ...savedSlugs]));
-    return experiences.filter((experience) => merged.includes(experience.slug));
-  }, [board, savedSlugs]);
+    let active = true;
+    const viewerId = accountId;
+
+    async function loadBoard() {
+      try {
+        const matchingBoard = await fetchBoardBySlug(viewerId, params.slug);
+
+        if (!active) {
+          return;
+        }
+
+        setBoard(matchingBoard);
+        setForm({
+          title: matchingBoard?.title ?? "",
+          subtitle: matchingBoard?.subtitle ?? "",
+        });
+
+        if (matchingBoard?.postIds.length) {
+          const savedPosts = await fetchAppPostsByIds(matchingBoard.postIds);
+
+          if (active) {
+            setPosts(savedPosts);
+          }
+        }
+      } catch (error) {
+        if (active) {
+          setMessage(formatError(error));
+        }
+      } finally {
+        if (active) {
+          setLoaded(true);
+        }
+      }
+    }
+
+    void loadBoard();
+
+    return () => {
+      active = false;
+    };
+  }, [params.slug]);
 
   if (loaded && !board) {
     notFound();
@@ -63,26 +93,23 @@ export default function BoardDetailPage() {
     setForm({ title: board.title, subtitle: board.subtitle });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!board || !form.title.trim()) {
       return;
     }
 
-    const updatedBoard = {
-      ...board,
-      title: form.title.trim(),
-      subtitle: form.subtitle.trim() || "Saved places from friends",
-    };
-    const nextBoards = readBoards().map((item) => (item.id === board.id ? updatedBoard : item));
-
-    writeBoards(nextBoards);
-    setBoard(updatedBoard);
-    setSettingsOpen(false);
+    try {
+      const updatedBoard = await updateAppBoard(board.id, { title: form.title, subtitle: form.subtitle });
+      setBoard({ ...updatedBoard, postIds: board.postIds });
+      setSettingsOpen(false);
+    } catch (error) {
+      setMessage(formatError(error));
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!board) {
       return;
     }
@@ -93,7 +120,7 @@ export default function BoardDetailPage() {
       return;
     }
 
-    writeBoards(readBoards().filter((item) => item.id !== board.id));
+    await deleteAppBoard(board.id);
     router.push("/boards");
   }
 
@@ -121,25 +148,29 @@ export default function BoardDetailPage() {
           <div className="absolute bottom-5 left-5 right-5 text-white">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/74">Board</p>
             <h1 className="text-4xl font-black leading-none">{board.title}</h1>
-            <p className="mt-2 text-sm font-semibold text-white/82">{board.subtitle}</p>
+            <p className="mt-2 text-sm font-semibold text-white/82">{board.subtitle || `${posts.length} saved posts`}</p>
           </div>
         </header>
-        <div className="space-y-5 px-5 pt-5">
-          <div className="grid grid-cols-2 gap-3">
-            {savedExperiences.map((experience) => (
-              <Link
-                className="overflow-hidden rounded-[24px] bg-white shadow-soft"
-                href={`/experience/${experience.slug}`}
-                key={experience.slug}
-              >
-                <img alt={experience.name} className="h-36 w-full object-cover" src={experience.imageUrl} />
-                <div className="p-3">
-                  <h2 className="text-sm font-extrabold leading-tight text-ink">{experience.name}</h2>
-                  <p className="mt-1 text-xs font-semibold text-moss">{experience.island}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <div className="px-5 pt-5">
+          {message ? <p className="mb-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
+
+          {posts.length ? (
+            <div className="grid grid-cols-2 gap-3">
+              {posts.map((post) => (
+                <AppPostCard key={post.id} post={post} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid min-h-[360px] place-items-center rounded-[30px] bg-white/64 px-6 text-center shadow-soft">
+              <div>
+                <h2 className="text-2xl font-black text-ink">Nothing saved yet</h2>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/58">Open a post and save it here when it feels worth remembering.</p>
+                <Link className="mt-6 inline-flex rounded-full bg-ink px-6 py-3 text-sm font-black text-white" href="/destination/hawaii">
+                  Explore posts
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </section>
       <BottomNav />
@@ -180,17 +211,14 @@ export default function BoardDetailPage() {
             </label>
             <div className="flex gap-3">
               <button
+                aria-label="Delete board"
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-coral/12 text-coral"
                 onClick={handleDelete}
                 type="button"
-                aria-label="Delete board"
               >
                 <Trash2 aria-hidden="true" size={20} />
               </button>
-              <button
-                className="flex h-14 flex-1 items-center justify-center rounded-full bg-ink px-5 text-base font-extrabold text-white shadow-lift"
-                type="submit"
-              >
+              <button className="flex h-14 flex-1 items-center justify-center rounded-full bg-ink px-5 text-base font-extrabold text-white shadow-lift" type="submit">
                 Save Changes
               </button>
             </div>
@@ -199,4 +227,8 @@ export default function BoardDetailPage() {
       ) : null}
     </MobileFrame>
   );
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong.";
 }

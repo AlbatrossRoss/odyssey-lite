@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.8",
+    title: "Account Boards",
+    summary:
+      "Moved boards to account-specific Supabase storage, removed shared sample boards, and added a clean save flow from post detail pages into existing or newly created boards.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.7",
     title: "Image-Forward Rec Cards",
     summary:

@@ -1,5 +1,4 @@
 import type { Board } from "@/lib/data";
-import { boards as seedBoards } from "@/lib/data";
 
 const boardsKey = "odyssey:boards";
 
@@ -15,14 +14,14 @@ export function slugifyBoardTitle(title: string) {
 
 export function readBoards() {
   if (typeof window === "undefined") {
-    return seedBoards;
+    return [];
   }
 
   try {
     const stored = window.localStorage.getItem(boardsKey);
-    return stored ? (JSON.parse(stored) as Board[]) : seedBoards;
+    return stored ? (JSON.parse(stored) as Board[]) : [];
   } catch {
-    return seedBoards;
+    return [];
   }
 }
 

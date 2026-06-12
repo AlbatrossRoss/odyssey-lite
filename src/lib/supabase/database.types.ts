@@ -69,6 +69,44 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["app_posts"]["Insert"]>;
         Relationships: [];
       };
+      app_boards: {
+        Row: {
+          id: string;
+          account_id: string;
+          slug: string;
+          title: string;
+          subtitle: string;
+          cover_image_url: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          account_id: string;
+          slug: string;
+          title: string;
+          subtitle?: string;
+          cover_image_url?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["app_boards"]["Insert"]>;
+        Relationships: [];
+      };
+      app_board_posts: {
+        Row: {
+          id: string;
+          board_id: string;
+          post_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          board_id: string;
+          post_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["app_board_posts"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import type { Board } from "@/lib/data";
+import type { AppBoard } from "@/lib/boards";
 
 type BoardCardProps = {
-  board: Board;
+  board: AppBoard;
   tall?: boolean;
 };
 
@@ -20,6 +20,9 @@ export function BoardCard({ board, tall = false }: BoardCardProps) {
         <div className="space-y-1 p-4">
           <h2 className="text-lg font-extrabold text-ink">{board.title}</h2>
           <p className="text-sm leading-snug text-ink/62">{board.subtitle}</p>
+          <p className="pt-1 text-xs font-black uppercase tracking-[0.14em] text-ink/38">
+            {board.postIds.length} {board.postIds.length === 1 ? "post" : "posts"}
+          </p>
         </div>
       </Link>
     </article>

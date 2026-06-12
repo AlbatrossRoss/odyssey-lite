@@ -134,6 +134,27 @@ export async function fetchAppPostsByAccount(accountId: string) {
   return (data as AppPostRow[]).map(mapPost);
 }
 
+export async function fetchAppPostsByIds(postIds: string[]) {
+  assertPostsConfigured();
+
+  if (!postIds.length) {
+    return [];
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("app_posts")
+    .select("*, app_accounts(username, profile_photo_url)")
+    .in("id", postIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as AppPostRow[]).map(mapPost);
+}
+
 export async function fetchAppPostById(postId: string) {
   assertPostsConfigured();
 
