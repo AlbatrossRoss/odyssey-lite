@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.3",
+    title: "Shared Posts on Map",
+    summary:
+      "Added database-backed rec posts as Explore map markers, including the new sample posts, and made post markers open their post detail pages.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.2",
     title: "PWA Nav Shift Tuning",
     summary:

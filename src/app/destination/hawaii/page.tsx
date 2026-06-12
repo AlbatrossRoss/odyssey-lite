@@ -2,6 +2,7 @@
 
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
@@ -41,6 +42,13 @@ const knownLocations: Record<string, [number, number]> = {
   "mexico city": [-99.1332, 19.4326],
   banff: [-115.5708, 51.1784],
   canada: [-106.3468, 56.1304],
+  atlanta: [-84.3877, 33.7488],
+  "atlanta, ga": [-84.3877, 33.7488],
+  greece: [23.7275, 37.9838],
+  athens: [23.7275, 37.9838],
+  santorini: [25.4615, 36.3932],
+  "fort worth": [-97.3308, 32.7555],
+  "fort worth, texas": [-97.3308, 32.7555],
 };
 
 const baseSuggestions: SearchSuggestion[] = [
@@ -93,6 +101,7 @@ function postSearchHasContent(query: string, post: AppPost) {
 }
 
 export default function HawaiiDestinationPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<"home" | "explore">("home");
   const [selected, setSelected] = useState<Experience | null>(null);
   const [mapTarget, setMapTarget] = useState<{ center: [number, number]; zoom?: number }>(worldView);
@@ -315,6 +324,10 @@ export default function HawaiiDestinationPage() {
     enterExploreAt(post.coordinates, 10.5, post.destination);
   }, [enterExploreAt]);
 
+  const handleAppPostSelect = useCallback((post: AppPost) => {
+    router.push(`/posts/${post.id}`);
+  }, [router]);
+
   const handleMapMoveEnd = useCallback(async ({ center, zoom }: { center: [number, number]; zoom: number }) => {
     if (mode !== "explore") {
       return;
@@ -395,10 +408,12 @@ export default function HawaiiDestinationPage() {
     <MobileFrame>
       <section className="relative h-full bg-white">
         <MapboxMap
+          appPosts={mode === "home" ? appPosts : visibleAppPosts}
           className="absolute inset-x-0 top-0 h-[66%] w-full"
           experiences={mode === "home" ? experiences : visibleExperiences}
           mapTarget={mapTarget}
           onMoveEnd={handleMapMoveEnd}
+          onPostSelect={handleAppPostSelect}
           onSelect={handleSelect}
           selectedSlug={selected?.slug}
           zoom={1.35}

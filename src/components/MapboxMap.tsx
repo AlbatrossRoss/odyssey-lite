@@ -5,11 +5,14 @@ import type { FeatureCollection, Polygon } from "geojson";
 import { useEffect, useRef } from "react";
 import type { Experience } from "@/lib/data";
 import { getUser } from "@/lib/data";
+import type { AppPost } from "@/lib/posts";
 
 type MapboxMapProps = {
   experiences: Experience[];
+  appPosts?: AppPost[];
   selectedSlug?: string;
   onSelect?: (experience: Experience) => void;
+  onPostSelect?: (post: AppPost) => void;
   mapTarget?: {
     center: [number, number];
     zoom?: number;
@@ -133,8 +136,10 @@ const localHawaiiStyle: mapboxgl.Style = {
 
 export function MapboxMap({
   experiences,
+  appPosts = [],
   selectedSlug,
   onSelect,
+  onPostSelect,
   mapTarget,
   onMoveEnd,
   className = "",
@@ -224,7 +229,7 @@ export function MapboxMap({
     }
 
     markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = experiences.map((experience) => {
+    const experienceMarkers = experiences.map((experience) => {
       const element = document.createElement("button");
       element.className = "odyssey-marker";
       element.type = "button";
@@ -244,7 +249,29 @@ export function MapboxMap({
 
       return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(experience.coordinates).addTo(mapRef.current!);
     });
-  }, [experiences, onSelect, selectedSlug]);
+    const postMarkers = appPosts.map((post, index) => {
+      const element = document.createElement("button");
+      element.className = "odyssey-marker";
+      element.type = "button";
+      element.setAttribute("aria-label", post.title);
+      const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${post.profilePhotoUrl}" alt="" />` : "";
+
+      element.innerHTML = `
+        <span class="odyssey-marker-card" data-selected="false">
+          <img src="${post.imageUrl}" alt="" />
+          ${avatarMarkup}
+          <span class="odyssey-marker-count" style="background:${markerColors[(experiences.length + index) % markerColors.length]}">
+            1
+          </span>
+        </span>
+      `;
+      element.addEventListener("click", () => onPostSelect?.(post));
+
+      return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
+    });
+
+    markersRef.current = [...experienceMarkers, ...postMarkers];
+  }, [appPosts, experiences, onPostSelect, onSelect, selectedSlug]);
 
   return (
     <div className={`relative bg-[#a9d7ed] ${className}`}>
