@@ -59,20 +59,6 @@ const knownLocations: Record<string, [number, number]> = {
   "fort worth, texas": [-97.3308, 32.7555],
 };
 
-const baseSuggestions: SearchSuggestion[] = [
-  { label: "Tokyo", description: "Japan · Nina's newest trip", center: [139.6917, 35.6895], zoom: 10.5 },
-  { label: "Lisbon", description: "Portugal · Jake's Alfama walk", center: [-9.1393, 38.7223], zoom: 11 },
-  { label: "Dolomites", description: "Italy · Allison's hut weekend", center: [12.1357, 46.5405], zoom: 9.5 },
-  { label: "Mexico City", description: "Mexico · Matt's food crawl", center: [-99.1332, 19.4326], zoom: 10.5 },
-  { label: "Banff", description: "Canada · Sarah's mountain trip", center: [-115.5708, 51.1784], zoom: 10 },
-  { label: "Hawaii", description: "Island chain and friend posts", center: [-156.45, 20.55], zoom: 6.05 },
-  { label: "Maui", description: "Road to Hana, Wailea, Haleakala", center: [-156.3319, 20.7984], zoom: 10.5 },
-  { label: "O‘ahu", description: "Honolulu and North Shore saves", query: "o‘ahu", center: [-157.8583, 21.3099], zoom: 10.5 },
-  { label: "Big Island", description: "Kona, volcanoes, black sand beaches", center: [-155.5828, 19.5429], zoom: 8.5 },
-  { label: "Road to Hana", description: "Jake's Maui drive post", center: [-156.1677, 20.7984], zoom: 11 },
-  { label: "Haleakalā Sunrise", description: "Sarah's sunrise recommendation", center: [-156.2533, 20.7097], zoom: 11 },
-];
-
 function postSearchHasContent(query: string, post: AppPost) {
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -117,10 +103,9 @@ export default function HawaiiDestinationPage() {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const dragStartPoint = useRef<{ x: number; y: number } | null>(null);
   const searchSuggestions = useMemo(() => {
-    const suggestions = [...mapboxSuggestions, ...baseSuggestions];
     const seen = new Set<string>();
 
-    return suggestions.filter((suggestion) => {
+    return mapboxSuggestions.filter((suggestion) => {
       const key = `${suggestion.label}-${suggestion.description ?? ""}`.toLowerCase();
 
       if (seen.has(key)) {
