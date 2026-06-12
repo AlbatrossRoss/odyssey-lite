@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v4.2",
+    title: "Top Edge Overdraw",
+    summary:
+      "Extended the fixed mobile shell upward by the iOS top safe-area inset so the installed PWA draws all the way to the top edge again.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v4.1",
     title: "iOS Viewport Recalculation",
     summary:
