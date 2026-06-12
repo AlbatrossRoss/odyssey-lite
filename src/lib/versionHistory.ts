@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.4",
+    title: "Safe-Area Padding Cleanup",
+    summary:
+      "Centralized the iOS bottom safe-area measurement, removed the remaining chin spacer references, and aligned board/save sheets with the same PWA bottom padding model.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.3",
     title: "PWA Safe-Area Nav",
     summary:

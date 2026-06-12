@@ -5,8 +5,9 @@
 @tailwind utilities;
 
 :root {
-  --chin-fill: 0px;
-  --bottom-nav-clearance: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-height: 5.75rem;
+  --bottom-nav-clearance: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
   color: #18231f;
   background: #ffffff;
 }
@@ -125,12 +126,20 @@ body > * {
   backdrop-filter: blur(18px);
 }
 
+.bottom-nav-content {
+  padding-bottom: max(0.75rem, var(--safe-area-bottom));
+}
+
 .create-share-bar {
   bottom: var(--bottom-nav-clearance);
 }
 
 .nav-cleared-bottom {
   bottom: var(--bottom-nav-clearance);
+}
+
+.safe-modal-bottom {
+  padding-bottom: calc(0.75rem + var(--safe-area-bottom));
 }
 
 .app-viewport {

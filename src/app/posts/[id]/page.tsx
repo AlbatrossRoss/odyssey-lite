@@ -252,7 +252,7 @@ export default function PostDetailPage() {
       </article>
 
       {saveOpen ? (
-        <div className="absolute inset-x-0 top-0 z-50 flex h-full items-end bg-ink/28 pb-[calc(var(--chin-fill)+0.75rem)] backdrop-blur-sm">
+        <div className="safe-modal-bottom absolute inset-x-0 top-0 z-50 flex h-full items-end bg-ink/28 backdrop-blur-sm">
           <section className="max-h-[82%] w-full overflow-y-auto rounded-t-[30px] bg-white p-5 shadow-soft">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
