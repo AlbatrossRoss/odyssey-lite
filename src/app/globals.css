@@ -5,6 +5,7 @@
 @tailwind utilities;
 
 :root {
+  --chin-fill: 96px;
   color: #18231f;
   background: #ffffff;
 }
@@ -114,7 +115,17 @@ body > * {
 }
 
 .safe-bottom {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--chin-fill));
+}
+
+.chin-fill {
+  bottom: calc(var(--chin-fill) * -1);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --chin-fill: 0px;
+  }
 }
 
 .app-viewport {

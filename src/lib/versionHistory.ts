@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v2.0",
+    title: "iOS Chin Gap Fill",
+    summary:
+      "Extended the bottom navigation background below the CSS viewport on mobile so iOS standalone PWAs should no longer show a white chin gap under the nav.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.9",
     title: "Viewport-Pinned Bottom Nav",
     summary:

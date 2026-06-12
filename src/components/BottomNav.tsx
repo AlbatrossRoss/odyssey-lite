@@ -21,7 +21,7 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-white/60 bg-white px-5 pt-2 shadow-[0_-10px_30px_rgba(24,35,31,0.08)] backdrop-blur-xl sm:absolute">
+    <nav className="safe-bottom chin-fill fixed inset-x-0 z-40 border-t border-white/60 bg-white px-5 pt-2 shadow-[0_-10px_30px_rgba(24,35,31,0.08)] backdrop-blur-xl sm:absolute">
       <div className="mx-auto flex max-w-[22rem] items-center justify-between">
         {navItems.map((item) => {
           const Icon = item.icon;
