@@ -63,7 +63,8 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
 
   return (
     <nav className="pointer-events-none safe-bottom chin-fill fixed inset-x-0 z-40 border-t border-transparent bg-transparent px-5 pt-3 sm:absolute">
-      <div className="chin-nav-content mx-auto grid max-w-[22rem] grid-cols-5 items-center gap-2">
+      <div className="bottom-nav-surface" />
+      <div className="chin-nav-content relative z-10 mx-auto grid max-w-[22rem] grid-cols-5 items-center gap-2">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab ? activeTab === item.label : pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));

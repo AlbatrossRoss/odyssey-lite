@@ -119,6 +119,16 @@ body > * {
   transform: translateY(var(--chin-nav-shift));
 }
 
+.bottom-nav-surface {
+  position: absolute;
+  inset-inline: 0;
+  bottom: var(--chin-fill);
+  height: calc(76px + var(--chin-nav-shift));
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -10px 30px rgba(24, 35, 31, 0.08);
+  backdrop-filter: blur(18px);
+}
+
 .create-share-bar {
   bottom: calc(84px + var(--chin-nav-shift));
 }
