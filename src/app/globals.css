@@ -10,7 +10,7 @@
   --bottom-nav-height: 4.75rem;
   --bottom-nav-clearance: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
   color: #18231f;
-  background: #ffffff;
+  background: #18231f;
 }
 
 * {
@@ -19,7 +19,7 @@
 
 html,
 body {
-  background: #ffffff;
+  background: #18231f;
   height: 100%;
   margin: 0;
   min-height: 100dvh;
@@ -29,13 +29,13 @@ body {
 }
 
 body {
-  background: #ffffff;
+  background: #18231f;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   touch-action: manipulation;
 }
 
 html {
-  background: #ffffff;
+  background: #18231f;
   height: 100%;
 }
 

@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.7",
+    title: "Top Safe-Area Background",
+    summary:
+      "Matched the outer document background to the app shell color so the iOS standalone status-bar area no longer appears as a white top gap.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.6",
     title: "Default iOS Status Bar",
     summary:
