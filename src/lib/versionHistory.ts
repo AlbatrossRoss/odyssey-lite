@@ -8,6 +8,20 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.0",
+    title: "Cleaner Recommendation Cards",
+    summary:
+      "Refreshed recommendation imagery with cleaner professional photos, removed captions from content cards, and softened title typography over darker image masks.",
+  },
+  {
+    date: "June 12, 2026",
+    id: "v2.9",
+    title: "Cleaner Mobile Nav",
+    summary:
+      "Moved board/save sheets above the PWA chin area and redesigned the bottom nav as icon-only with a centered Create button and account avatar support.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v2.8",
     title: "Account Boards",
     summary:

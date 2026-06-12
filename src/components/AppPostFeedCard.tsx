@@ -15,7 +15,7 @@ export function AppPostFeedCard({ post }: AppPostFeedCardProps) {
         <span className="absolute inset-0 block bg-shell">
           <img
             alt={post.title}
-            className="h-full w-full object-cover opacity-[0.82]"
+            className="h-full w-full object-cover opacity-[0.84]"
             onError={(event) => {
               const fallback = fallbackPostImageUrl(post.title, post.location);
               if (event.currentTarget.src !== fallback) {
@@ -25,7 +25,7 @@ export function AppPostFeedCard({ post }: AppPostFeedCardProps) {
             src={post.imageUrl}
           />
         </span>
-        <span className="absolute inset-0 bg-gradient-to-b from-ink/30 via-ink/10 to-ink/82" />
+        <span className="absolute inset-0 bg-gradient-to-b from-ink/24 via-ink/10 to-ink/72" />
         <span className="absolute left-4 right-4 top-4 flex items-center gap-3 text-white">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/85 bg-shell text-ink/50">
             {post.profilePhotoUrl ? (
@@ -41,9 +41,8 @@ export function AppPostFeedCard({ post }: AppPostFeedCardProps) {
           <span className="text-xl font-black leading-none text-white/82">...</span>
         </span>
         <span className="absolute bottom-5 left-4 right-4 text-white">
-          <span className="block text-base font-black leading-tight drop-shadow-sm">{post.title}</span>
-          <span className="mt-3 block text-sm font-semibold italic leading-snug text-white/90 drop-shadow-sm">{post.caption}</span>
-          <span className="mt-4 flex items-start gap-1.5 text-sm font-extrabold leading-tight text-white/88">
+          <span className="line-clamp-3 block text-lg font-normal leading-snug drop-shadow-sm">{post.title}</span>
+          <span className="mt-4 flex items-start gap-1.5 text-sm font-semibold leading-tight text-white/88">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={16} />
             <span>{post.location}</span>
           </span>

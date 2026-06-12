@@ -14,7 +14,7 @@ export function AppPostCard({ post }: AppPostCardProps) {
       <span className="absolute inset-0 block bg-shell">
         <img
           alt={post.title}
-          className="h-full w-full object-cover opacity-80"
+          className="h-full w-full object-cover opacity-[0.72]"
           onError={(event) => {
             const fallback = fallbackPostImageUrl(post.title, post.location);
             if (event.currentTarget.src !== fallback) {
@@ -24,7 +24,7 @@ export function AppPostCard({ post }: AppPostCardProps) {
           src={post.imageUrl}
         />
       </span>
-      <span className="absolute inset-0 bg-gradient-to-b from-ink/28 via-ink/12 to-ink/78" />
+      <span className="absolute inset-0 bg-gradient-to-b from-ink/46 via-ink/30 to-ink/92" />
       <span className="absolute left-3 right-3 top-3 flex items-center gap-2 text-white">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/85 bg-shell text-ink shadow-lift">
           {post.profilePhotoUrl ? (
@@ -40,8 +40,8 @@ export function AppPostCard({ post }: AppPostCardProps) {
         <span className="ml-auto text-lg font-black leading-none text-white/82">...</span>
       </span>
       <span className="absolute bottom-3 left-3 right-3 text-white">
-        <span className="block text-[15px] font-black leading-tight drop-shadow-sm">{post.title}</span>
-        <span className="mt-2 flex items-start gap-1.5 text-xs font-bold leading-tight text-white/88">
+        <span className="line-clamp-3 block text-[15px] font-normal leading-snug drop-shadow-sm">{post.title}</span>
+        <span className="mt-2 flex items-start gap-1.5 text-xs font-semibold leading-tight text-white/88">
           <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
           <span className="line-clamp-2">{post.location}</span>
         </span>
@@ -64,9 +64,9 @@ export function AppPostTile({ post }: AppPostCardProps) {
         }}
         src={post.imageUrl}
       />
-      <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-ink/62 opacity-90" />
+      <span className="absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/82 opacity-95" />
       <span className="absolute bottom-2 left-2 right-2">
-        <span className="block truncate text-xs font-black text-white">{post.title}</span>
+        <span className="block truncate text-xs font-normal text-white">{post.title}</span>
         <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/76">{post.type}</span>
       </span>
     </Link>
