@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v3.3",
+    title: "PWA Safe-Area Nav",
+    summary:
+      "Restored the bottom nav with standard iOS safe-area padding, removed the oversized custom chin spacer, and moved the mobile app shell to dynamic viewport height.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v3.2",
     title: "Explore Grid Sheet",
     summary:
