@@ -15,8 +15,13 @@
 
 html,
 body {
+  height: 100%;
   margin: 0;
   min-height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
 }
 
 body {
@@ -24,6 +29,15 @@ body {
     radial-gradient(circle at top left, rgba(223, 123, 103, 0.18), transparent 34rem),
     linear-gradient(135deg, #f7f2e9 0%, #dfe8e3 100%);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  touch-action: manipulation;
+}
+
+html {
+  height: -webkit-fill-available;
+}
+
+body > * {
+  min-height: 100%;
 }
 
 .mapboxgl-control-container {
@@ -100,6 +114,20 @@ body {
 
 .safe-bottom {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.app-viewport {
+  height: 100vh;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: relative;
+}
+
+.app-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .no-scrollbar {

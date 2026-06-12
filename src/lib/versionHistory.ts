@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 12, 2026",
+    id: "v1.3",
+    title: "PWA Fullscreen and Share Fix",
+    summary:
+      "Locked the mobile PWA viewport to reduce rubber-band movement, contained in-app scrolling, enlarged the Create share action, and allowed sharing posts without requiring a custom title.",
+  },
+  {
+    date: "June 12, 2026",
     id: "v1.2",
     title: "Shared Posts and Profile Grids",
     summary:

@@ -355,12 +355,12 @@ export default function CreatePage() {
     );
   }
 
-  const canContinue = postType === "experience" ? experienceMedia.length > 0 && (step !== 1 || experienceTitle.trim().length > 0) : selectedMedia.length > 0;
+  const canContinue = postType === "experience" ? experienceMedia.length > 0 : selectedMedia.length > 0;
   const headerTitle = postType === "experience" ? visibleSteps[step === 6 ? 2 : step] : steps[step];
 
   return (
     <MobileFrame>
-      <section className={`relative h-full pb-24 ${postType === "experience" ? "bg-white" : "bg-shell"}`}>
+      <section className={`relative h-full overflow-hidden pb-24 ${postType === "experience" ? "bg-white" : "bg-shell"}`}>
         <header className="bg-white px-5 pb-3 pt-6">
           <div className="mb-3 flex items-center justify-between border-b border-ink/8 pb-3">
             <button
@@ -392,7 +392,7 @@ export default function CreatePage() {
           ) : null}
         </header>
 
-        <div className={`h-[calc(100%-94px)] overflow-y-auto pb-5 ${postType === "experience" ? "" : "px-5"}`}>
+        <div className={`app-scroll h-[calc(100%-94px)] overflow-y-auto pb-32 ${postType === "experience" ? "" : "px-5"}`}>
           {step === 0 ? (
             <section className={postType === "experience" ? "px-5" : ""}>
               <div className="mb-4 grid grid-cols-2 gap-2 rounded-[22px] bg-white p-1 shadow-soft">
@@ -628,7 +628,7 @@ export default function CreatePage() {
         </div>
 
         {step < 6 ? (
-          <footer className="absolute inset-x-0 bottom-[86px] z-50 px-5">
+          <footer className="absolute inset-x-0 bottom-[calc(76px+max(0.75rem,env(safe-area-inset-bottom)))] z-50 px-4">
             <div className="flex gap-3 rounded-full bg-white/94 p-2 shadow-soft backdrop-blur-xl">
               <button
                 aria-label="Cancel post"
@@ -640,7 +640,7 @@ export default function CreatePage() {
               </button>
               <button
                 aria-label={postType === "experience" && step === 1 ? "Share experience" : step === 5 ? "Publish Trip" : "Next step"}
-                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-ink text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-ink/35"
+                className="flex min-h-14 flex-1 touch-manipulation items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white disabled:cursor-not-allowed disabled:bg-ink/35"
                 disabled={!canContinue}
                 onClick={next}
                 type="button"
@@ -651,9 +651,9 @@ export default function CreatePage() {
             </div>
           </footer>
         ) : (
-          <footer className="absolute inset-x-0 bottom-[86px] z-50 px-5">
+          <footer className="absolute inset-x-0 bottom-[calc(76px+max(0.75rem,env(safe-area-inset-bottom)))] z-50 px-4">
             <button
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-black text-white shadow-soft"
+              className="flex min-h-14 w-full touch-manipulation items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-soft"
               onClick={resetCreate}
               type="button"
             >
