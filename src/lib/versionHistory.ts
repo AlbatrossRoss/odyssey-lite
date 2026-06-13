@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 13, 2026",
+    id: "v4.5",
+    title: "Manual PWA Layout Tuning",
+    summary:
+      "Captured the latest manually tuned PWA layout changes for deployment testing on the installed iPhone app.",
+  },
+  {
+    date: "June 13, 2026",
     id: "v4.4",
     title: "iPhone-First PWA Formatting",
     summary:
