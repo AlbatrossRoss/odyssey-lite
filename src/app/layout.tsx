@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { AccountGate } from "@/components/AccountGate";
-import { StandaloneMode } from "@/components/StandaloneMode";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,7 +8,6 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
     title: "Odyssey Lite",
   },
   formatDetection: {
@@ -28,7 +26,6 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: "#18231f",
 };
@@ -41,7 +38,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <StandaloneMode />
         <AccountGate>{children}</AccountGate>
       </body>
     </html>

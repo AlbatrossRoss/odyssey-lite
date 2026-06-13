@@ -103,8 +103,8 @@ export function AccountGate({ children }: AccountGateProps) {
   }
 
   return (
-    <main className="min-h-screen bg-shell px-5 py-8 text-ink sm:flex sm:items-center sm:justify-center">
-      <section className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[393px] flex-col justify-between overflow-hidden rounded-[34px] bg-white shadow-soft sm:min-h-[760px]">
+    <main className="min-h-[100dvh] bg-shell px-5 py-8 text-ink sm:flex sm:items-center sm:justify-center">
+      <section className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[393px] flex-col justify-between overflow-hidden rounded-[34px] bg-white shadow-soft sm:min-h-[760px]">
         <div className="relative h-56 overflow-hidden bg-[#dfe8e3]">
           <div className="absolute inset-0 bg-[url('/hawaii-reference-map.png')] bg-cover bg-center opacity-75" />
           <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white" />

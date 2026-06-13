@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 13, 2026",
+    id: "v4.3",
+    title: "Baseline PWA Layout",
+    summary:
+      "Reset the app shell to a conventional iPhone PWA layout with static viewport metadata, dynamic viewport shell height, and safe-area spacing only on inner UI.",
+  },
+  {
     date: "June 12, 2026",
     id: "v4.2",
     title: "Top Edge Overdraw",
