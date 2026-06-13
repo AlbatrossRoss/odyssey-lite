@@ -7,10 +7,12 @@
 :root {
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
   --bottom-nav-height: 4.75rem;
   --bottom-nav-clearance: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
   color: #18231f;
-  background: #18231f;
+  background: #fff8ef;
 }
 
 * {
@@ -19,7 +21,7 @@
 
 html,
 body {
-  background: #18231f;
+  background: #fff8ef;
   height: 100%;
   margin: 0;
   overflow: hidden;
@@ -29,13 +31,13 @@ body {
 }
 
 body {
-  background: #18231f;
+  background: #fff8ef;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   touch-action: manipulation;
 }
 
 html {
-  background: #18231f;
+  background: #fff8ef;
   height: 100%;
 }
 
@@ -45,7 +47,7 @@ body > * {
 }
 
 .mobile-frame {
-  background: #18231f;
+  background: #fff8ef;
   color: #18231f;
   height: 100dvh;
   inset: 0;
@@ -56,12 +58,13 @@ body > * {
 }
 
 .mobile-frame-inner {
-  background: #18231f;
+  background: #f4f0e8;
   box-shadow: 0 18px 60px rgba(24, 35, 31, 0.16);
   height: 100%;
-  inset: 0;
+  min-height: 100dvh;
   overflow: hidden;
-  position: absolute;
+  position: relative;
+  width: 100%;
 }
 
 @media (min-width: 640px) {
@@ -88,6 +91,19 @@ body > * {
     --tw-ring-shadow: 0 0 0 calc(8px + var(--tw-ring-offset-width, 0px)) var(--tw-ring-color);
     box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), 0 18px 60px rgba(24, 35, 31, 0.16);
   }
+}
+
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.safe-x {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
 }
 
 .mapboxgl-control-container {
@@ -206,7 +222,6 @@ body > * {
 }
 
 .app-viewport {
-  height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;

@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 13, 2026",
+    id: "v4.4",
+    title: "iPhone-First PWA Formatting",
+    summary:
+      "Applied the requested iPhone PWA baseline with black-translucent status bar, #fff8ef theme colors, dynamic viewport surfaces, and safe-area helper classes.",
+  },
+  {
+    date: "June 13, 2026",
     id: "v4.3",
     title: "Baseline PWA Layout",
     summary:

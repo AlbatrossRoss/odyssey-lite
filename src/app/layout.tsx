@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
+    statusBarStyle: "black-translucent",
     title: "Odyssey Lite",
   },
   formatDetection: {
@@ -26,8 +27,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
-  themeColor: "#18231f",
+  themeColor: "#fff8ef",
 };
 
 export default function RootLayout({
