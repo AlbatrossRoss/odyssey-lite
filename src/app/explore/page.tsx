@@ -184,9 +184,10 @@ export default function ExplorePage() {
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
-  const [sheetPosition, setSheetPosition] = useState<SheetPosition>(restoredExploreState?.sheetPosition ?? "peek");
+  const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
+  const [sheetDragOffset, setSheetDragOffset] = useState(0);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(restoredExploreState?.selectedPostId ?? null);
-  const dragStartPoint = useRef<{ x: number; y: number } | null>(null);
+  const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const exploreStateRef = useRef<StoredExploreState>({
     activeDestination: restoredExploreState?.activeDestination ?? "",
     activeFilter: restoredExploreState?.activeFilter ?? "Friends",
@@ -195,7 +196,7 @@ export default function ExplorePage() {
     mapArea: restoredExploreState?.mapArea ?? null,
     searchQuery: restoredExploreState?.searchQuery ?? "",
     selectedPostId: restoredExploreState?.selectedPostId ?? null,
-    sheetPosition: restoredExploreState?.sheetPosition ?? "peek",
+    sheetPosition: "peek",
   });
   const searchSuggestions = useMemo(() => {
     const seen = new Set<string>();
@@ -497,9 +498,9 @@ export default function ExplorePage() {
         : "No recommendations in this area yet";
   const sheetClassName =
     sheetPosition === "expanded"
-      ? "nav-cleared-bottom top-[92px] pb-4"
+      ? "nav-cleared-bottom top-[82px] pb-4"
       : sheetPosition === "minimized"
-        ? "nav-cleared-bottom h-[56px] pb-2"
+        ? "nav-cleared-bottom h-[76px] pb-3"
         : "nav-cleared-bottom h-[36%] pb-3";
   const mapClassName =
     sheetPosition === "minimized"
@@ -519,7 +520,9 @@ export default function ExplorePage() {
   }, [selectedPostId, visibleAppPosts]);
 
   function handleSheetPointerDown(event: PointerEvent<HTMLElement>) {
-    dragStartPoint.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStartPoint.current = { position: sheetPosition, x: event.clientX, y: event.clientY };
+    setSheetDragOffset(0);
   }
 
   function handleSheetPointerMove(event: PointerEvent<HTMLElement>) {
@@ -532,12 +535,13 @@ export default function ExplorePage() {
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
 
-    if (Math.abs(deltaY) < 52 || Math.abs(deltaY) < Math.abs(deltaX) * 1.2) {
+    if (Math.abs(deltaY) < 8 || Math.abs(deltaY) < Math.abs(deltaX) * 1.1) {
       return;
     }
 
-    setSheetPosition(deltaY < 0 ? "expanded" : "minimized");
-    dragStartPoint.current = null;
+    const maxUp = start.position === "expanded" ? 0 : start.position === "peek" ? 260 : 540;
+    const maxDown = start.position === "minimized" ? 0 : start.position === "peek" ? 220 : 420;
+    setSheetDragOffset(Math.max(-maxUp, Math.min(maxDown, deltaY)));
   }
 
   function handleSheetPointerUp(event: PointerEvent<HTMLElement>) {
@@ -550,6 +554,7 @@ export default function ExplorePage() {
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
     dragStartPoint.current = null;
+    setSheetDragOffset(0);
 
     if (Math.abs(deltaY) < 28 || Math.abs(deltaY) < Math.abs(deltaX) * 1.1) {
       return;
@@ -560,12 +565,13 @@ export default function ExplorePage() {
     }
 
     if (deltaY > 0) {
-      setSheetPosition("minimized");
+      setSheetPosition(start.position === "expanded" && deltaY < 180 ? "peek" : "minimized");
     }
   }
 
   function handleSheetPointerCancel() {
     dragStartPoint.current = null;
+    setSheetDragOffset(0);
   }
 
   return (
@@ -609,23 +615,26 @@ export default function ExplorePage() {
           <FilterChips active={activeFilter} onChange={setActiveFilter} />
         </div>
         <section
-          className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-1 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] transition-all duration-300 ease-out ${sheetClassName}`}
+          className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-0 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] ${
+            sheetDragOffset ? "transition-none" : "transition-all duration-300 ease-out"
+          } ${sheetClassName}`}
           onPointerCancel={handleSheetPointerCancel}
           onPointerDown={handleSheetPointerDown}
           onPointerMove={handleSheetPointerMove}
           onPointerUp={handleSheetPointerUp}
+          style={{ transform: sheetDragOffset ? `translateY(${sheetDragOffset}px)` : undefined }}
         >
           <button
             aria-label={handleLabel}
-            className="mx-auto mb-1 block h-4 w-16 rounded-full"
+            className="mx-auto mb-0 flex h-9 w-28 touch-none cursor-grab items-center justify-center rounded-full active:cursor-grabbing"
             onClick={() =>
               setSheetPosition((position) => (position === "minimized" ? "peek" : position === "peek" ? "expanded" : "peek"))
             }
             type="button"
           >
-            <span className="mx-auto block h-1.5 w-12 rounded-full bg-ink/16" />
+            <span className="block h-1.5 w-[54px] rounded-full bg-[#8f8f8f] shadow-[0_1px_0_rgba(255,255,255,0.8)]" />
           </button>
-          <div className={`mb-2 flex items-end justify-between px-1 ${sheetPosition === "minimized" ? "sr-only" : ""}`}>
+          <div className={`mb-1 flex items-end justify-between px-1 ${sheetPosition === "minimized" ? "sr-only" : ""}`}>
             <div>
               <h1 className="text-base font-black text-ink">Recommendations</h1>
               <p className="text-[11px] font-semibold text-ink/52">{recommendationSubtitle}</p>
@@ -633,7 +642,7 @@ export default function ExplorePage() {
           </div>
           {sheetPosition === "minimized" ? (
             <button
-              className="flex w-full items-center justify-center rounded-full py-1 text-xs font-extrabold text-ink/54"
+              className="flex h-7 w-full items-center justify-center rounded-full text-xs font-extrabold leading-none text-ink/58"
               onClick={() => setSheetPosition("peek")}
               type="button"
             >
@@ -641,7 +650,7 @@ export default function ExplorePage() {
             </button>
           ) : sheetPosition === "expanded" ? (
             feedPosts.length ? (
-              <div className="no-scrollbar h-[calc(100%-58px)] space-y-4 overflow-y-auto pb-5">
+              <div className="no-scrollbar h-[calc(100%-54px)] space-y-4 overflow-y-auto pb-5">
                 {feedPosts.map((post) => (
                   <AppPostFeedCard key={post.id} onOpen={() => handlePostOpen(post)} post={post} />
                 ))}
