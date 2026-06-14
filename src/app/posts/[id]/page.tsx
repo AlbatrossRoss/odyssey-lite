@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bookmark, Calendar, Check, MapPin, Plus, UserRound, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
+import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { fetchAppPostById, type AppPost } from "@/lib/posts";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
 import { readAccountSessionId } from "@/lib/accounts";
+import { writeActionBanner } from "@/lib/actionBanner";
 
 export default function PostDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,6 +27,8 @@ export default function PostDetailPage() {
   const [newBoardSubtitle, setNewBoardSubtitle] = useState("");
   const [saveStatus, setSaveStatus] = useState<"ready" | "saving">("ready");
   const [saveMessage, setSaveMessage] = useState("");
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -124,6 +128,28 @@ export default function PostDetailPage() {
 
   const savedBoardIds = boards.filter((board) => board.postIds.includes(post.id)).map((board) => board.id);
   const isSaved = savedBoardIds.length > 0;
+  const postMediaUrls = post.mediaUrls.length ? post.mediaUrls : [post.imageUrl];
+  const postMediaItems = postMediaUrls.map((url, index) => ({
+    mediaType: post.mediaTypes[index] ?? "image",
+    url,
+  }));
+
+  function showPhotoAt(index: number) {
+    const scroller = mediaScrollerRef.current;
+
+    setActivePhotoIndex(index);
+    scroller?.scrollTo({ behavior: "smooth", left: scroller.clientWidth * index });
+  }
+
+  function handleMediaScroll() {
+    const scroller = mediaScrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    setActivePhotoIndex(Math.round(scroller.scrollLeft / Math.max(scroller.clientWidth, 1)));
+  }
 
   function handleBackToExplore() {
     if (window.history.length > 1) {
@@ -156,7 +182,15 @@ export default function PostDetailPage() {
             : item,
         ),
       );
-      setSaveMessage(`Saved to ${board.title}.`);
+      writeActionBanner({
+        href: `/posts/${post.id}`,
+        imageUrl: post.imageUrl,
+        mediaType: post.mediaTypes[0],
+        message: `Saved to ${board.title}`,
+        title: post.title,
+        type: "post-saved",
+      });
+      router.push("/explore");
     } catch (error) {
       setSaveMessage(formatError(error));
     } finally {
@@ -188,7 +222,15 @@ export default function PostDetailPage() {
       setNewBoardTitle("");
       setNewBoardSubtitle("");
       setNewBoardOpen(false);
-      setSaveMessage(`Saved to ${board.title}.`);
+      writeActionBanner({
+        href: `/posts/${post.id}`,
+        imageUrl: post.imageUrl,
+        mediaType: post.mediaTypes[0],
+        message: `Saved to ${board.title}`,
+        title: post.title,
+        type: "post-saved",
+      });
+      router.push("/explore");
     } catch (error) {
       setSaveMessage(formatError(error));
     } finally {
@@ -199,9 +241,24 @@ export default function PostDetailPage() {
   return (
     <MobileFrame>
       <article className="safe-page-bottom h-full overflow-y-auto bg-shell">
-        <div className="relative h-[430px] bg-ink">
-          <img alt={post.title} className="h-full w-full object-cover" src={post.imageUrl} />
+        <div className="relative h-[430px] overflow-hidden bg-ink">
+          <div className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto" onScroll={handleMediaScroll} ref={mediaScrollerRef}>
+            {postMediaItems.map((item, index) => (
+              <PostMediaPreview
+                alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
+                className="h-full w-full shrink-0 snap-center object-cover"
+                key={`${item.url}-${index}`}
+                mediaType={item.mediaType}
+                src={item.url}
+              />
+            ))}
+          </div>
           <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
+          {postMediaUrls.length > 1 ? (
+            <div className="absolute right-4 top-[calc(var(--safe-area-top)+1.25rem)] rounded-full bg-ink/62 px-3 py-1 text-xs font-black text-white backdrop-blur">
+              {postMediaUrls.length} items
+            </div>
+          ) : null}
           <button
             aria-label="Back to Explore"
             className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/88 text-ink shadow-lift backdrop-blur"
@@ -229,6 +286,26 @@ export default function PostDetailPage() {
         </div>
 
         <div className="-mt-5 space-y-4 rounded-t-[34px] bg-shell px-5 pb-8 pt-5">
+          {postMediaUrls.length > 1 ? (
+            <section className="rounded-[24px] bg-white p-2 shadow-soft">
+              <div className="grid grid-cols-4 gap-2">
+                {postMediaItems.slice(0, 8).map((item, index) => (
+                  <button
+                    aria-label={`Show media ${index + 1}`}
+                    className={`relative aspect-square overflow-hidden rounded-[16px] bg-shell ring-offset-2 ring-offset-white ${
+                      activePhotoIndex === index ? "ring-2 ring-coral" : "ring-1 ring-ink/8"
+                    }`}
+                    key={`${item.url}-thumb-${index}`}
+                    onClick={() => showPhotoAt(index)}
+                    type="button"
+                  >
+                    <PostMediaPreview className="h-full w-full object-cover" mediaType={item.mediaType} src={item.url} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="rounded-[28px] bg-white p-4 shadow-soft">
             <p className="text-[15px] leading-relaxed text-ink/74">{post.caption}</p>
             <div className="mt-4 grid gap-2">
@@ -256,6 +333,7 @@ export default function PostDetailPage() {
           <MapboxMap
             className="h-56 overflow-hidden rounded-[28px] shadow-soft"
             experiences={[mapExperience]}
+            mapTarget={{ center: post.coordinates, zoom: 14.2 }}
             selectedSlug={mapExperience.slug}
             zoom={10.4}
           />

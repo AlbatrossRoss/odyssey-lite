@@ -14,6 +14,9 @@ function extensionForFile(file: File) {
   if (file.type === "image/png") return "png";
   if (file.type === "image/webp") return "webp";
   if (file.type === "image/gif") return "gif";
+  if (file.type === "video/mp4") return "mp4";
+  if (file.type === "video/quicktime") return "mov";
+  if (file.type === "video/webm") return "webm";
 
   return "jpg";
 }

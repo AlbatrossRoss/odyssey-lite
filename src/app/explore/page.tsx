@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { AppPostCard } from "@/components/AppPostCard";
@@ -8,7 +9,9 @@ import { BottomNav } from "@/components/BottomNav";
 import { FilterChips } from "@/components/FilterChips";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
+import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
+import { consumeActionBanner, type ActionBanner } from "@/lib/actionBanner";
 import { fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
 
@@ -187,6 +190,7 @@ export default function ExplorePage() {
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(restoredExploreState?.selectedPostId ?? null);
+  const [actionBanner, setActionBanner] = useState<ActionBanner | null>(null);
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const exploreStateRef = useRef<StoredExploreState>({
     activeDestination: restoredExploreState?.activeDestination ?? "",
@@ -212,6 +216,19 @@ export default function ExplorePage() {
       return true;
     });
   }, [mapboxSuggestions]);
+
+  useEffect(() => {
+    const banner = consumeActionBanner();
+
+    if (!banner) {
+      return;
+    }
+
+    setActionBanner(banner);
+    const timeoutId = window.setTimeout(() => setActionBanner(null), 6500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -589,6 +606,23 @@ export default function ExplorePage() {
           zoom={1.35}
         />
         <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
+          {actionBanner ? (
+            <Link
+              className="mb-3 flex items-center gap-3 rounded-[24px] bg-white/96 p-2 pr-4 text-left shadow-lift backdrop-blur"
+              href={actionBanner.href}
+            >
+              <PostMediaPreview
+                className="h-14 w-14 shrink-0 rounded-[18px] object-cover"
+                mediaType={actionBanner.mediaType}
+                src={actionBanner.imageUrl}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-black uppercase tracking-[0.12em] text-coral">{actionBanner.message}</span>
+                <span className="mt-0.5 block truncate text-sm font-black text-ink">{actionBanner.title}</span>
+              </span>
+              <span className="text-xs font-black text-ink/42">View</span>
+            </Link>
+          ) : null}
           <div className="flex items-center gap-3">
             {searchQuery || activeDestination || mapArea ? (
               <button

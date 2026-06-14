@@ -2,9 +2,11 @@
 
 import { ArrowLeft, Calendar, Check, ImagePlus, Images, MapPin, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
 import { readAccountSessionId } from "@/lib/accounts";
+import { writeActionBanner } from "@/lib/actionBanner";
 import { uploadPostMedia } from "@/lib/media";
 import { createAppPost } from "@/lib/posts";
 
@@ -17,12 +19,15 @@ type MediaMetadata = {
 type SelectedUpload = {
   id: string;
   file: File;
-  kind: "image";
+  kind: "image" | "video";
   metadata: MediaMetadata;
   url: string;
 };
 
+const maxVideoDurationSeconds = 30;
+
 export default function CreatePage() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const attemptedInitialPickerRef = useRef(false);
   const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
@@ -32,7 +37,7 @@ export default function CreatePage() {
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
-  const [metadataNote, setMetadataNote] = useState("Choose photos to read date and location metadata.");
+  const [metadataNote, setMetadataNote] = useState("Choose photos or videos to read date and location metadata.");
   const [status, setStatus] = useState<"idle" | "reading" | "sharing" | "published">("idle");
   const [message, setMessage] = useState("");
 
@@ -54,8 +59,8 @@ export default function CreatePage() {
   }, [selectedMedia.length, step]);
 
   async function handleUpload(files: FileList | null) {
-    const imageFiles = Array.from(files ?? []).filter((item) => item.type.startsWith("image/"));
-    const file = imageFiles[0];
+    const mediaFiles = Array.from(files ?? []).filter((item) => item.type.startsWith("image/") || item.type.startsWith("video/"));
+    const file = mediaFiles[0];
 
     if (!file) {
       return;
@@ -64,31 +69,46 @@ export default function CreatePage() {
     setStatus("reading");
     setMessage("");
 
-    selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
+    try {
+      const videoFiles = mediaFiles.filter((item) => item.type.startsWith("video/"));
+      const videoDurations = await Promise.all(videoFiles.map((item) => readVideoDuration(item)));
+      const longVideoIndex = videoDurations.findIndex((duration) => duration > maxVideoDurationSeconds);
+
+      if (longVideoIndex >= 0) {
+        setStatus("idle");
+        setMessage(`Videos need to be ${maxVideoDurationSeconds} seconds or shorter. Choose a shorter clip and try again.`);
+        return;
+      }
+    } catch {
+      setStatus("idle");
+      setMessage("We could not read that video. Try a different clip.");
+      return;
+    }
 
     const metadata = await readMediaMetadata(file);
     const nextCoordinates = metadata.coordinates;
     const nextLocation = nextCoordinates ? await reverseGeocodeCoordinates(nextCoordinates) : metadata.location;
     const nextDate = metadata.date ?? fallbackDateFromFile(file);
     const nextMedia = await Promise.all(
-      imageFiles.map(async (item) => ({
+      mediaFiles.map(async (item) => ({
         file: item,
         id: `${item.name}-${item.lastModified}-${item.size}`,
-        kind: "image" as const,
+        kind: item.type.startsWith("video/") ? ("video" as const) : ("image" as const),
         metadata: item === file ? metadata : await readMediaMetadata(item),
         url: URL.createObjectURL(item),
       })),
     );
 
+    selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
     setSelectedMedia(nextMedia);
     setCoordinates(nextCoordinates);
     setDate(nextDate);
     setLocation(nextLocation ?? "");
     setMetadataNote(
       nextCoordinates && nextDate
-        ? "Using date and location metadata from the first selected photo."
+        ? "Using date and location metadata from the first selected item."
         : nextCoordinates
-          ? "Using location metadata from the first selected photo. Date metadata was not available, so file date is shown."
+          ? "Using location metadata from the first selected item. Date metadata was not available, so file date is shown."
           : nextDate
             ? "Using file date. Location metadata was not available."
             : "No embedded date or location metadata was available. Add the details below.",
@@ -101,7 +121,7 @@ export default function CreatePage() {
     setMessage("");
 
     if (!selectedMedia.length) {
-      setMessage("Choose at least one photo before sharing.");
+      setMessage("Choose at least one photo or video before sharing.");
       setStep("picker");
       return;
     }
@@ -129,12 +149,14 @@ export default function CreatePage() {
 
     try {
       const mediaUrls = await Promise.all(selectedMedia.map((item) => uploadPostMedia(item.file, accountId)));
-      await createAppPost({
+      const mediaTypes = selectedMedia.map((item) => item.kind);
+      const createdPost = await createAppPost({
         accountId,
         caption: description.trim(),
         coordinates: resolvedCoordinates,
         dateLabel: date || "Just now",
         imageUrl: mediaUrls[0],
+        mediaTypes,
         mediaUrls,
         location: location.trim() || formatCoordinates(resolvedCoordinates),
         title: recommendation.trim(),
@@ -142,8 +164,16 @@ export default function CreatePage() {
         visibility: "Public",
       });
 
+      writeActionBanner({
+        href: `/posts/${createdPost.id}`,
+        imageUrl: createdPost.imageUrl,
+        mediaType: createdPost.mediaTypes[0],
+        message: "Posted to Explore",
+        title: createdPost.title,
+        type: "post-created",
+      });
       setStatus("published");
-      setMessage("Posted to Explore, your profile, and the map.");
+      router.push("/explore");
     } catch (error) {
       setStatus("idle");
       setMessage(formatPublishError(error));
@@ -160,7 +190,7 @@ export default function CreatePage() {
     setLocation("");
     setDate("");
     setCoordinates(undefined);
-    setMetadataNote("Choose photos to read date and location metadata.");
+    setMetadataNote("Choose photos or videos to read date and location metadata.");
     setStatus("idle");
     setMessage("");
   }
@@ -180,7 +210,7 @@ export default function CreatePage() {
             </button>
           ) : (
             <button
-              aria-label="Clear selected photos"
+              aria-label="Clear selected media"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
               onClick={resetPost}
               type="button"
@@ -205,7 +235,7 @@ export default function CreatePage() {
 
         <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-8">
           <input
-            accept="image/*"
+            accept="image/*,video/*"
             className="hidden"
             multiple
             onChange={(event) => void handleUpload(event.target.files)}
@@ -229,7 +259,7 @@ export default function CreatePage() {
                     </span>
                     <span className="mt-5 text-xl font-black text-ink">Choose from camera roll</span>
                     <span className="mt-2 max-w-64 text-sm font-semibold leading-relaxed text-ink/50">
-                      Select one or more photos to start a recommendation.
+                      Select photos or videos to start a recommendation.
                     </span>
                   </button>
                 )}
@@ -277,7 +307,7 @@ export default function CreatePage() {
                   <span className="grid h-14 w-14 place-items-center rounded-full bg-shell text-ink/58">
                     <ImagePlus aria-hidden="true" size={25} />
                   </span>
-                  <span className="mt-4 text-sm font-bold text-ink/56">Tap Select to choose photos from your camera roll.</span>
+                  <span className="mt-4 text-sm font-bold text-ink/56">Tap Select to choose media from your camera roll.</span>
                 </button>
               )}
 
@@ -403,7 +433,29 @@ function ReviewField({ children, label }: { children: React.ReactNode; label: st
 }
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {
+  if (item.kind === "video") {
+    return <video aria-label="Selected video preview" autoPlay className={className} loop muted playsInline src={item.url} />;
+  }
+
   return <img alt="" className={className} src={item.url} />;
+}
+
+function readVideoDuration(file: File) {
+  return new Promise<number>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(video.duration) ? video.duration : 0);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Unable to read video metadata."));
+    };
+    video.src = url;
+  });
 }
 
 async function readMediaMetadata(file: File): Promise<MediaMetadata> {

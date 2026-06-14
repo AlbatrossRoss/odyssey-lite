@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { MapPin, UserRound } from "lucide-react";
+import { PostMediaPreview } from "@/components/PostMediaPreview";
 import type { AppPost } from "@/lib/posts";
 
 type AppPostCardProps = {
@@ -18,15 +19,11 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
       onPointerDown={onOpen}
     >
       <span className="absolute inset-0 block bg-shell">
-        <img
+        <PostMediaPreview
           alt={post.title}
           className="h-full w-full object-cover opacity-[0.72]"
-          onError={(event) => {
-            const fallback = fallbackPostImageUrl(post.title, post.location);
-            if (event.currentTarget.src !== fallback) {
-              event.currentTarget.src = fallback;
-            }
-          }}
+          fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+          mediaType={post.mediaTypes[0]}
           src={post.imageUrl}
         />
       </span>
@@ -64,15 +61,11 @@ export function AppPostExploreTile({ post, featured = false }: AppPostCardProps 
       }`}
       href={`/posts/${post.id}`}
     >
-      <img
+      <PostMediaPreview
         alt={post.title}
         className="absolute inset-0 h-full w-full object-cover opacity-[0.84] transition duration-300 group-hover:scale-105"
-        onError={(event) => {
-          const fallback = fallbackPostImageUrl(post.title, post.location);
-          if (event.currentTarget.src !== fallback) {
-            event.currentTarget.src = fallback;
-          }
-        }}
+        fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+        mediaType={post.mediaTypes[0]}
         src={post.imageUrl}
       />
       <span className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/76" />
@@ -93,15 +86,11 @@ export function AppPostExploreTile({ post, featured = false }: AppPostCardProps 
 export function AppPostTile({ post }: AppPostCardProps) {
   return (
     <Link className="group relative block aspect-square overflow-hidden bg-shell" href={`/posts/${post.id}`}>
-      <img
+      <PostMediaPreview
         alt={post.title}
         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-        onError={(event) => {
-          const fallback = fallbackPostImageUrl(post.title, post.location);
-          if (event.currentTarget.src !== fallback) {
-            event.currentTarget.src = fallback;
-          }
-        }}
+        fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+        mediaType={post.mediaTypes[0]}
         src={post.imageUrl}
       />
       <span className="absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/82 opacity-95" />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Camera, LogOut, Map, UserPlus, UserRound } from "lucide-react";
+import { ArrowLeft, Camera, LogOut, Map, Trash2, UserPlus, UserRound } from "lucide-react";
 import {
   AccountWithStats,
   accountDisplayName,
@@ -15,7 +15,7 @@ import {
 import { AppPostTile } from "@/components/AppPostCard";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
-import { fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
+import { deleteAppPost, fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
 
 type AccountsViewProps = {
   username?: string;
@@ -130,6 +130,30 @@ export function AccountsView({ username }: AccountsViewProps) {
     window.location.assign("/");
   }
 
+  async function handleDeletePost(post: AppPost) {
+    if (!viewerId || !isOwnProfile) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete "${post.title}"?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setStatus("saving");
+    setMessage("");
+
+    try {
+      await deleteAppPost(post.id, viewerId);
+      setProfilePosts((current) => current.filter((item) => item.id !== post.id));
+      await loadAccounts(viewerId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to delete post.");
+      setStatus("ready");
+    }
+  }
+
   return (
     <MobileFrame>
       <section className="safe-page-bottom h-full overflow-y-auto bg-shell">
@@ -241,7 +265,20 @@ export function AccountsView({ username }: AccountsViewProps) {
                 {profilePosts.length ? (
                   <div className="grid grid-cols-3 gap-px bg-white">
                     {profilePosts.map((post) => (
-                      <AppPostTile key={post.id} post={post} />
+                      <div className="relative" key={post.id}>
+                        <AppPostTile post={post} />
+                        {isOwnProfile ? (
+                          <button
+                            aria-label={`Delete ${post.title}`}
+                            className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-ink/72 text-white shadow-lift backdrop-blur"
+                            disabled={status === "saving"}
+                            onClick={() => void handleDeletePost(post)}
+                            type="button"
+                          >
+                            <Trash2 aria-hidden="true" size={15} />
+                          </button>
+                        ) : null}
+                      </div>
                     ))}
                   </div>
                 ) : (

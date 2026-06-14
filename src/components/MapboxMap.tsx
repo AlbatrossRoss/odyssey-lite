@@ -298,10 +298,14 @@ export function MapboxMap({
       element.type = "button";
       element.setAttribute("aria-label", post.title);
       const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${post.profilePhotoUrl}" alt="" />` : "";
+      const mediaMarkup =
+        post.mediaTypes[0] === "video"
+          ? `<video class="odyssey-marker-photo" src="${post.imageUrl}" autoplay loop muted playsinline></video>`
+          : `<img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" />`;
 
       element.innerHTML = `
         <span class="odyssey-marker-card" data-selected="${post.id === selectedPostId}">
-          <img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" />
+          ${mediaMarkup}
           ${avatarMarkup}
         </span>
       `;

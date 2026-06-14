@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { MapPin, UserRound } from "lucide-react";
+import { PostMediaPreview } from "@/components/PostMediaPreview";
 import type { AppPost } from "@/lib/posts";
 
 type AppPostFeedCardProps = {
@@ -19,15 +20,11 @@ export function AppPostFeedCard({ onOpen, post }: AppPostFeedCardProps) {
         onPointerDown={onOpen}
       >
         <span className="absolute inset-0 block bg-shell">
-          <img
+          <PostMediaPreview
             alt={post.title}
             className="h-full w-full object-cover opacity-[0.84]"
-            onError={(event) => {
-              const fallback = fallbackPostImageUrl(post.title, post.location);
-              if (event.currentTarget.src !== fallback) {
-                event.currentTarget.src = fallback;
-              }
-            }}
+            fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+            mediaType={post.mediaTypes[0]}
             src={post.imageUrl}
           />
         </span>

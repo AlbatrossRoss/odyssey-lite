@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 14, 2026",
+    id: "v5.0",
+    title: "Rich Posting Feedback and Video Media",
+    summary:
+      "Added post-created and board-save success banners on Explore, multi-media detail previews, owner post deletion from profiles, precise recommendation maps, and 30-second video upload support with autoplaying muted previews across recommendation cards and map pins.",
+  },
+  {
+    date: "June 14, 2026",
     id: "v4.9",
     title: "New Post Controls",
     summary:

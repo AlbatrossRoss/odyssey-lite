@@ -46,6 +46,8 @@ export type Database = {
           location: string;
           caption: string;
           image_url: string;
+          media_types: string[];
+          media_urls: string[];
           latitude: number;
           longitude: number;
           date_label: string;
@@ -60,6 +62,8 @@ export type Database = {
           location: string;
           caption: string;
           image_url: string;
+          media_types?: string[];
+          media_urls?: string[];
           latitude: number;
           longitude: number;
           date_label: string;
