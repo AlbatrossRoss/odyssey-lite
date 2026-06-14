@@ -2,6 +2,14 @@ insert into storage.buckets (id, name, public)
 values ('app-post-media', 'app-post-media', true)
 on conflict (id) do update set public = excluded.public;
 
+alter table if exists public.app_posts
+add column if not exists media_urls text[] not null default '{}';
+
+update public.app_posts
+set media_urls = array[image_url]
+where (media_urls is null or cardinality(media_urls) = 0)
+  and image_url is not null;
+
 drop policy if exists "App post media is readable" on storage.objects;
 create policy "App post media is readable"
 on storage.objects for select

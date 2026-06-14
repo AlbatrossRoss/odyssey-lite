@@ -12,6 +12,7 @@ export type AppPost = {
   location: string;
   caption: string;
   imageUrl: string;
+  mediaUrls: string[];
   coordinates: [number, number];
   dateLabel: string;
   visibility: string;
@@ -25,6 +26,7 @@ export type AppPostDraft = {
   location: string;
   caption: string;
   imageUrl: string;
+  mediaUrls?: string[];
   coordinates: [number, number];
   dateLabel: string;
   visibility: string;
@@ -38,6 +40,7 @@ type AppPostRow = {
   location: string;
   caption: string;
   image_url: string;
+  media_urls?: string[] | null;
   latitude: number;
   longitude: number;
   date_label: string;
@@ -51,8 +54,8 @@ type AppPostAccountRow = {
   profile_photo_url?: string | null;
 };
 
-const postSelectColumns =
-  "id, account_id, type, title, location, caption, image_url, latitude, longitude, date_label, visibility, created_at";
+const postSelectColumns: string =
+  "id, account_id, type, title, location, caption, image_url, media_urls, latitude, longitude, date_label, visibility, created_at";
 
 function assertPostsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -75,6 +78,7 @@ function mapPost(post: AppPostRow, account?: AppPostAccountRow): AppPost {
     location: post.location,
     caption: post.caption,
     imageUrl: post.image_url,
+    mediaUrls: post.media_urls?.length ? post.media_urls : [post.image_url],
     coordinates: [post.longitude, post.latitude],
     dateLabel: post.date_label,
     visibility: post.visibility,
@@ -128,20 +132,22 @@ export async function createAppPost(draft: AppPostDraft) {
   assertPostsConfigured();
 
   const supabase = createSupabaseBrowserClient();
+  const postInsert = {
+    account_id: draft.accountId,
+    type: draft.type,
+    title: draft.title,
+    location: draft.location,
+    caption: draft.caption,
+    image_url: draft.imageUrl,
+    media_urls: draft.mediaUrls?.length ? draft.mediaUrls : [draft.imageUrl],
+    longitude: draft.coordinates[0],
+    latitude: draft.coordinates[1],
+    date_label: draft.dateLabel,
+    visibility: draft.visibility,
+  };
   const { data, error } = await supabase
     .from("app_posts")
-    .insert({
-      account_id: draft.accountId,
-      type: draft.type,
-      title: draft.title,
-      location: draft.location,
-      caption: draft.caption,
-      image_url: draft.imageUrl,
-      longitude: draft.coordinates[0],
-      latitude: draft.coordinates[1],
-      date_label: draft.dateLabel,
-      visibility: draft.visibility,
-    })
+    .insert(postInsert as never)
     .select(postSelectColumns)
     .single();
 
@@ -149,7 +155,7 @@ export async function createAppPost(draft: AppPostDraft) {
     throw error;
   }
 
-  return (await hydratePosts([data as AppPostRow]))[0];
+  return (await hydratePosts([data as unknown as AppPostRow]))[0];
 }
 
 export async function fetchAppPosts() {
@@ -165,7 +171,7 @@ export async function fetchAppPosts() {
     throw error;
   }
 
-  return hydratePosts(data as AppPostRow[]);
+  return hydratePosts(data as unknown as AppPostRow[]);
 }
 
 export async function fetchAppPostsByAccount(accountId: string) {
@@ -182,7 +188,7 @@ export async function fetchAppPostsByAccount(accountId: string) {
     throw error;
   }
 
-  return hydratePosts(data as AppPostRow[]);
+  return hydratePosts(data as unknown as AppPostRow[]);
 }
 
 export async function fetchAppPostsByIds(postIds: string[]) {
@@ -203,7 +209,7 @@ export async function fetchAppPostsByIds(postIds: string[]) {
     throw error;
   }
 
-  return hydratePosts(data as AppPostRow[]);
+  return hydratePosts(data as unknown as AppPostRow[]);
 }
 
 export async function fetchAppPostById(postId: string) {
@@ -220,5 +226,5 @@ export async function fetchAppPostById(postId: string) {
     throw error;
   }
 
-  return data ? (await hydratePosts([data as AppPostRow]))[0] : null;
+  return data ? (await hydratePosts([data as unknown as AppPostRow]))[0] : null;
 }

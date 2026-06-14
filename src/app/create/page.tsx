@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Check, ImagePlus, MapPin, Share2 } from "lucide-react";
+import { ArrowLeft, Calendar, Check, ImagePlus, Images, MapPin, Share2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
@@ -24,25 +24,26 @@ type SelectedUpload = {
 
 export default function CreatePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [selectedMedia, setSelectedMedia] = useState<SelectedUpload | null>(null);
-  const [title, setTitle] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
+  const [step, setStep] = useState<"picker" | "details">("picker");
+  const [recommendation, setRecommendation] = useState("");
+  const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
-  const [metadataNote, setMetadataNote] = useState("Choose a photo to read date and location metadata.");
+  const [metadataNote, setMetadataNote] = useState("Choose photos to read date and location metadata.");
   const [status, setStatus] = useState<"idle" | "reading" | "sharing" | "published">("idle");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     return () => {
-      if (selectedMedia) {
-        URL.revokeObjectURL(selectedMedia.url);
-      }
+      selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
     };
   }, [selectedMedia]);
 
   async function handleUpload(files: FileList | null) {
-    const file = Array.from(files ?? []).find((item) => item.type.startsWith("image/"));
+    const imageFiles = Array.from(files ?? []).filter((item) => item.type.startsWith("image/"));
+    const file = imageFiles[0];
 
     if (!file) {
       return;
@@ -51,43 +52,50 @@ export default function CreatePage() {
     setStatus("reading");
     setMessage("");
 
-    if (selectedMedia) {
-      URL.revokeObjectURL(selectedMedia.url);
-    }
+    selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
 
     const metadata = await readMediaMetadata(file);
     const nextCoordinates = metadata.coordinates;
     const nextLocation = nextCoordinates ? await reverseGeocodeCoordinates(nextCoordinates) : metadata.location;
     const nextDate = metadata.date ?? fallbackDateFromFile(file);
+    const nextMedia = await Promise.all(
+      imageFiles.map(async (item) => ({
+        file: item,
+        id: `${item.name}-${item.lastModified}-${item.size}`,
+        kind: "image" as const,
+        metadata: item === file ? metadata : await readMediaMetadata(item),
+        url: URL.createObjectURL(item),
+      })),
+    );
 
-    setSelectedMedia({
-      file,
-      id: `${file.name}-${file.lastModified}`,
-      kind: "image",
-      metadata,
-      url: URL.createObjectURL(file),
-    });
+    setSelectedMedia(nextMedia);
     setCoordinates(nextCoordinates);
     setDate(nextDate);
     setLocation(nextLocation ?? "");
-    setTitle((current) => current || file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
     setMetadataNote(
       nextCoordinates && nextDate
-        ? "Using date and location metadata from this file."
+        ? "Using date and location metadata from the first selected photo."
         : nextCoordinates
-          ? "Using location metadata from this file. Date metadata was not available, so file date is shown."
+          ? "Using location metadata from the first selected photo. Date metadata was not available, so file date is shown."
           : nextDate
             ? "Using file date. Location metadata was not available."
             : "No embedded date or location metadata was available. Add the details below.",
     );
     setStatus("idle");
+    setStep("details");
   }
 
   async function shareRecommendation() {
     setMessage("");
 
-    if (!selectedMedia) {
-      setMessage("Choose a photo before sharing.");
+    if (!selectedMedia.length) {
+      setMessage("Choose at least one photo before sharing.");
+      setStep("picker");
+      return;
+    }
+
+    if (!recommendation.trim()) {
+      setMessage("Add a recommendation before sharing.");
       return;
     }
 
@@ -108,14 +116,16 @@ export default function CreatePage() {
     setStatus("sharing");
 
     try {
+      const mediaUrls = await Promise.all(selectedMedia.map((item) => uploadPostMedia(item.file, accountId)));
       await createAppPost({
         accountId,
-        caption: "Posted from Odyssey Lite.",
+        caption: description.trim(),
         coordinates: resolvedCoordinates,
         dateLabel: date || "Just now",
-        imageUrl: await uploadPostMedia(selectedMedia.file, accountId),
+        imageUrl: mediaUrls[0],
+        mediaUrls,
         location: location.trim() || formatCoordinates(resolvedCoordinates),
-        title: title.trim() || "New recommendation",
+        title: recommendation.trim(),
         type: "experience",
         visibility: "Public",
       });
@@ -129,76 +139,157 @@ export default function CreatePage() {
   }
 
   function resetPost() {
-    if (selectedMedia) {
-      URL.revokeObjectURL(selectedMedia.url);
-    }
+    selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
 
-    setSelectedMedia(null);
-    setTitle("");
+    setSelectedMedia([]);
+    setStep("picker");
+    setRecommendation("");
+    setDescription("");
     setLocation("");
     setDate("");
     setCoordinates(undefined);
-    setMetadataNote("Choose a photo to read date and location metadata.");
+    setMetadataNote("Choose photos to read date and location metadata.");
     setStatus("idle");
     setMessage("");
   }
 
   return (
     <MobileFrame>
-      <section className="relative h-full overflow-hidden bg-white pb-24">
-        <header className="safe-top-bar border-b border-ink/8 bg-white px-5 pb-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-coral">Create</p>
-          <h1 className="mt-1 text-2xl font-black text-ink">Post a rec</h1>
+      <section className="relative h-full overflow-hidden bg-white pb-24 text-ink">
+        <header className="safe-top-bar flex items-center justify-between border-b border-ink/8 bg-white px-5 pb-3">
+          {step === "details" ? (
+            <button
+              aria-label="Back to camera roll"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
+              onClick={() => setStep("picker")}
+              type="button"
+            >
+              <ArrowLeft aria-hidden="true" size={21} />
+            </button>
+          ) : (
+            <span className="h-10 w-10" />
+          )}
+          <h1 className="text-lg font-black text-ink">{step === "picker" ? "New post" : "Recommendation"}</h1>
+          <button
+            className="h-10 rounded-full px-3 text-sm font-black text-coral disabled:text-ink/26"
+            disabled={!selectedMedia.length || status === "reading"}
+            onClick={() => setStep("details")}
+            type="button"
+          >
+            Next
+          </button>
         </header>
 
         <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-8">
           <input
             accept="image/*"
             className="hidden"
+            multiple
             onChange={(event) => void handleUpload(event.target.files)}
             ref={fileInputRef}
             type="file"
           />
 
-          <section className="space-y-5 px-5 py-5">
-            <button
-              className="relative flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-[10px] border border-dashed border-ink/16 bg-shell text-center"
-              onClick={() => fileInputRef.current?.click()}
-              type="button"
-            >
-              {selectedMedia ? (
-                <>
-                  <MediaPreview className="absolute inset-0 h-full w-full object-cover" item={selectedMedia} />
-                  <span className="absolute inset-0 bg-ink/18" />
-                  <span className="absolute bottom-4 right-4 rounded-full bg-white px-4 py-2 text-sm font-black text-ink shadow-lift">
-                    Change
+          {step === "picker" ? (
+            <section className="bg-white">
+              <div className="relative aspect-square bg-shell">
+                {selectedMedia[0] ? (
+                  <MediaPreview className="h-full w-full object-cover" item={selectedMedia[0]} />
+                ) : (
+                  <button
+                    className="flex h-full w-full flex-col items-center justify-center text-center"
+                    onClick={() => fileInputRef.current?.click()}
+                    type="button"
+                  >
+                    <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-ink shadow-lift">
+                      <ImagePlus aria-hidden="true" size={28} />
+                    </span>
+                    <span className="mt-5 text-xl font-black text-ink">Choose from camera roll</span>
+                    <span className="mt-2 max-w-64 text-sm font-semibold leading-relaxed text-ink/50">
+                      Select one or more photos to start a recommendation.
+                    </span>
+                  </button>
+                )}
+                {selectedMedia.length ? (
+                  <span className="absolute bottom-3 left-3 rounded-full bg-ink/82 px-3 py-1.5 text-xs font-black text-white">
+                    {selectedMedia.length} selected
                   </span>
-                </>
+                ) : null}
+              </div>
+
+              <div className="flex items-center justify-between border-b border-ink/8 px-4 py-3">
+                <h2 className="text-sm font-black text-ink">Camera roll</h2>
+                <button
+                  className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-black text-white shadow-lift"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <Images aria-hidden="true" size={17} />
+                  Select
+                </button>
+              </div>
+
+              {selectedMedia.length ? (
+                <div className="grid grid-cols-4 gap-0.5 bg-white p-0.5">
+                  {selectedMedia.map((item, index) => (
+                    <button
+                      className="relative aspect-square overflow-hidden bg-shell"
+                      key={item.id}
+                      onClick={() => fileInputRef.current?.click()}
+                      type="button"
+                    >
+                      <MediaPreview className="h-full w-full object-cover" item={item} />
+                      <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-coral text-[10px] font-black text-white">
+                        {index + 1}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               ) : (
-                <>
-                  <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-ink shadow-lift">
-                    <ImagePlus aria-hidden="true" size={28} />
+                <button
+                  className="flex min-h-64 w-full flex-col items-center justify-center px-8 text-center"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <span className="grid h-14 w-14 place-items-center rounded-full bg-shell text-ink/58">
+                    <ImagePlus aria-hidden="true" size={25} />
                   </span>
-                  <span className="mt-5 block text-xl font-black text-ink">Choose from camera roll</span>
-                  <span className="mt-2 block max-w-64 text-sm font-semibold leading-relaxed text-ink/50">
-                    Odyssey will check the file for date and location metadata.
-                  </span>
-                </>
+                  <span className="mt-4 text-sm font-bold text-ink/56">Tap Select to choose photos from your camera roll.</span>
+                </button>
               )}
-            </button>
 
-            <p className="rounded-[20px] bg-shell px-4 py-3 text-sm font-semibold leading-relaxed text-ink/56">
-              {status === "reading" ? "Reading metadata..." : metadataNote}
-            </p>
+              {status === "reading" ? (
+                <p className="mx-4 mt-4 rounded-[20px] bg-shell px-4 py-3 text-sm font-semibold text-ink/56">Reading metadata...</p>
+              ) : null}
+            </section>
+          ) : (
+            <section className="space-y-5 px-5 py-5">
+              <div className="grid grid-cols-[88px_1fr] gap-4">
+                {selectedMedia[0] ? (
+                  <MediaPreview className="aspect-square w-full rounded-[18px] object-cover shadow-soft" item={selectedMedia[0]} />
+                ) : null}
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-ink/38">Recommendation</span>
+                  <textarea
+                    className="min-h-[88px] w-full resize-none rounded-[22px] bg-shell px-4 py-3 text-base font-bold leading-snug text-ink outline-none placeholder:text-ink/28"
+                    onChange={(event) => setRecommendation(event.target.value)}
+                    placeholder="What are you recommending?"
+                    value={recommendation}
+                  />
+                </label>
+              </div>
 
-            {selectedMedia ? (
+              <p className="rounded-[20px] bg-shell px-4 py-3 text-sm font-semibold leading-relaxed text-ink/56">
+                {status === "reading" ? "Reading metadata..." : metadataNote}
+              </p>
+
               <section className="overflow-hidden rounded-[28px] bg-white shadow-soft ring-1 ring-ink/8">
-                <ReviewField label="Title">
-                  <input
-                    className="w-full bg-transparent text-base font-bold text-ink outline-none placeholder:text-ink/28"
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="Add a title"
-                    value={title}
+                <ReviewField label="Description">
+                  <textarea
+                    className="min-h-24 w-full resize-none bg-transparent text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/28"
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Add helpful details, tips, or context"
+                    value={description}
                   />
                 </ReviewField>
                 <ReviewField label="Location">
@@ -227,10 +318,11 @@ export default function CreatePage() {
                   </div>
                 </ReviewField>
               </section>
-            ) : null}
+            </section>
+          )}
 
             {status === "published" ? (
-              <div className="rounded-[26px] bg-ink p-5 text-white shadow-soft">
+              <div className="mx-5 mt-5 rounded-[26px] bg-ink p-5 text-white shadow-soft">
                 <div className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-white text-ink">
                   <Check aria-hidden="true" size={22} />
                 </div>
@@ -244,18 +336,18 @@ export default function CreatePage() {
               </div>
             ) : null}
 
-            {message ? <p className="rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
-          </section>
+          {message ? <p className="mx-5 mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
         </div>
 
         <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
           <button
-            className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift"
-            onClick={shareRecommendation}
+            className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:opacity-40"
+            disabled={status === "sharing" || status === "reading" || (step === "picker" && !selectedMedia.length)}
+            onClick={step === "picker" ? () => setStep("details") : shareRecommendation}
             type="button"
           >
-            <Share2 aria-hidden="true" size={19} />
-            {status === "sharing" ? "Sharing..." : "Share"}
+            {step === "picker" ? <Images aria-hidden="true" size={19} /> : <Share2 aria-hidden="true" size={19} />}
+            {step === "picker" ? "Next" : status === "sharing" ? "Sharing..." : "Share"}
           </button>
         </footer>
 

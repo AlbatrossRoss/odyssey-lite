@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 14, 2026",
+    id: "v4.7",
+    title: "Instagram-Style Posting",
+    summary:
+      "Reworked Create into a light two-step New Post flow with multi-photo camera-roll selection, Recommendation and Description fields, metadata-backed date/location, and storage-backed media URLs that preserve uploaded photo data.",
+  },
+  {
+    date: "June 14, 2026",
     id: "v4.6",
     title: "Explore Feed Recovery",
     summary:
