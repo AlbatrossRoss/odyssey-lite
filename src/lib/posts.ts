@@ -43,11 +43,16 @@ type AppPostRow = {
   date_label: string;
   visibility: string;
   created_at: string;
-  app_accounts?: {
-    username: string;
-    profile_photo_url: string | null;
-  } | null;
 };
+
+type AppPostAccountRow = {
+  id: string;
+  username?: string;
+  profile_photo_url?: string | null;
+};
+
+const postSelectColumns =
+  "id, account_id, type, title, location, caption, image_url, latitude, longitude, date_label, visibility, created_at";
 
 function assertPostsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -55,12 +60,16 @@ function assertPostsConfigured() {
   }
 }
 
-function mapPost(post: AppPostRow): AppPost {
+function safeProfilePhotoUrl(value: string | null | undefined) {
+  return value?.startsWith("data:image/") ? null : value ?? null;
+}
+
+function mapPost(post: AppPostRow, account?: AppPostAccountRow): AppPost {
   return {
     id: post.id,
     accountId: post.account_id,
-    username: post.app_accounts?.username ?? "traveler",
-    profilePhotoUrl: post.app_accounts?.profile_photo_url ?? null,
+    username: account?.username ?? "traveler",
+    profilePhotoUrl: safeProfilePhotoUrl(account?.profile_photo_url),
     type: post.type,
     title: post.title,
     location: post.location,
@@ -71,6 +80,48 @@ function mapPost(post: AppPostRow): AppPost {
     visibility: post.visibility,
     createdAt: post.created_at,
   };
+}
+
+async function fetchAccountSummaries(accountIds: string[]) {
+  if (!accountIds.length) {
+    return new Map<string, AppPostAccountRow>();
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const uniqueAccountIds = Array.from(new Set(accountIds));
+  const [{ data: names, error: namesError }, { data: profilePhotos, error: profilePhotosError }] = await Promise.all([
+    supabase.from("app_accounts").select("id, username").in("id", uniqueAccountIds),
+    supabase
+      .from("app_accounts")
+      .select("id, profile_photo_url")
+      .in("id", uniqueAccountIds)
+      .not("profile_photo_url", "like", "data:image/%"),
+  ]);
+
+  if (namesError) {
+    throw namesError;
+  }
+
+  if (profilePhotosError) {
+    throw profilePhotosError;
+  }
+
+  const accounts = new Map<string, AppPostAccountRow>();
+
+  (names as AppPostAccountRow[] | null)?.forEach((account) => {
+    accounts.set(account.id, account);
+  });
+  (profilePhotos as AppPostAccountRow[] | null)?.forEach((account) => {
+    accounts.set(account.id, { ...accounts.get(account.id), ...account });
+  });
+
+  return accounts;
+}
+
+async function hydratePosts(posts: AppPostRow[]) {
+  const accounts = await fetchAccountSummaries(posts.map((post) => post.account_id));
+
+  return posts.map((post) => mapPost(post, accounts.get(post.account_id)));
 }
 
 export async function createAppPost(draft: AppPostDraft) {
@@ -91,14 +142,14 @@ export async function createAppPost(draft: AppPostDraft) {
       date_label: draft.dateLabel,
       visibility: draft.visibility,
     })
-    .select("*, app_accounts(username, profile_photo_url)")
+    .select(postSelectColumns)
     .single();
 
   if (error) {
     throw error;
   }
 
-  return mapPost(data as AppPostRow);
+  return (await hydratePosts([data as AppPostRow]))[0];
 }
 
 export async function fetchAppPosts() {
@@ -107,14 +158,14 @@ export async function fetchAppPosts() {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("app_posts")
-    .select("*, app_accounts(username, profile_photo_url)")
+    .select(postSelectColumns)
     .order("created_at", { ascending: false });
 
   if (error) {
     throw error;
   }
 
-  return (data as AppPostRow[]).map(mapPost);
+  return hydratePosts(data as AppPostRow[]);
 }
 
 export async function fetchAppPostsByAccount(accountId: string) {
@@ -123,7 +174,7 @@ export async function fetchAppPostsByAccount(accountId: string) {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("app_posts")
-    .select("*, app_accounts(username, profile_photo_url)")
+    .select(postSelectColumns)
     .eq("account_id", accountId)
     .order("created_at", { ascending: false });
 
@@ -131,7 +182,7 @@ export async function fetchAppPostsByAccount(accountId: string) {
     throw error;
   }
 
-  return (data as AppPostRow[]).map(mapPost);
+  return hydratePosts(data as AppPostRow[]);
 }
 
 export async function fetchAppPostsByIds(postIds: string[]) {
@@ -144,7 +195,7 @@ export async function fetchAppPostsByIds(postIds: string[]) {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("app_posts")
-    .select("*, app_accounts(username, profile_photo_url)")
+    .select(postSelectColumns)
     .in("id", postIds)
     .order("created_at", { ascending: false });
 
@@ -152,7 +203,7 @@ export async function fetchAppPostsByIds(postIds: string[]) {
     throw error;
   }
 
-  return (data as AppPostRow[]).map(mapPost);
+  return hydratePosts(data as AppPostRow[]);
 }
 
 export async function fetchAppPostById(postId: string) {
@@ -161,7 +212,7 @@ export async function fetchAppPostById(postId: string) {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("app_posts")
-    .select("*, app_accounts(username, profile_photo_url)")
+    .select(postSelectColumns)
     .eq("id", postId)
     .maybeSingle();
 
@@ -169,5 +220,5 @@ export async function fetchAppPostById(postId: string) {
     throw error;
   }
 
-  return data ? mapPost(data as AppPostRow) : null;
+  return data ? (await hydratePosts([data as AppPostRow]))[0] : null;
 }

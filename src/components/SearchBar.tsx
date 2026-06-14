@@ -91,11 +91,11 @@ export function SearchBar({
 
   function navigateToDestination(query: string) {
     if (query.toLowerCase().includes("hawaii") || !query) {
-      router.push("/destination/hawaii");
+      router.push("/explore");
       return;
     }
 
-    router.push("/destination/hawaii");
+    router.push("/explore");
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {

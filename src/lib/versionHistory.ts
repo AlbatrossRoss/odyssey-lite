@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 14, 2026",
+    id: "v4.6",
+    title: "Explore Feed Recovery",
+    summary:
+      "Moved the main map feed to /explore, preserved the old Hawaii route as a redirect, and switched new post uploads to Supabase Storage URLs so oversized inline image data cannot blank the recommendations feed.",
+  },
+  {
     date: "June 13, 2026",
     id: "v4.5",
     title: "Manual PWA Layout Tuning",

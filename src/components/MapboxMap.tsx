@@ -11,8 +11,10 @@ type MapboxMapProps = {
   experiences: Experience[];
   appPosts?: AppPost[];
   selectedSlug?: string;
+  selectedPostId?: string;
   onSelect?: (experience: Experience) => void;
   onPostSelect?: (post: AppPost) => void;
+  onMapInteraction?: () => void;
   mapTarget?: {
     center: [number, number];
     zoom?: number;
@@ -147,8 +149,10 @@ export function MapboxMap({
   experiences,
   appPosts = [],
   selectedSlug,
+  selectedPostId,
   onSelect,
   onPostSelect,
+  onMapInteraction,
   mapTarget,
   onMoveEnd,
   className = "",
@@ -160,20 +164,27 @@ export function MapboxMap({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const onMoveEndRef = useRef(onMoveEnd);
+  const onMapInteractionRef = useRef(onMapInteraction);
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const hasPositionClass = /\b(absolute|fixed|relative|sticky)\b/.test(className);
 
   useEffect(() => {
     onMoveEndRef.current = onMoveEnd;
   }, [onMoveEnd]);
 
   useEffect(() => {
+    onMapInteractionRef.current = onMapInteraction;
+  }, [onMapInteraction]);
+
+  useEffect(() => {
     if (!containerRef.current || mapRef.current) {
       return;
     }
 
+    const mapContainer = containerRef.current;
     mapboxgl.accessToken = token ?? "";
     mapRef.current = new mapboxgl.Map({
-      container: containerRef.current,
+      container: mapContainer,
       style: token ? "mapbox://styles/mapbox/outdoors-v12" : localHawaiiStyle,
       center: hawaiiCenter,
       zoom,
@@ -212,8 +223,15 @@ export function MapboxMap({
         zoom: mapRef.current.getZoom(),
       });
     });
+    mapRef.current.on("dragstart", () => onMapInteractionRef.current?.());
+    mapRef.current.on("wheel", () => onMapInteractionRef.current?.());
+    const resizeObserver = new ResizeObserver(() => {
+      mapRef.current?.resize();
+    });
+    resizeObserver.observe(mapContainer);
 
     return () => {
+      resizeObserver.disconnect();
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
       mapRef.current?.remove();
@@ -258,18 +276,23 @@ export function MapboxMap({
       const index = experiences.findIndex((item) => item.slug === experience.slug);
       element.innerHTML = `
         <span class="odyssey-marker-card" data-selected="${experience.slug === selectedSlug}">
-          <img src="${experience.imageUrl}" alt="" />
+          <img class="odyssey-marker-photo" src="${experience.imageUrl}" alt="" />
           <img class="odyssey-marker-avatar" src="${user?.avatarUrl ?? ""}" alt="" />
           <span class="odyssey-marker-count" style="background:${markerColors[index % markerColors.length]}">
             ${markerCounts[index % markerCounts.length]}
           </span>
         </span>
       `;
-      element.addEventListener("click", () => onSelect?.(experience));
+      const selectExperience = (event: Event) => {
+        event.stopPropagation();
+        onSelect?.(experience);
+      };
+      element.addEventListener("click", selectExperience);
+      element.addEventListener("pointerup", selectExperience);
 
       return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(experience.coordinates).addTo(mapRef.current!);
     });
-    const postMarkers = appPosts.map((post, index) => {
+    const postMarkers = appPosts.map((post) => {
       const element = document.createElement("button");
       element.className = "odyssey-marker";
       element.type = "button";
@@ -277,24 +300,26 @@ export function MapboxMap({
       const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${post.profilePhotoUrl}" alt="" />` : "";
 
       element.innerHTML = `
-        <span class="odyssey-marker-card" data-selected="false">
-          <img src="${post.imageUrl}" alt="" />
+        <span class="odyssey-marker-card" data-selected="${post.id === selectedPostId}">
+          <img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" />
           ${avatarMarkup}
-          <span class="odyssey-marker-count" style="background:${markerColors[(experiences.length + index) % markerColors.length]}">
-            1
-          </span>
         </span>
       `;
-      element.addEventListener("click", () => onPostSelect?.(post));
+      const selectPost = (event: Event) => {
+        event.stopPropagation();
+        onPostSelect?.(post);
+      };
+      element.addEventListener("click", selectPost);
+      element.addEventListener("pointerup", selectPost);
 
       return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
     });
 
     markersRef.current = [...experienceMarkers, ...postMarkers];
-  }, [appPosts, experiences, onPostSelect, onSelect, selectedSlug]);
+  }, [appPosts, experiences, onPostSelect, onSelect, selectedPostId, selectedSlug]);
 
   return (
-    <div className={`relative bg-[#a9d7ed] ${className}`}>
+    <div className={`${hasPositionClass ? "" : "relative"} bg-[#a9d7ed] ${className}`} onWheel={onMapInteraction}>
       <div className="absolute inset-0" ref={containerRef} />
       {!token ? (
         <svg

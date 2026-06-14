@@ -5,13 +5,19 @@ import { MapPin, UserRound } from "lucide-react";
 import type { AppPost } from "@/lib/posts";
 
 type AppPostFeedCardProps = {
+  onOpen?: () => void;
   post: AppPost;
 };
 
-export function AppPostFeedCard({ post }: AppPostFeedCardProps) {
+export function AppPostFeedCard({ onOpen, post }: AppPostFeedCardProps) {
   return (
     <article className="overflow-hidden rounded-[24px] bg-ink shadow-soft">
-      <Link className="relative block min-h-[430px] text-left" href={`/posts/${post.id}`}>
+      <Link
+        className="relative block min-h-[430px] text-left"
+        href={`/posts/${post.id}`}
+        onClick={onOpen}
+        onPointerDown={onOpen}
+      >
         <span className="absolute inset-0 block bg-shell">
           <img
             alt={post.title}

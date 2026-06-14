@@ -165,7 +165,7 @@ export default function BoardDetailPage() {
               <div>
                 <h2 className="text-2xl font-black text-ink">Nothing saved yet</h2>
                 <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/58">Open a post and save it here when it feels worth remembering.</p>
-                <Link className="mt-6 inline-flex rounded-full bg-ink px-6 py-3 text-sm font-black text-white" href="/destination/hawaii">
+                <Link className="mt-6 inline-flex rounded-full bg-ink px-6 py-3 text-sm font-black text-white" href="/explore">
                   Explore posts
                 </Link>
               </div>

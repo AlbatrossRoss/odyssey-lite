@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Bookmark, Calendar, Check, MapPin, Plus, UserRound, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
@@ -14,6 +14,7 @@ import { readAccountSessionId } from "@/lib/accounts";
 
 export default function PostDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [post, setPost] = useState<AppPost | null>(null);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [boards, setBoards] = useState<AppBoard[]>([]);
@@ -111,7 +112,7 @@ export default function PostDetailPage() {
           <div>
             <UserRound aria-hidden="true" className="mx-auto text-ink/38" size={42} />
             <h1 className="mt-3 text-2xl font-black text-ink">Post not found</h1>
-            <Link className="mt-5 inline-flex rounded-full bg-ink px-5 py-3 text-sm font-black text-white" href="/destination/hawaii">
+            <Link className="mt-5 inline-flex rounded-full bg-ink px-5 py-3 text-sm font-black text-white" href="/explore">
               Back to Explore
             </Link>
           </div>
@@ -123,6 +124,15 @@ export default function PostDetailPage() {
 
   const savedBoardIds = boards.filter((board) => board.postIds.includes(post.id)).map((board) => board.id);
   const isSaved = savedBoardIds.length > 0;
+
+  function handleBackToExplore() {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/explore");
+  }
 
   async function handleSaveToBoard(board: AppBoard) {
     if (!post) {
@@ -192,13 +202,14 @@ export default function PostDetailPage() {
         <div className="relative h-[430px] bg-ink">
           <img alt={post.title} className="h-full w-full object-cover" src={post.imageUrl} />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
-          <Link
+          <button
             aria-label="Back to Explore"
             className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/88 text-ink shadow-lift backdrop-blur"
-            href="/destination/hawaii"
+            onClick={handleBackToExplore}
+            type="button"
           >
             <ArrowLeft aria-hidden="true" size={20} />
-          </Link>
+          </button>
           <div className="absolute bottom-6 left-5 right-5 text-white">
             <Link className="mb-4 flex items-center gap-3" href={`/accounts/${post.username}`}>
               <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-shell text-ink shadow-lift">

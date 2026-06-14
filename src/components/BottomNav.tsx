@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { fetchAccountById, readAccountSessionId, type AppAccount } from "@/lib/accounts";
 
 const navItems = [
-  { label: "Explore", href: "/destination/hawaii", icon: Search },
+  { label: "Explore", href: "/explore", icon: Search },
   { label: "Boards", href: "/boards", icon: SquareStack },
   { label: "Create", href: "/create", icon: Plus },
   { label: "Accounts", href: "/accounts", icon: UserRound },

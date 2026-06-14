@@ -47,7 +47,7 @@ export default function ExperienceDetailPage() {
           <Link
             aria-label="Back to Hawaii"
             className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-ink shadow-lift backdrop-blur"
-            href="/destination/hawaii"
+            href="/explore"
           >
             <ArrowLeft aria-hidden="true" size={20} />
           </Link>

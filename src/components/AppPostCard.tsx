@@ -5,12 +5,18 @@ import { MapPin, UserRound } from "lucide-react";
 import type { AppPost } from "@/lib/posts";
 
 type AppPostCardProps = {
+  onOpen?: () => void;
   post: AppPost;
 };
 
-export function AppPostCard({ post }: AppPostCardProps) {
+export function AppPostCard({ onOpen, post }: AppPostCardProps) {
   return (
-    <Link className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[20px] bg-ink text-left shadow-soft" href={`/posts/${post.id}`}>
+    <Link
+      className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[20px] bg-ink text-left shadow-soft"
+      href={`/posts/${post.id}`}
+      onClick={onOpen}
+      onPointerDown={onOpen}
+    >
       <span className="absolute inset-0 block bg-shell">
         <img
           alt={post.title}

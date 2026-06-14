@@ -1,10 +1,11 @@
 "use client";
 
-import { Calendar, Check, ImagePlus, MapPin, Play, Share2 } from "lucide-react";
+import { Calendar, Check, ImagePlus, MapPin, Share2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
 import { readAccountSessionId } from "@/lib/accounts";
+import { uploadPostMedia } from "@/lib/media";
 import { createAppPost } from "@/lib/posts";
 
 type MediaMetadata = {
@@ -16,7 +17,7 @@ type MediaMetadata = {
 type SelectedUpload = {
   id: string;
   file: File;
-  kind: "image" | "video";
+  kind: "image";
   metadata: MediaMetadata;
   url: string;
 };
@@ -28,7 +29,7 @@ export default function CreatePage() {
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
-  const [metadataNote, setMetadataNote] = useState("Choose a photo or video to read date and location metadata.");
+  const [metadataNote, setMetadataNote] = useState("Choose a photo to read date and location metadata.");
   const [status, setStatus] = useState<"idle" | "reading" | "sharing" | "published">("idle");
   const [message, setMessage] = useState("");
 
@@ -41,7 +42,7 @@ export default function CreatePage() {
   }, [selectedMedia]);
 
   async function handleUpload(files: FileList | null) {
-    const file = Array.from(files ?? []).find((item) => item.type.startsWith("image/") || item.type.startsWith("video/"));
+    const file = Array.from(files ?? []).find((item) => item.type.startsWith("image/"));
 
     if (!file) {
       return;
@@ -62,7 +63,7 @@ export default function CreatePage() {
     setSelectedMedia({
       file,
       id: `${file.name}-${file.lastModified}`,
-      kind: file.type.startsWith("video/") ? "video" : "image",
+      kind: "image",
       metadata,
       url: URL.createObjectURL(file),
     });
@@ -86,7 +87,7 @@ export default function CreatePage() {
     setMessage("");
 
     if (!selectedMedia) {
-      setMessage("Choose a photo or video before sharing.");
+      setMessage("Choose a photo before sharing.");
       return;
     }
 
@@ -112,7 +113,7 @@ export default function CreatePage() {
         caption: "Posted from Odyssey Lite.",
         coordinates: resolvedCoordinates,
         dateLabel: date || "Just now",
-        imageUrl: await fileToDataUrl(selectedMedia.file),
+        imageUrl: await uploadPostMedia(selectedMedia.file, accountId),
         location: location.trim() || formatCoordinates(resolvedCoordinates),
         title: title.trim() || "New recommendation",
         type: "experience",
@@ -137,7 +138,7 @@ export default function CreatePage() {
     setLocation("");
     setDate("");
     setCoordinates(undefined);
-    setMetadataNote("Choose a photo or video to read date and location metadata.");
+    setMetadataNote("Choose a photo to read date and location metadata.");
     setStatus("idle");
     setMessage("");
   }
@@ -152,7 +153,7 @@ export default function CreatePage() {
 
         <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-8">
           <input
-            accept="image/*,video/*"
+            accept="image/*"
             className="hidden"
             onChange={(event) => void handleUpload(event.target.files)}
             ref={fileInputRef}
@@ -169,11 +170,6 @@ export default function CreatePage() {
                 <>
                   <MediaPreview className="absolute inset-0 h-full w-full object-cover" item={selectedMedia} />
                   <span className="absolute inset-0 bg-ink/18" />
-                  {selectedMedia.kind === "video" ? (
-                    <span className="absolute left-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-black/45 text-white">
-                      <Play aria-hidden="true" fill="currentColor" size={18} />
-                    </span>
-                  ) : null}
                   <span className="absolute bottom-4 right-4 rounded-full bg-white px-4 py-2 text-sm font-black text-ink shadow-lift">
                     Change
                   </span>
@@ -279,10 +275,6 @@ function ReviewField({ children, label }: { children: React.ReactNode; label: st
 }
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {
-  if (item.kind === "video") {
-    return <video className={className} muted playsInline src={item.url} />;
-  }
-
   return <img alt="" className={className} src={item.url} />;
 }
 
@@ -486,15 +478,6 @@ async function geocodePlace(place: string) {
   } catch {
     return undefined;
   }
-}
-
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
-    reader.addEventListener("error", () => reject(reader.error));
-    reader.readAsDataURL(file);
-  });
 }
 
 function formatPublishError(error: unknown) {

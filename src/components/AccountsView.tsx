@@ -140,7 +140,7 @@ export function AccountsView({ username }: AccountsViewProps) {
             <Link
               aria-label="Back to Explore"
               className="flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift"
-              href="/destination/hawaii"
+              href="/explore"
             >
               <ArrowLeft aria-hidden="true" size={20} />
             </Link>
