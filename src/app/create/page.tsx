@@ -24,6 +24,7 @@ type SelectedUpload = {
 
 export default function CreatePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const attemptedInitialPickerRef = useRef(false);
   const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
   const [step, setStep] = useState<"picker" | "details">("picker");
   const [recommendation, setRecommendation] = useState("");
@@ -40,6 +41,17 @@ export default function CreatePage() {
       selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
     };
   }, [selectedMedia]);
+
+  useEffect(() => {
+    if (attemptedInitialPickerRef.current || step !== "picker" || selectedMedia.length) {
+      return;
+    }
+
+    attemptedInitialPickerRef.current = true;
+    const timeoutId = window.setTimeout(() => fileInputRef.current?.click(), 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [selectedMedia.length, step]);
 
   async function handleUpload(files: FileList | null) {
     const imageFiles = Array.from(files ?? []).filter((item) => item.type.startsWith("image/"));
@@ -263,30 +275,41 @@ export default function CreatePage() {
               ) : null}
             </section>
           ) : (
-            <section className="space-y-5 px-5 py-5">
-              <div className="grid grid-cols-[88px_1fr] gap-4">
-                {selectedMedia[0] ? (
-                  <MediaPreview className="aspect-square w-full rounded-[18px] object-cover shadow-soft" item={selectedMedia[0]} />
-                ) : null}
-                <label className="block">
-                  <span className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-ink/38">Recommendation</span>
-                  <textarea
-                    className="min-h-[88px] w-full resize-none rounded-[22px] bg-shell px-4 py-3 text-base font-bold leading-snug text-ink outline-none placeholder:text-ink/28"
-                    onChange={(event) => setRecommendation(event.target.value)}
-                    placeholder="What are you recommending?"
-                    value={recommendation}
-                  />
-                </label>
+            <section className="space-y-3 px-4 py-3">
+              <div className="no-scrollbar flex gap-2 overflow-x-auto">
+                {selectedMedia.map((item, index) => (
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] bg-shell shadow-soft" key={item.id}>
+                    <MediaPreview className="h-full w-full object-cover" item={item} />
+                    <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-coral text-[10px] font-black text-white">
+                      {index + 1}
+                    </span>
+                  </div>
+                ))}
+                <button
+                  className="grid h-16 w-16 shrink-0 place-items-center rounded-[16px] bg-shell text-ink/54"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <ImagePlus aria-hidden="true" size={22} />
+                </button>
               </div>
 
-              <p className="rounded-[20px] bg-shell px-4 py-3 text-sm font-semibold leading-relaxed text-ink/56">
+              <p className="rounded-[18px] bg-shell px-4 py-2 text-xs font-semibold leading-snug text-ink/56">
                 {status === "reading" ? "Reading metadata..." : metadataNote}
               </p>
 
               <section className="overflow-hidden rounded-[28px] bg-white shadow-soft ring-1 ring-ink/8">
+                <ReviewField label="Recommendation">
+                  <input
+                    className="h-10 w-full bg-transparent text-base font-bold text-ink outline-none placeholder:text-ink/28"
+                    onChange={(event) => setRecommendation(event.target.value)}
+                    placeholder="What are you recommending?"
+                    value={recommendation}
+                  />
+                </ReviewField>
                 <ReviewField label="Description">
                   <textarea
-                    className="min-h-24 w-full resize-none bg-transparent text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/28"
+                    className="min-h-16 w-full resize-none bg-transparent text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/28"
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="Add helpful details, tips, or context"
                     value={description}
@@ -359,8 +382,8 @@ export default function CreatePage() {
 
 function ReviewField({ children, label }: { children: React.ReactNode; label: string }) {
   return (
-    <label className="block border-b border-ink/8 px-4 py-4 last:border-b-0">
-      <span className="mb-2 block text-[11px] font-black uppercase tracking-[0.12em] text-ink/38">{label}</span>
+    <label className="block border-b border-ink/8 px-4 py-3 last:border-b-0">
+      <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-ink/38">{label}</span>
       {children}
     </label>
   );

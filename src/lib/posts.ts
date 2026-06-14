@@ -54,8 +54,9 @@ type AppPostAccountRow = {
   profile_photo_url?: string | null;
 };
 
-const postSelectColumns: string =
-  "id, account_id, type, title, location, caption, image_url, media_urls, latitude, longitude, date_label, visibility, created_at";
+const basePostSelectColumns =
+  "id, account_id, type, title, location, caption, image_url, latitude, longitude, date_label, visibility, created_at";
+const postSelectColumns = `${basePostSelectColumns}, media_urls`;
 
 function assertPostsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -128,6 +129,52 @@ async function hydratePosts(posts: AppPostRow[]) {
   return posts.map((post) => mapPost(post, accounts.get(post.account_id)));
 }
 
+function isMissingMediaUrlsError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+
+  return code === "42703" || message.includes("media_urls") || message.includes("media urls");
+}
+
+type PostRowsQuery = {
+  eq: (column: string, value: string) => PostRowsQuery;
+  in: (column: string, values: string[]) => PostRowsQuery;
+  order: (column: string, options: { ascending: boolean }) => PromiseLike<{ data: unknown; error: unknown }>;
+};
+
+type SinglePostQuery = {
+  eq: (column: string, value: string) => SinglePostQuery;
+  maybeSingle: () => PromiseLike<{ data: unknown; error: unknown }>;
+};
+
+async function fetchPostRows(applyQuery: (query: PostRowsQuery) => PromiseLike<{ data: unknown; error: unknown }>) {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await applyQuery(supabase.from("app_posts").select(postSelectColumns) as unknown as PostRowsQuery);
+
+  if (!isMissingMediaUrlsError(error)) {
+    if (error) {
+      throw error;
+    }
+
+    return data as unknown as AppPostRow[];
+  }
+
+  const { data: fallbackData, error: fallbackError } = await applyQuery(
+    supabase.from("app_posts").select(basePostSelectColumns) as unknown as PostRowsQuery,
+  );
+
+  if (fallbackError) {
+    throw fallbackError;
+  }
+
+  return fallbackData as unknown as AppPostRow[];
+}
+
 export async function createAppPost(draft: AppPostDraft) {
   assertPostsConfigured();
 
@@ -145,11 +192,36 @@ export async function createAppPost(draft: AppPostDraft) {
     date_label: draft.dateLabel,
     visibility: draft.visibility,
   };
-  const { data, error } = await supabase
+  const response = await supabase
     .from("app_posts")
     .insert(postInsert as never)
     .select(postSelectColumns)
     .single();
+  let data: unknown = response.data;
+  let error: unknown = response.error;
+
+  if (isMissingMediaUrlsError(error)) {
+    const basePostInsert = {
+      account_id: postInsert.account_id,
+      type: postInsert.type,
+      title: postInsert.title,
+      location: postInsert.location,
+      caption: postInsert.caption,
+      image_url: postInsert.image_url,
+      longitude: postInsert.longitude,
+      latitude: postInsert.latitude,
+      date_label: postInsert.date_label,
+      visibility: postInsert.visibility,
+    };
+    const fallbackResponse = await supabase
+      .from("app_posts")
+      .insert(basePostInsert as never)
+      .select(basePostSelectColumns)
+      .single();
+
+    data = fallbackResponse.data;
+    error = fallbackResponse.error;
+  }
 
   if (error) {
     throw error;
@@ -161,34 +233,17 @@ export async function createAppPost(draft: AppPostDraft) {
 export async function fetchAppPosts() {
   assertPostsConfigured();
 
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("app_posts")
-    .select(postSelectColumns)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return hydratePosts(data as unknown as AppPostRow[]);
+  return hydratePosts(await fetchPostRows((query) => query.order("created_at", { ascending: false })));
 }
 
 export async function fetchAppPostsByAccount(accountId: string) {
   assertPostsConfigured();
 
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("app_posts")
-    .select(postSelectColumns)
+  return hydratePosts(await fetchPostRows((query) =>
+    query
     .eq("account_id", accountId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return hydratePosts(data as unknown as AppPostRow[]);
+    .order("created_at", { ascending: false }),
+  ));
 }
 
 export async function fetchAppPostsByIds(postIds: string[]) {
@@ -198,29 +253,31 @@ export async function fetchAppPostsByIds(postIds: string[]) {
     return [];
   }
 
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("app_posts")
-    .select(postSelectColumns)
+  return hydratePosts(await fetchPostRows((query) =>
+    query
     .in("id", postIds)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return hydratePosts(data as unknown as AppPostRow[]);
+    .order("created_at", { ascending: false }),
+  ));
 }
 
 export async function fetchAppPostById(postId: string) {
   assertPostsConfigured();
 
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("app_posts")
-    .select(postSelectColumns)
+  const response = await (supabase.from("app_posts").select(postSelectColumns) as unknown as SinglePostQuery)
     .eq("id", postId)
     .maybeSingle();
+  let data = response.data;
+  let error = response.error;
+
+  if (isMissingMediaUrlsError(error)) {
+    const fallbackResponse = await (supabase.from("app_posts").select(basePostSelectColumns) as unknown as SinglePostQuery)
+      .eq("id", postId)
+      .maybeSingle();
+
+    data = fallbackResponse.data;
+    error = fallbackResponse.error;
+  }
 
   if (error) {
     throw error;
