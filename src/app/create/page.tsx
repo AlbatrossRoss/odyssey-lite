@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Calendar, Check, ImagePlus, Images, MapPin, Share2 } from "lucide-react";
+import { ArrowLeft, Calendar, Check, ImagePlus, Images, MapPin, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
@@ -179,17 +179,28 @@ export default function CreatePage() {
               <ArrowLeft aria-hidden="true" size={21} />
             </button>
           ) : (
-            <span className="h-10 w-10" />
+            <button
+              aria-label="Clear selected photos"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
+              onClick={resetPost}
+              type="button"
+            >
+              <X aria-hidden="true" size={21} />
+            </button>
           )}
           <h1 className="text-lg font-black text-ink">{step === "picker" ? "New post" : "Recommendation"}</h1>
-          <button
-            className="h-10 rounded-full px-3 text-sm font-black text-coral disabled:text-ink/26"
-            disabled={!selectedMedia.length || status === "reading"}
-            onClick={() => setStep("details")}
-            type="button"
-          >
-            Next
-          </button>
+          {step === "picker" ? (
+            <button
+              className="h-10 rounded-full px-3 text-sm font-black text-coral disabled:text-ink/26"
+              disabled={!selectedMedia.length || status === "reading"}
+              onClick={() => setStep("details")}
+              type="button"
+            >
+              Next
+            </button>
+          ) : (
+            <span className="h-10 w-10" />
+          )}
         </header>
 
         <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-8">
@@ -362,17 +373,19 @@ export default function CreatePage() {
           {message ? <p className="mx-5 mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
         </div>
 
-        <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
-          <button
-            className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:opacity-40"
-            disabled={status === "sharing" || status === "reading" || (step === "picker" && !selectedMedia.length)}
-            onClick={step === "picker" ? () => setStep("details") : shareRecommendation}
-            type="button"
-          >
-            {step === "picker" ? <Images aria-hidden="true" size={19} /> : <Share2 aria-hidden="true" size={19} />}
-            {step === "picker" ? "Next" : status === "sharing" ? "Sharing..." : "Share"}
-          </button>
-        </footer>
+        {step === "details" ? (
+          <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
+            <button
+              className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:opacity-40"
+              disabled={status === "sharing" || status === "reading"}
+              onClick={shareRecommendation}
+              type="button"
+            >
+              <Share2 aria-hidden="true" size={19} />
+              {status === "sharing" ? "Sharing..." : "Share"}
+            </button>
+          </footer>
+        ) : null}
 
         <BottomNav activeTab="Create" />
       </section>

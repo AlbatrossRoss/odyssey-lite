@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 14, 2026",
+    id: "v4.9",
+    title: "New Post Controls",
+    summary:
+      "Removed duplicate Next actions from Create, kept the reliable top-right picker advance and bottom Share action, and retained the automatic photo-picker attempt with a Select fallback for PWA browser limits.",
+  },
+  {
+    date: "June 14, 2026",
     id: "v4.8",
     title: "Create Flow and Feed Safeguard",
     summary:
