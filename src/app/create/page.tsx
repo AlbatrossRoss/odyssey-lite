@@ -9,6 +9,7 @@ import { readAccountSessionId } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
 import { uploadPostMedia } from "@/lib/media";
 import { createAppPost } from "@/lib/posts";
+import type { SearchSuggestion } from "@/components/SearchBar";
 
 type MediaMetadata = {
   date?: string;
@@ -25,6 +26,7 @@ type SelectedUpload = {
 };
 
 const maxVideoDurationSeconds = 30;
+const videoFileExtensions = /\.(avi|m4v|mov|mp4|webm)$/i;
 
 export default function CreatePage() {
   const router = useRouter();
@@ -37,6 +39,8 @@ export default function CreatePage() {
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
+  const [locationFocused, setLocationFocused] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<SearchSuggestion[]>([]);
   const [metadataNote, setMetadataNote] = useState("Choose photos or videos to read date and location metadata.");
   const [status, setStatus] = useState<"idle" | "reading" | "sharing" | "published">("idle");
   const [message, setMessage] = useState("");
@@ -58,8 +62,61 @@ export default function CreatePage() {
     return () => window.clearTimeout(timeoutId);
   }, [selectedMedia.length, step]);
 
+  useEffect(() => {
+    const query = location.trim();
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+    if (!token || step !== "details" || !locationFocused || query.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      const params = new URLSearchParams({
+        access_token: token,
+        autocomplete: "true",
+        language: "en",
+        limit: "5",
+        types: "poi,address,neighborhood,locality,place,region,country",
+      });
+
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`,
+          { signal: controller.signal },
+        );
+        const data = (await response.json()) as {
+          features?: Array<{
+            center?: [number, number];
+            place_name?: string;
+            text?: string;
+          }>;
+        };
+
+        setLocationSuggestions(
+          data.features?.map((feature) => ({
+            center: feature.center,
+            description: feature.place_name,
+            label: feature.text ?? feature.place_name ?? query,
+            query: feature.place_name ?? feature.text ?? query,
+          })) ?? [],
+        );
+      } catch {
+        if (!controller.signal.aborted) {
+          setLocationSuggestions([]);
+        }
+      }
+    }, 220);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [location, locationFocused, step]);
+
   async function handleUpload(files: FileList | null) {
-    const mediaFiles = Array.from(files ?? []).filter((item) => item.type.startsWith("image/") || item.type.startsWith("video/"));
+    const mediaFiles = Array.from(files ?? []).filter(isSupportedMediaFile);
     const file = mediaFiles[0];
 
     if (!file) {
@@ -70,7 +127,7 @@ export default function CreatePage() {
     setMessage("");
 
     try {
-      const videoFiles = mediaFiles.filter((item) => item.type.startsWith("video/"));
+      const videoFiles = mediaFiles.filter(isVideoFile);
       const videoDurations = await Promise.all(videoFiles.map((item) => readVideoDuration(item)));
       const longVideoIndex = videoDurations.findIndex((duration) => duration > maxVideoDurationSeconds);
 
@@ -93,7 +150,7 @@ export default function CreatePage() {
       mediaFiles.map(async (item) => ({
         file: item,
         id: `${item.name}-${item.lastModified}-${item.size}`,
-        kind: item.type.startsWith("video/") ? ("video" as const) : ("image" as const),
+        kind: isVideoFile(item) ? ("video" as const) : ("image" as const),
         metadata: item === file ? metadata : await readMediaMetadata(item),
         url: URL.createObjectURL(item),
       })),
@@ -188,6 +245,8 @@ export default function CreatePage() {
     setRecommendation("");
     setDescription("");
     setLocation("");
+    setLocationFocused(false);
+    setLocationSuggestions([]);
     setDate("");
     setCoordinates(undefined);
     setMetadataNote("Choose photos or videos to read date and location metadata.");
@@ -359,15 +418,41 @@ export default function CreatePage() {
                 <ReviewField label="Location">
                   <div className="flex items-center gap-2">
                     <MapPin aria-hidden="true" className="text-coral" size={17} />
-                    <input
-                      className="w-full bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink/28"
-                      onChange={(event) => {
-                        setLocation(event.target.value);
-                        setCoordinates(undefined);
-                      }}
-                      placeholder="Add a location"
-                      value={location}
-                    />
+                    <div className="relative min-w-0 flex-1">
+                      <input
+                        className="w-full bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink/28"
+                        onBlur={() => window.setTimeout(() => setLocationFocused(false), 140)}
+                        onChange={(event) => {
+                          setLocation(event.target.value);
+                          setCoordinates(undefined);
+                        }}
+                        onFocus={() => setLocationFocused(true)}
+                        placeholder="Add a location"
+                        value={location}
+                      />
+                      {locationSuggestions.length ? (
+                        <div className="absolute left-[-28px] right-0 top-[calc(100%+12px)] z-50 overflow-hidden rounded-[22px] border border-ink/8 bg-white py-1 shadow-soft">
+                          {locationSuggestions.map((suggestion) => (
+                            <button
+                              className="flex w-full flex-col px-4 py-3 text-left transition hover:bg-shell"
+                              key={`${suggestion.label}-${suggestion.description ?? ""}`}
+                              onClick={() => {
+                                setLocation(suggestion.query ?? suggestion.label);
+                                setCoordinates(suggestion.center);
+                                setLocationFocused(false);
+                                setLocationSuggestions([]);
+                              }}
+                              type="button"
+                            >
+                              <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
+                              {suggestion.description ? (
+                                <span className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink/54">{suggestion.description}</span>
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </ReviewField>
                 <ReviewField label="Date">
@@ -440,21 +525,51 @@ function MediaPreview({ className, item }: { className: string; item: SelectedUp
   return <img alt="" className={className} src={item.url} />;
 }
 
+function isSupportedMediaFile(file: File) {
+  return file.type.startsWith("image/") || isVideoFile(file);
+}
+
+function isVideoFile(file: File) {
+  return file.type.startsWith("video/") || videoFileExtensions.test(file.name);
+}
+
 function readVideoDuration(file: File) {
   return new Promise<number>((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const video = document.createElement("video");
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out reading video metadata."));
+    }, 8000);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      URL.revokeObjectURL(url);
+    }
+
+    function finish(duration: number) {
+      cleanup();
+      resolve(duration);
+    }
 
     video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
     video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(Number.isFinite(video.duration) ? video.duration : 0);
+      if (Number.isFinite(video.duration)) {
+        finish(video.duration);
+        return;
+      }
+
+      video.currentTime = Number.MAX_SAFE_INTEGER;
     };
+    video.ontimeupdate = () => finish(Number.isFinite(video.duration) ? video.duration : 0);
     video.onerror = () => {
-      URL.revokeObjectURL(url);
+      cleanup();
       reject(new Error("Unable to read video metadata."));
     };
     video.src = url;
+    video.load();
   });
 }
 

@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 14, 2026",
+    id: "v5.1",
+    title: "Posting Location Suggestions",
+    summary:
+      "Added Mapbox autosuggestions to the Create location field and made video selection more forgiving for mobile camera-roll files by accepting common video extensions and using a sturdier duration check.",
+  },
+  {
+    date: "June 14, 2026",
     id: "v5.0",
     title: "Rich Posting Feedback and Video Media",
     summary:
