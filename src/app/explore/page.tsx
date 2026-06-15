@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, Bell, MapPin, MessageCircle, X } from "lucide-react";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
@@ -13,6 +13,7 @@ import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import { consumeActionBanner, type ActionBanner } from "@/lib/actionBanner";
 import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
+import { fetchUnreadCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
 import { isExploreCategoryFilter, tagForExploreFilter } from "@/lib/postTags";
 
@@ -251,6 +252,11 @@ export default function ExplorePage() {
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
+  const [commentNotifications, setCommentNotifications] = useState<AppCommentNotification[]>([]);
+  const [unreadCommentCount, setUnreadCommentCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<"idle" | "loading">("idle");
+  const [notificationMessage, setNotificationMessage] = useState("");
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
@@ -456,6 +462,39 @@ export default function ExplorePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!viewerId) {
+      setCommentNotifications([]);
+      setUnreadCommentCount(0);
+      setNotificationStatus("idle");
+      return;
+    }
+
+    let active = true;
+
+    setNotificationStatus("loading");
+    setNotificationMessage("");
+
+    fetchUnreadCommentNotifications(viewerId)
+      .then((notifications) => {
+        if (active) {
+          setCommentNotifications(notifications);
+          setUnreadCommentCount(notifications.length);
+          setNotificationStatus("idle");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setNotificationMessage(error instanceof Error ? error.message : "Unable to load notifications.");
+          setNotificationStatus("idle");
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [viewerId]);
+
   const enterExploreAt = useCallback((center: [number, number], zoom = 10.5, destination = "") => {
     const nextView = { center, zoom };
 
@@ -550,6 +589,24 @@ export default function ExplorePage() {
       sheetPosition: exploreStateRef.current.sheetPosition === "minimized" ? "peek" : exploreStateRef.current.sheetPosition,
     });
   }, []);
+
+  const handleNotificationToggle = useCallback(() => {
+    setNotificationsOpen((open) => {
+      const nextOpen = !open;
+
+      if (nextOpen && viewerId && commentNotifications.length) {
+        setUnreadCommentCount(0);
+        void markCommentNotificationsRead(
+          viewerId,
+          commentNotifications.map((notification) => notification.id),
+        ).catch((error) => {
+          setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
+        });
+      }
+
+      return nextOpen;
+    });
+  }, [commentNotifications, viewerId]);
 
   const handleMapInteraction = useCallback(() => {
     setSheetPosition("minimized");
@@ -736,8 +793,75 @@ export default function ExplorePage() {
                 value={searchQuery}
               />
             </div>
+            <button
+              aria-label="Open notifications"
+              className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+              onClick={handleNotificationToggle}
+              type="button"
+            >
+              <Bell aria-hidden="true" size={20} />
+              {unreadCommentCount ? (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-black leading-none text-white">
+                  {unreadCommentCount > 9 ? "9+" : unreadCommentCount}
+                </span>
+              ) : null}
+            </button>
           </div>
           <FilterChips active={activeFilter} onChange={setActiveFilter} userPhotoUrl={viewerPhotoUrl} />
+          {notificationsOpen ? (
+            <section className="mt-3 max-h-72 overflow-y-auto rounded-[26px] bg-white/98 p-4 text-left shadow-lift backdrop-blur">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Notifications</p>
+                  <h2 className="mt-0.5 text-lg font-black text-ink">Comments</h2>
+                </div>
+                <button
+                  aria-label="Close notifications"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
+                  onClick={() => setNotificationsOpen(false)}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={17} />
+                </button>
+              </div>
+
+              {!viewerId ? (
+                <Link className="flex h-11 items-center justify-center rounded-full bg-shell px-4 text-sm font-black text-ink" href="/accounts">
+                  Log in to see notifications
+                </Link>
+              ) : notificationStatus === "loading" ? (
+                <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">Loading notifications...</p>
+              ) : notificationMessage ? (
+                <p className="rounded-[20px] bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{notificationMessage}</p>
+              ) : commentNotifications.length ? (
+                <div className="space-y-3">
+                  {commentNotifications.map((notification) => (
+                    <Link
+                      className="flex gap-3 rounded-[22px] bg-shell p-3"
+                      href={`/posts/${notification.postId}`}
+                      key={notification.id}
+                      onClick={() => setNotificationsOpen(false)}
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-ink/42">
+                        {notification.profilePhotoUrl ? (
+                          <img alt="" className="h-full w-full object-cover" src={notification.profilePhotoUrl} />
+                        ) : (
+                          <MessageCircle aria-hidden="true" size={18} />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black leading-tight text-ink">@{notification.username} commented</span>
+                        <span className="mt-0.5 block truncate text-xs font-bold text-ink/50">on {notification.postTitle}</span>
+                        <span className="mt-1 line-clamp-2 block text-xs font-semibold leading-snug text-ink/62">{notification.body}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">No unread comments.</p>
+              )}
+            </section>
+          ) : null}
         </div>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-0 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] ${

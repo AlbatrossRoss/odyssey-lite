@@ -8,6 +8,20 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 15, 2026",
+    id: "v5.7",
+    title: "Comment Notifications",
+    summary:
+      "Moved post comments below the detail-page map and added an Explore notification button for unread comments on the user's posts.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v5.6",
+    title: "Public Post Comments",
+    summary:
+      "Added public comments on post detail pages, including a logged-in comment composer, commenter avatars/usernames, comment timestamps, and a Supabase comments migration.",
+  },
+  {
+    date: "June 15, 2026",
     id: "v5.5",
     title: "Profile Header and Grid Polish",
     summary:

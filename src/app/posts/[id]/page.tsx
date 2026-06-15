@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, Calendar, Check, MapPin, Plus, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bookmark, Calendar, Check, MapPin, MessageCircle, Plus, Send, UserRound, X } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { fetchAppPostById, type AppPost } from "@/lib/posts";
+import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
 import { readAccountSessionId } from "@/lib/accounts";
@@ -27,6 +28,10 @@ export default function PostDetailPage() {
   const [newBoardSubtitle, setNewBoardSubtitle] = useState("");
   const [saveStatus, setSaveStatus] = useState<"ready" | "saving">("ready");
   const [saveMessage, setSaveMessage] = useState("");
+  const [comments, setComments] = useState<AppPostComment[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentStatus, setCommentStatus] = useState<"idle" | "loading" | "saving">("loading");
+  const [commentMessage, setCommentMessage] = useState("");
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -46,6 +51,31 @@ export default function PostDetailPage() {
       .catch(() => {
         if (active) {
           setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [params.id]);
+
+  useEffect(() => {
+    let active = true;
+
+    setCommentStatus("loading");
+    setCommentMessage("");
+
+    fetchPostComments(params.id)
+      .then((nextComments) => {
+        if (active) {
+          setComments(nextComments);
+          setCommentStatus("idle");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setCommentMessage(formatError(error));
+          setCommentStatus("idle");
         }
       });
 
@@ -238,6 +268,32 @@ export default function PostDetailPage() {
     }
   }
 
+  async function handleCreateComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!accountId || !post || !commentDraft.trim()) {
+      return;
+    }
+
+    setCommentStatus("saving");
+    setCommentMessage("");
+
+    try {
+      const createdComment = await createPostComment({
+        accountId,
+        body: commentDraft,
+        postId: post.id,
+      });
+
+      setComments((current) => [createdComment, ...current]);
+      setCommentDraft("");
+    } catch (error) {
+      setCommentMessage(formatError(error));
+    } finally {
+      setCommentStatus("idle");
+    }
+  }
+
   return (
     <MobileFrame>
       <article className="safe-page-bottom h-full overflow-y-auto bg-shell">
@@ -353,6 +409,81 @@ export default function PostDetailPage() {
             selectedSlug={mapExperience.slug}
             zoom={10.4}
           />
+
+          <section className="rounded-[28px] bg-white p-4 shadow-soft">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Comments</p>
+                <h2 className="mt-1 text-xl font-black text-ink">{comments.length} public {comments.length === 1 ? "comment" : "comments"}</h2>
+              </div>
+              <MessageCircle aria-hidden="true" className="text-ink/34" size={24} />
+            </div>
+
+            {accountId ? (
+              <form className="mt-4" onSubmit={handleCreateComment}>
+                <label className="block">
+                  <span className="sr-only">Add a public comment</span>
+                  <textarea
+                    className="min-h-24 w-full resize-none rounded-[22px] bg-shell px-4 py-3 text-sm font-semibold leading-relaxed text-ink outline-none ring-1 ring-ink/8 placeholder:text-ink/34 focus:ring-coral"
+                    maxLength={500}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    placeholder="Add a public comment"
+                    value={commentDraft}
+                  />
+                </label>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-ink/38">{commentDraft.trim().length}/500</p>
+                  <button
+                    className="flex h-11 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-black text-white shadow-lift disabled:opacity-45"
+                    disabled={commentStatus === "saving" || !commentDraft.trim()}
+                    type="submit"
+                  >
+                    <Send aria-hidden="true" size={16} />
+                    Post
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <Link className="mt-4 flex h-12 items-center justify-center rounded-full bg-shell px-5 text-sm font-black text-ink" href="/accounts">
+                Log in to comment
+              </Link>
+            )}
+
+            {commentMessage ? <p className="mt-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{commentMessage}</p> : null}
+
+            <div className="mt-5 space-y-4 border-t border-ink/8 pt-4">
+              {commentStatus === "loading" ? (
+                <p className="py-4 text-center text-sm font-bold text-ink/42">Loading comments...</p>
+              ) : comments.length ? (
+                comments.map((comment) => (
+                  <article className="flex gap-3" key={comment.id}>
+                    <Link
+                      aria-label={`Open @${comment.username}`}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45"
+                      href={`/accounts/${comment.username}`}
+                    >
+                      {comment.profilePhotoUrl ? (
+                        <img alt="" className="h-full w-full object-cover" src={comment.profilePhotoUrl} />
+                      ) : (
+                        <UserRound aria-hidden="true" size={18} />
+                      )}
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <Link className="text-sm font-black text-ink" href={`/accounts/${comment.username}`}>
+                          @{comment.username}
+                        </Link>
+                        <span className="text-xs font-bold text-ink/38">{formatCommentTime(comment.createdAt)}</span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-relaxed text-ink/68">{comment.body}</p>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="py-4 text-center text-sm font-bold text-ink/42">No comments yet.</p>
+              )}
+            </div>
+          </section>
         </div>
       </article>
 
@@ -455,4 +586,38 @@ export default function PostDetailPage() {
 
 function formatError(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function formatCommentTime(value: string) {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+
+  if (seconds < 60) {
+    return "Just now";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
 }
