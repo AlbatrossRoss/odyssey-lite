@@ -101,7 +101,7 @@ function mapPost(post: AppPostRow, account?: AppPostAccountRow): AppPost {
     mediaTypes,
     tags,
     coordinates: [post.longitude, post.latitude],
-    dateLabel: post.date_label,
+    dateLabel: formatPostMonthYear(post.date_label, post.created_at),
     visibility: post.visibility,
     createdAt: post.created_at,
   };
@@ -115,6 +115,39 @@ function normalizeMediaType(value: string | null | undefined, url: string): AppP
   const cleanUrl = url.split("?")[0]?.toLowerCase() ?? "";
 
   return /\.(mov|mp4|m4v|webm|avi)$/.test(cleanUrl) ? "video" : "image";
+}
+
+function formatPostMonthYear(dateLabel: string | null | undefined, createdAt: string) {
+  const source = dateLabel?.trim();
+  const parsed = source && source.toLowerCase() !== "just now" ? parsePostDate(source) : null;
+  const fallback = parsePostDate(createdAt) ?? new Date();
+  const date = parsed ?? fallback;
+
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date);
+}
+
+function parsePostDate(value: string) {
+  if (!/\d{4}/.test(value)) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+
+  if (Number.isFinite(timestamp)) {
+    return new Date(timestamp);
+  }
+
+  const monthYearMatch = value.match(/^([A-Za-z]+)\s+(\d{4})$/);
+
+  if (monthYearMatch) {
+    const timestampFromMonthYear = Date.parse(`${monthYearMatch[1]} 1, ${monthYearMatch[2]}`);
+
+    if (Number.isFinite(timestampFromMonthYear)) {
+      return new Date(timestampFromMonthYear);
+    }
+  }
+
+  return null;
 }
 
 async function fetchAccountSummaries(accountIds: string[]) {

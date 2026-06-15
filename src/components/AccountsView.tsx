@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Camera, Check, ImagePlus, LogOut, Map, Search, Trash2, UserPlus, UserRound, X } from "lucide-react";
+import { Camera, Check, History, ImagePlus, LogOut, Map, Search, Trash2, UserPlus, UserRound, X } from "lucide-react";
 import {
   type AppAccount,
   AccountWithStats,
@@ -446,22 +446,25 @@ export function AccountsView({ username }: AccountsViewProps) {
     <MobileFrame>
       <section className="safe-page-bottom h-full overflow-y-auto bg-shell">
         <header className="safe-top-bar flex items-center justify-between px-5 pb-2">
-          <Link
-            aria-label="Back to Explore"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift"
-            href="/explore"
-          >
-            <ArrowLeft aria-hidden="true" size={20} />
-          </Link>
+          <span className="h-11 w-11" />
           {isOwnProfile ? (
-            <button
-              aria-label="Log out"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift"
-              onClick={logout}
-              type="button"
-            >
-              <LogOut aria-hidden="true" size={19} />
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                aria-label="Version history"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift"
+                href="/versions"
+              >
+                <History aria-hidden="true" size={19} />
+              </Link>
+              <button
+                aria-label="Log out"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift"
+                onClick={logout}
+                type="button"
+              >
+                <LogOut aria-hidden="true" size={19} />
+              </button>
+            </div>
           ) : (
             <span className="h-11 w-11" />
           )}

@@ -11,11 +11,12 @@ import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
-import { consumeActionBanner, type ActionBanner } from "@/lib/actionBanner";
+import { consumeActionBanner, writeActionBanner, type ActionBanner } from "@/lib/actionBanner";
 import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
+import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
 import { fetchUnreadCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
-import { isExploreCategoryFilter, tagForExploreFilter } from "@/lib/postTags";
+import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
@@ -45,6 +46,7 @@ type MapView = {
 
 type StoredExploreState = {
   activeDestination: string;
+  activeCategoryFilters: ExploreCategoryFilter[];
   activeFilter: string;
   currentMapView: MapView;
   exploreSource: "search" | "map";
@@ -110,41 +112,43 @@ function coordinateInBounds(coordinates: [number, number], bounds: MapBounds) {
   return isInLatitude && isInLongitude;
 }
 
-function filterPostsByExploreFilter(posts: AppPost[], activeFilter: string, followingIds: string[], viewerId: string | null) {
-  if (activeFilter === "All") {
-    return posts;
+function filterPostsByExploreFilter(
+  posts: AppPost[],
+  activeFilter: string,
+  activeCategoryFilters: ExploreCategoryFilter[],
+  followingIds: string[],
+  viewerId: string | null,
+) {
+  const sourcePosts =
+    activeFilter === "All"
+      ? posts
+      : activeFilter === "Mine"
+        ? viewerId
+          ? posts.filter((post) => post.accountId === viewerId)
+          : []
+        : posts.filter((post) => followingIds.includes(post.accountId));
+
+  if (!activeCategoryFilters.length) {
+    return sourcePosts;
   }
 
-  if (activeFilter === "Mine") {
-    return viewerId ? posts.filter((post) => post.accountId === viewerId) : [];
-  }
+  const tags = activeCategoryFilters.map(tagForExploreFilter);
 
-  if (activeFilter === "Friends") {
-    return posts.filter((post) => followingIds.includes(post.accountId));
-  }
-
-  if (isExploreCategoryFilter(activeFilter)) {
-    const tag = tagForExploreFilter(activeFilter);
-    return posts.filter((post) => (post.tags ?? []).includes(tag));
-  }
-
-  return posts.filter((post) => followingIds.includes(post.accountId));
+  return sourcePosts.filter((post) => tags.some((tag) => (post.tags ?? []).includes(tag)));
 }
 
-function recommendationSubtitleSuffix(activeFilter: string) {
+function recommendationSubtitleSuffix(activeFilter: string, activeCategoryFilters: ExploreCategoryFilter[]) {
+  const categorySuffix = activeCategoryFilters.length ? `, filtered by ${activeCategoryFilters.join(", ")}` : "";
+
   if (activeFilter === "Friends") {
-    return "from people you follow";
+    return `from people you follow${categorySuffix}`;
   }
 
   if (activeFilter === "Mine") {
-    return "from you";
+    return `from you${categorySuffix}`;
   }
 
-  if (isExploreCategoryFilter(activeFilter)) {
-    return `tagged ${activeFilter}`;
-  }
-
-  return "from all travelers";
+  return `from all travelers${categorySuffix}`;
 }
 
 function mapAreaLabel(center: [number, number]) {
@@ -178,7 +182,12 @@ function readStoredExploreState(): StoredExploreState | null {
 
     const restoredState: StoredExploreState = {
       activeDestination: typeof parsed.activeDestination === "string" ? parsed.activeDestination : "",
-      activeFilter: isExploreFilter(parsed.activeFilter) ? parsed.activeFilter : "Friends",
+      activeCategoryFilters: Array.isArray(parsed.activeCategoryFilters)
+        ? parsed.activeCategoryFilters.filter((filter): filter is ExploreCategoryFilter => typeof filter === "string" && isExploreCategoryFilter(filter))
+        : typeof parsed.activeFilter === "string" && isExploreCategoryFilter(parsed.activeFilter)
+          ? [parsed.activeFilter]
+          : [],
+      activeFilter: isExploreFilter(parsed.activeFilter) && !isExploreCategoryFilter(parsed.activeFilter) ? parsed.activeFilter : "Friends",
       currentMapView: {
         center: parsed.currentMapView.center,
         zoom: typeof parsed.currentMapView.zoom === "number" ? parsed.currentMapView.zoom : worldView.zoom,
@@ -207,7 +216,7 @@ function readStoredExploreState(): StoredExploreState | null {
 }
 
 function isExploreFilter(value: unknown): value is string {
-  return value === "Mine" || value === "Friends" || value === "All" || (typeof value === "string" && isExploreCategoryFilter(value));
+  return value === "Mine" || value === "Friends" || value === "All";
 }
 
 function writeStoredExploreState(state: StoredExploreState) {
@@ -260,13 +269,18 @@ export default function ExplorePage() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
+  const [activeCategoryFilters, setActiveCategoryFilters] = useState<ExploreCategoryFilter[]>(restoredExploreState?.activeCategoryFilters ?? []);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(restoredExploreState?.selectedPostId ?? null);
   const [actionBanner, setActionBanner] = useState<ActionBanner | null>(null);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [savingPostId, setSavingPostId] = useState<string | null>(null);
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const exploreStateRef = useRef<StoredExploreState>({
     activeDestination: restoredExploreState?.activeDestination ?? "",
+    activeCategoryFilters: restoredExploreState?.activeCategoryFilters ?? [],
     activeFilter: restoredExploreState?.activeFilter ?? "Friends",
     currentMapView: restoredExploreState?.currentMapView ?? worldView,
     exploreSource: restoredExploreState?.exploreSource ?? "search",
@@ -372,11 +386,11 @@ export default function ExplorePage() {
         };
 
         setUserLocation(nextView.center);
+        setDefaultMapView(nextView);
         if (restoredExploreState) {
           return;
         }
 
-        setDefaultMapView(nextView);
         setCurrentMapView(nextView);
         setMapTarget(nextView);
       },
@@ -397,6 +411,7 @@ export default function ExplorePage() {
   useEffect(() => {
     const nextState = {
       activeDestination,
+      activeCategoryFilters,
       activeFilter,
       currentMapView,
       exploreSource,
@@ -408,7 +423,7 @@ export default function ExplorePage() {
 
     exploreStateRef.current = nextState;
     writeStoredExploreState(nextState);
-  }, [activeDestination, activeFilter, currentMapView, exploreSource, mapArea, searchQuery, selectedPostId, sheetPosition]);
+  }, [activeCategoryFilters, activeDestination, activeFilter, currentMapView, exploreSource, mapArea, searchQuery, selectedPostId, sheetPosition]);
 
   useEffect(() => {
     let active = true;
@@ -567,15 +582,25 @@ export default function ExplorePage() {
   }, [enterExploreAt, handleMapSearch]);
 
   const handleResetToWorld = useCallback(() => {
+    const nextView = userLocation ? { center: userLocation, zoom: 10.2 } : defaultMapView;
+
     setSearchQuery("");
     setExploreSource("search");
     setActiveDestination("");
     setMapArea(null);
     setSheetPosition("peek");
     setSelectedPostId(null);
-    setCurrentMapView(defaultMapView);
-    setMapTarget(defaultMapView);
-  }, [defaultMapView]);
+    setCurrentMapView(nextView);
+    setMapTarget(nextView);
+  }, [defaultMapView, userLocation]);
+
+  const handleCategoryToggle = useCallback((filter: ExploreCategoryFilter) => {
+    setActiveCategoryFilters((current) =>
+      current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter],
+    );
+    setSelectedPostId(null);
+    setSheetPosition("peek");
+  }, []);
 
   const handleAppPostSelect = useCallback((post: AppPost) => {
     setSelectedPostId(post.id);
@@ -612,8 +637,50 @@ export default function ExplorePage() {
     setSheetPosition("minimized");
   }, []);
 
+  const handleSaveToLatestBoard = useCallback(
+    async (post: AppPost) => {
+      if (!viewerId || savingPostId) {
+        setSaveMessage(viewerId ? "" : "Log in to save posts.");
+        return;
+      }
+
+      setSavingPostId(post.id);
+      setSaveMessage("");
+
+      try {
+        const boards = await fetchBoardsByAccount(viewerId);
+        const latestBoard = [...boards].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+
+        if (!latestBoard) {
+          setSaveMessage("Create a board before saving posts.");
+          return;
+        }
+
+        await savePostToBoard(latestBoard.id, post.id, post.imageUrl ?? undefined);
+
+        const banner = {
+          href: `/posts/${post.id}`,
+          imageUrl: post.imageUrl,
+          mediaType: post.mediaTypes[0],
+          message: `Saved to ${latestBoard.title}`,
+          title: post.title,
+          type: "post-saved",
+        } satisfies ActionBanner;
+
+        writeActionBanner(banner);
+        setActionBanner(banner);
+        window.setTimeout(() => setActionBanner(null), 6500);
+      } catch (error) {
+        setSaveMessage(error instanceof Error ? error.message : "Unable to save this post.");
+      } finally {
+        setSavingPostId(null);
+      }
+    },
+    [savingPostId, viewerId],
+  );
+
   const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
-    const sourcePosts = filterPostsByExploreFilter(appPosts, activeFilter, followingIds, viewerId);
+    const sourcePosts = filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId);
     const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
     const canUseMapArea = zoom >= mapExploreZoomThreshold;
 
@@ -632,11 +699,11 @@ export default function ExplorePage() {
       setMapArea(null);
       setActiveDestination("");
     }
-  }, [activeFilter, appPosts, exploreSource, followingIds, viewerId]);
+  }, [activeCategoryFilters, activeFilter, appPosts, exploreSource, followingIds, viewerId]);
 
   const filteredPosts = useMemo(
-    () => filterPostsByExploreFilter(appPosts, activeFilter, followingIds, viewerId),
-    [activeFilter, appPosts, followingIds, viewerId],
+    () => filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId),
+    [activeCategoryFilters, activeFilter, appPosts, followingIds, viewerId],
   );
   const searchText = activeDestination || searchQuery;
   const searchPosts = searchText ? filteredPosts.filter((post) => postSearchHasContent(searchText, post)) : filteredPosts;
@@ -648,7 +715,7 @@ export default function ExplorePage() {
   const recommendationCount = visibleAppPosts.length;
   const recommendationSubtitle =
     recommendationCount > 0
-      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter)}`
+      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter, activeCategoryFilters)}`
       : activeFilter === "Friends"
         ? "Follow accounts to see their recommendations here"
         : activeFilter === "Mine"
@@ -659,7 +726,7 @@ export default function ExplorePage() {
       ? "nav-cleared-bottom top-[82px] pb-4"
       : sheetPosition === "minimized"
         ? "nav-cleared-bottom h-[76px] pb-3"
-        : "nav-cleared-bottom h-[36%] pb-3";
+        : "nav-cleared-bottom h-[40%] pb-3";
   const mapClassName =
     sheetPosition === "minimized"
       ? "absolute inset-0 w-full"
@@ -718,13 +785,17 @@ export default function ExplorePage() {
       return;
     }
 
-    if (deltaY < 0) {
-      setSheetPosition("expanded");
+    if (start.position === "minimized") {
+      setSheetPosition(deltaY < -170 ? "expanded" : deltaY < -40 ? "peek" : "minimized");
+      return;
     }
 
-    if (deltaY > 0) {
-      setSheetPosition(start.position === "expanded" && deltaY < 180 ? "peek" : "minimized");
+    if (start.position === "peek") {
+      setSheetPosition(deltaY < -120 ? "expanded" : deltaY > 120 ? "minimized" : "peek");
+      return;
     }
+
+    setSheetPosition(deltaY > 210 ? "minimized" : deltaY > 70 ? "peek" : "expanded");
   }
 
   function handleSheetPointerCancel() {
@@ -807,7 +878,19 @@ export default function ExplorePage() {
               ) : null}
             </button>
           </div>
-          <FilterChips active={activeFilter} onChange={setActiveFilter} userPhotoUrl={viewerPhotoUrl} />
+          <FilterChips
+            active={activeFilter}
+            activeCategoryFilters={activeCategoryFilters}
+            categoriesOpen={categoriesOpen}
+            onCategoryToggle={handleCategoryToggle}
+            onChange={(filter) => {
+              setActiveFilter(filter);
+              setSelectedPostId(null);
+              setSheetPosition("peek");
+            }}
+            onToggleCategories={() => setCategoriesOpen((open) => !open)}
+            userPhotoUrl={viewerPhotoUrl}
+          />
           {notificationsOpen ? (
             <section className="mt-3 max-h-72 overflow-y-auto rounded-[26px] bg-white/98 p-4 text-left shadow-lift backdrop-blur">
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -883,7 +966,7 @@ export default function ExplorePage() {
           >
             <span className="block h-1.5 w-[54px] rounded-full bg-[#8f8f8f] shadow-[0_1px_0_rgba(255,255,255,0.8)]" />
           </button>
-          <div className={`mb-1 flex items-end justify-between px-1 ${sheetPosition === "minimized" ? "sr-only" : ""}`}>
+          <div className={`mb-3 flex items-end justify-between px-1 ${sheetPosition === "minimized" ? "sr-only" : ""}`}>
             <div>
               <h1 className="text-base font-black text-ink">Recommendations</h1>
               <p className="text-[11px] font-semibold text-ink/52">{recommendationSubtitle}</p>
@@ -899,9 +982,16 @@ export default function ExplorePage() {
             </button>
           ) : sheetPosition === "expanded" ? (
             feedPosts.length ? (
-              <div className="no-scrollbar h-[calc(100%-54px)] space-y-4 overflow-y-auto pb-5">
+              <div className="no-scrollbar -mx-4 h-[calc(100%-54px)] space-y-3 overflow-y-auto pb-5">
+                {saveMessage ? <p className="mx-4 rounded-[18px] bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{saveMessage}</p> : null}
                 {feedPosts.map((post) => (
-                  <AppPostFeedCard key={post.id} onOpen={() => handlePostOpen(post)} post={post} />
+                  <AppPostFeedCard
+                    key={post.id}
+                    onOpen={() => handlePostOpen(post)}
+                    onSave={handleSaveToLatestBoard}
+                    post={post}
+                    saveDisabled={savingPostId === post.id}
+                  />
                 ))}
               </div>
             ) : (
@@ -912,7 +1002,7 @@ export default function ExplorePage() {
               </div>
             )
           ) : peekPosts.length ? (
-            <div className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
+            <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-2 pt-1">
               {peekPosts.map((post) => (
                 <AppPostCard key={post.id} onOpen={() => handlePostOpen(post)} post={post} />
               ))}

@@ -14,7 +14,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
   if (!post.imageUrl) {
     return (
       <Link
-        className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[20px] bg-white p-3 text-left shadow-soft ring-1 ring-ink/8"
+        className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[14px] bg-white p-3 text-left shadow-soft outline-none"
         href={`/posts/${post.id}`}
         onClick={onOpen}
         onPointerDown={onOpen}
@@ -32,10 +32,12 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
             <span className="block truncate text-[10px] font-semibold leading-tight text-ink/44">{post.dateLabel}</span>
           </span>
         </span>
+        <span className="absolute bottom-16 left-3 right-3 top-[58px] block overflow-hidden pb-1">
+          <span className="line-clamp-3 block min-h-[61px] text-[17px] font-black leading-tight text-ink">{post.title}</span>
+          <span className="mt-2 line-clamp-3 block text-xs font-semibold leading-snug text-ink/56">{post.caption}</span>
+        </span>
         <span className="absolute bottom-3 left-3 right-3">
-          <span className="line-clamp-4 block text-[17px] font-black leading-tight text-ink">{post.title}</span>
-          <span className="mt-3 line-clamp-3 block text-xs font-semibold leading-snug text-ink/56">{post.caption}</span>
-          <span className="mt-3 flex items-start gap-1.5 text-xs font-semibold leading-tight text-ink/56">
+          <span className="flex items-start gap-1.5 text-xs font-semibold leading-tight text-ink/56">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-coral" size={14} />
             <span className="line-clamp-2">{post.location}</span>
           </span>
@@ -46,7 +48,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
 
   return (
     <Link
-      className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[20px] bg-ink text-left shadow-soft"
+      className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[14px] bg-ink text-left shadow-soft outline-none"
       href={`/posts/${post.id}`}
       onClick={onOpen}
       onPointerDown={onOpen}
@@ -54,13 +56,14 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
       <span className="absolute inset-0 block bg-shell">
         <PostMediaPreview
           alt={post.title}
-          className="h-full w-full object-cover opacity-[0.72]"
+          className="h-full w-full object-cover"
           fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
           mediaType={post.mediaTypes[0]}
           src={post.imageUrl}
         />
       </span>
-      <span className="absolute inset-0 bg-gradient-to-b from-ink/46 via-ink/30 to-ink/92" />
+      <span className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-ink/74 via-ink/34 to-transparent" />
+      <span className="absolute inset-x-0 bottom-0 h-[78%] bg-gradient-to-t from-ink via-ink/94 via-45% to-transparent" />
       <span className="absolute left-3 right-3 top-3 flex items-center gap-2 text-white">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/85 bg-shell text-ink shadow-lift">
           {post.profilePhotoUrl ? (
@@ -73,7 +76,6 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
           <span className="block truncate text-xs font-black leading-tight">@{post.username}</span>
           <span className="block truncate text-[10px] font-semibold leading-tight text-white/76">{post.dateLabel}</span>
         </span>
-        <span className="ml-auto text-lg font-black leading-none text-white/82">...</span>
       </span>
       <span className="absolute bottom-3 left-3 right-3 text-white">
         <span className="line-clamp-3 block text-[15px] font-normal leading-snug drop-shadow-sm">{post.title}</span>

@@ -1,4 +1,5 @@
-import { GitCommitHorizontal } from "lucide-react";
+import { ArrowLeft, GitCommitHorizontal } from "lucide-react";
+import Link from "next/link";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
 import { versionHistory } from "@/lib/versionHistory";
@@ -8,12 +9,21 @@ export default function VersionsPage() {
     <MobileFrame>
       <section className="relative h-full bg-shell">
         <div className="safe-page h-full overflow-y-auto px-5">
-          <header className="mb-5">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Version history</p>
-            <h1 className="mt-1 text-3xl font-black leading-tight text-ink">What changed</h1>
-            <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/54">
-              A quick visible log for testing whether the latest Odyssey Lite deploy has reached your phone.
-            </p>
+          <header className="mb-5 flex items-start gap-3">
+            <Link
+              aria-label="Back to Profile"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+              href="/accounts"
+            >
+              <ArrowLeft aria-hidden="true" size={20} />
+            </Link>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Version history</p>
+              <h1 className="mt-1 text-3xl font-black leading-tight text-ink">What changed</h1>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/54">
+                A quick visible log for testing whether the latest Odyssey Lite deploy has reached your phone.
+              </p>
+            </div>
           </header>
 
           <div className="space-y-3">
@@ -41,7 +51,7 @@ export default function VersionsPage() {
             ))}
           </div>
         </div>
-        <BottomNav activeTab="Versions" />
+        <BottomNav />
       </section>
     </MobileFrame>
   );

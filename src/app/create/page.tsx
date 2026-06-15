@@ -294,9 +294,9 @@ export default function CreatePage() {
       <section className="relative h-full overflow-hidden bg-white pb-24 text-ink">
         <header className="safe-top-bar flex items-center justify-between border-b border-ink/8 bg-white px-5 pb-3">
           <button
-            aria-label="Clear post"
+            aria-label="Back to Explore"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
-            onClick={resetPost}
+            onClick={() => router.push("/explore")}
             type="button"
           >
             <X aria-hidden="true" size={21} />

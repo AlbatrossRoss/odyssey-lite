@@ -8,6 +8,41 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 15, 2026",
+    id: "v6.2",
+    title: "Expanded Recommendation Cards",
+    summary:
+      "Polished expanded Explore recommendation cards with full-width rectangular layouts, stronger media gradients, title and description previews, bookmark-to-latest-board saving, and normalized post date labels.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v6.1",
+    title: "Explore Sheet Card Polish",
+    summary:
+      "Tightened Explore recommendation preview cards, removed card outlines, improved text-only card previews, and made drag snapping return to the middle sheet position.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v6.0",
+    title: "Navigation Bar Polish",
+    summary:
+      "Restyled the bottom nav with lighter labels, same-size icons, selected-only circles, removed profile and boards back buttons, and added a Version History back link to Profile.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v5.9",
+    title: "Simplified Bottom Navigation",
+    summary:
+      "Reduced the bottom nav to Explore, Boards, Recommend, and Profile with labels, and moved Version History access into the Profile header.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v5.8",
+    title: "Explore Filter Drawer",
+    summary:
+      "Changed Explore to primary Me/Friends/All tabs with a separate multi-select category filter drawer, and made reset return to the user's current location when available.",
+  },
+  {
+    date: "June 15, 2026",
     id: "v5.7",
     title: "Comment Notifications",
     summary:

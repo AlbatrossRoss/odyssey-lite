@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plus, X } from "lucide-react";
-import Link from "next/link";
+import { Plus, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BoardCard } from "@/components/BoardCard";
 import { BottomNav } from "@/components/BottomNav";
@@ -91,13 +90,6 @@ export default function BoardsPage() {
       <section className="safe-page h-full overflow-y-auto bg-shell px-5">
         <header className="mb-5 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Link
-              aria-label="Back to Explore"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
-              href="/"
-            >
-              <ArrowLeft aria-hidden="true" size={20} />
-            </Link>
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">Boards</p>
               <h1 className="truncate text-3xl font-black text-ink">Saved for later</h1>

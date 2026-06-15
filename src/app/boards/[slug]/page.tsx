@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Settings, Trash2, X } from "lucide-react";
+import { Settings, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -130,13 +130,6 @@ export default function BoardDetailPage() {
         <header className="relative h-64">
           <img alt={board.title} className="h-full w-full object-cover" src={board.coverImageUrl} />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/20 via-transparent to-ink/76" />
-          <Link
-            aria-label="Back to Boards"
-            className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
-            href="/boards"
-          >
-            <ArrowLeft aria-hidden="true" size={20} />
-          </Link>
           <button
             aria-label="Board settings"
             className="safe-top-control absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
