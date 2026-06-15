@@ -48,6 +48,20 @@ body > * {
   overflow: hidden;
 }
 
+@keyframes odyssey-loading {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  50% {
+    transform: translateX(85%);
+  }
+
+  100% {
+    transform: translateX(260%);
+  }
+}
+
 .mobile-frame {
   background: #fff8ef;
   color: #18231f;

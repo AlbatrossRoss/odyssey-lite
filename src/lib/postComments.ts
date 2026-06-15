@@ -13,6 +13,7 @@ export type AppPostComment = {
 };
 
 export type AppCommentNotification = AppPostComment & {
+  isRead: boolean;
   postTitle: string;
 };
 
@@ -152,28 +153,35 @@ export async function createPostComment({ accountId, body, postId }: { accountId
 }
 
 export async function fetchUnreadCommentNotifications(accountId: string) {
+  return (await fetchCommentNotifications(accountId)).filter((notification) => !notification.isRead);
+}
+
+export async function fetchCommentNotifications(accountId: string) {
   assertCommentsConfigured();
 
   const supabase = createSupabaseBrowserClient();
-  const { data: posts, error: postsError } = await supabase.from("app_posts").select("id, title").eq("account_id", accountId);
+  const { data: account, error: accountError } = await supabase.from("app_accounts").select("username").eq("id", accountId).maybeSingle();
+
+  if (accountError) {
+    throw accountError;
+  }
+
+  const username = typeof account?.username === "string" ? account.username : "";
+  const mention = username ? `@${username.toLowerCase()}` : "";
+  const { data: ownedPostsData, error: postsError } = await supabase.from("app_posts").select("id, title").eq("account_id", accountId);
 
   if (postsError) {
     throw postsError;
   }
 
-  const ownedPosts = (posts ?? []) as CommentPostRow[];
-
-  if (!ownedPosts.length) {
-    return [];
-  }
-
-  const postIds = ownedPosts.map((post) => post.id);
+  const ownedPosts = (ownedPostsData ?? []) as CommentPostRow[];
+  const ownedPostIds = new Set(ownedPosts.map((post) => post.id));
   const { data: comments, error: commentsError } = await supabase
     .from("app_post_comments")
     .select("id, post_id, account_id, body, created_at")
-    .in("post_id", postIds)
     .neq("account_id", accountId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(80);
 
   if (commentsTableMissing(commentsError)) {
     return [];
@@ -183,10 +191,26 @@ export async function fetchUnreadCommentNotifications(accountId: string) {
     throw commentsError;
   }
 
-  const commentRows = (comments ?? []) as AppPostCommentRow[];
+  const commentRows = ((comments ?? []) as AppPostCommentRow[]).filter(
+    (comment) => ownedPostIds.has(comment.post_id) || (mention ? comment.body.toLowerCase().includes(mention) : false),
+  );
 
   if (!commentRows.length) {
     return [];
+  }
+
+  const allPostIds = Array.from(new Set(commentRows.map((comment) => comment.post_id)));
+  const missingPostIds = allPostIds.filter((postId) => !ownedPostIds.has(postId));
+  let mentionedPosts: CommentPostRow[] = [];
+
+  if (missingPostIds.length) {
+    const { data: posts, error: mentionedPostsError } = await supabase.from("app_posts").select("id, title").in("id", missingPostIds);
+
+    if (mentionedPostsError) {
+      throw mentionedPostsError;
+    }
+
+    mentionedPosts = (posts ?? []) as CommentPostRow[];
   }
 
   const { data: reads, error: readsError } = await supabase
@@ -203,12 +227,12 @@ export async function fetchUnreadCommentNotifications(accountId: string) {
   }
 
   const readCommentIds = new Set(((reads ?? []) as Array<{ comment_id: string }>).map((read) => read.comment_id));
-  const unreadRows = commentRows.filter((comment) => !readCommentIds.has(comment.id));
-  const hydratedComments = await hydrateComments(unreadRows);
-  const postsById = new Map(ownedPosts.map((post) => [post.id, post]));
+  const hydratedComments = await hydrateComments(commentRows);
+  const postsById = new Map([...ownedPosts, ...mentionedPosts].map((post) => [post.id, post]));
 
   return hydratedComments.map((comment) => ({
     ...comment,
+    isRead: readCommentIds.has(comment.id),
     postTitle: postsById.get(comment.postId)?.title ?? "your post",
   }));
 }

@@ -27,6 +27,7 @@ export function AccountGate({ children }: AccountGateProps) {
   const [password, setPassword] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "saving">("ready");
+  const [restoreStatus, setRestoreStatus] = useState<"checking" | "ready">("checking");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -36,6 +37,9 @@ export function AccountGate({ children }: AccountGateProps) {
       const accountId = readAccountSessionId();
 
       if (!accountId || !isSupabaseConfigured()) {
+        if (active) {
+          setRestoreStatus("ready");
+        }
         return;
       }
 
@@ -47,6 +51,10 @@ export function AccountGate({ children }: AccountGateProps) {
         }
       } catch {
         // Let the user log in again if session restore fails.
+      } finally {
+        if (active) {
+          setRestoreStatus("ready");
+        }
       }
     }
 
@@ -100,6 +108,10 @@ export function AccountGate({ children }: AccountGateProps) {
 
   if (account) {
     return children;
+  }
+
+  if (restoreStatus === "checking") {
+    return <LoadingScreen />;
   }
 
   return (
@@ -203,6 +215,21 @@ export function AccountGate({ children }: AccountGateProps) {
             {status === "saving" ? "Saving..." : mode === "create" ? "Create Account" : "Log In"}
           </button>
         </form>
+      </section>
+    </main>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <main className="grid min-h-[100dvh] place-items-center bg-shell px-5 text-ink">
+      <section className="flex w-full max-w-[393px] flex-col items-center rounded-[34px] bg-white px-8 py-12 text-center shadow-soft">
+        <Image alt="Odyssey Lite" className="h-20 w-20 rounded-[22px] shadow-lift" height={80} src="/icon-192.png" width={80} priority />
+        <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-coral">Odyssey Lite</p>
+        <h1 className="mt-2 text-2xl font-black text-ink">Loading your map</h1>
+        <div className="mt-8 h-2 w-full overflow-hidden rounded-full bg-shell">
+          <div className="h-full w-2/5 rounded-full bg-coral motion-safe:animate-[odyssey-loading_1.2s_ease-in-out_infinite]" />
+        </div>
       </section>
     </main>
   );

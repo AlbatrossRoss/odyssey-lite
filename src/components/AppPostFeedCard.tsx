@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { PointerEvent } from "react";
 import { Bookmark, MapPin, UserRound } from "lucide-react";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import type { AppPost } from "@/lib/posts";
@@ -11,6 +12,10 @@ type AppPostFeedCardProps = {
   post: AppPost;
   saveDisabled?: boolean;
 };
+
+function stopSheetDrag(event: PointerEvent) {
+  event.stopPropagation();
+}
 
 export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false }: AppPostFeedCardProps) {
   const saveButton = (
@@ -33,7 +38,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false }: 
     return (
       <article className="relative overflow-hidden bg-white shadow-soft">
         {saveButton}
-        <Link className="block min-h-[300px] p-5 text-left outline-none" href={`/posts/${post.id}`} onClick={onOpen} onPointerDown={onOpen}>
+        <Link className="block min-h-[300px] p-5 text-left outline-none" href={`/posts/${post.id}`} onClick={onOpen} onPointerDown={stopSheetDrag}>
           <span className="flex items-center gap-3 pr-12">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/50">
               {post.profilePhotoUrl ? (
@@ -67,7 +72,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false }: 
         className="relative block min-h-[430px] text-left outline-none"
         href={`/posts/${post.id}`}
         onClick={onOpen}
-        onPointerDown={onOpen}
+        onPointerDown={stopSheetDrag}
       >
         <span className="absolute inset-0 block bg-shell">
           <PostMediaPreview

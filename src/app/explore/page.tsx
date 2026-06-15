@@ -14,7 +14,7 @@ import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import { consumeActionBanner, writeActionBanner, type ActionBanner } from "@/lib/actionBanner";
 import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
 import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
-import { fetchUnreadCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
+import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
 import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
 
@@ -217,6 +217,40 @@ function readStoredExploreState(): StoredExploreState | null {
 
 function isExploreFilter(value: unknown): value is string {
   return value === "Mine" || value === "Friends" || value === "All";
+}
+
+function formatNotificationTime(value: string) {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+
+  if (seconds < 60) {
+    return "Just now";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
 }
 
 function writeStoredExploreState(state: StoredExploreState) {
@@ -490,11 +524,11 @@ export default function ExplorePage() {
     setNotificationStatus("loading");
     setNotificationMessage("");
 
-    fetchUnreadCommentNotifications(viewerId)
+    fetchCommentNotifications(viewerId)
       .then((notifications) => {
         if (active) {
           setCommentNotifications(notifications);
-          setUnreadCommentCount(notifications.length);
+          setUnreadCommentCount(notifications.filter((notification) => !notification.isRead).length);
           setNotificationStatus("idle");
         }
       })
@@ -616,22 +650,27 @@ export default function ExplorePage() {
   }, []);
 
   const handleNotificationToggle = useCallback(() => {
-    setNotificationsOpen((open) => {
-      const nextOpen = !open;
+    setNotificationsOpen((open) => !open);
+  }, []);
 
-      if (nextOpen && viewerId && commentNotifications.length) {
-        setUnreadCommentCount(0);
-        void markCommentNotificationsRead(
-          viewerId,
-          commentNotifications.map((notification) => notification.id),
-        ).catch((error) => {
-          setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
-        });
+  const handleNotificationOpen = useCallback(
+    (notification: AppCommentNotification) => {
+      setNotificationsOpen(false);
+
+      if (!viewerId || notification.isRead) {
+        return;
       }
 
-      return nextOpen;
-    });
-  }, [commentNotifications, viewerId]);
+      setCommentNotifications((current) =>
+        current.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item)),
+      );
+      setUnreadCommentCount((count) => Math.max(0, count - 1));
+      void markCommentNotificationsRead(viewerId, [notification.id]).catch((error) => {
+        setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
+      });
+    },
+    [viewerId],
+  );
 
   const handleMapInteraction = useCallback(() => {
     setSheetPosition("minimized");
@@ -710,8 +749,8 @@ export default function ExplorePage() {
   const mapAreaPosts = mapArea ? filteredPosts.filter((post) => coordinateInBounds(post.coordinates, mapArea.bounds)) : [];
   const visibleAppPosts = exploreSource === "map" ? mapAreaPosts : searchPosts;
   const selectedPost = selectedPostId ? visibleAppPosts.find((post) => post.id === selectedPostId) ?? null : null;
-  const peekPosts = selectedPost ? [selectedPost] : visibleAppPosts;
   const feedPosts = selectedPost ? [selectedPost, ...visibleAppPosts.filter((post) => post.id !== selectedPost.id)] : visibleAppPosts;
+  const peekPosts = feedPosts;
   const recommendationCount = visibleAppPosts.length;
   const recommendationSubtitle =
     recommendationCount > 0
@@ -891,61 +930,84 @@ export default function ExplorePage() {
             onToggleCategories={() => setCategoriesOpen((open) => !open)}
             userPhotoUrl={viewerPhotoUrl}
           />
-          {notificationsOpen ? (
-            <section className="mt-3 max-h-72 overflow-y-auto rounded-[26px] bg-white/98 p-4 text-left shadow-lift backdrop-blur">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Notifications</p>
-                  <h2 className="mt-0.5 text-lg font-black text-ink">Comments</h2>
-                </div>
-                <button
-                  aria-label="Close notifications"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
-                  onClick={() => setNotificationsOpen(false)}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={17} />
-                </button>
-              </div>
-
-              {!viewerId ? (
-                <Link className="flex h-11 items-center justify-center rounded-full bg-shell px-4 text-sm font-black text-ink" href="/accounts">
-                  Log in to see notifications
-                </Link>
-              ) : notificationStatus === "loading" ? (
-                <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">Loading notifications...</p>
-              ) : notificationMessage ? (
-                <p className="rounded-[20px] bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{notificationMessage}</p>
-              ) : commentNotifications.length ? (
-                <div className="space-y-3">
-                  {commentNotifications.map((notification) => (
-                    <Link
-                      className="flex gap-3 rounded-[22px] bg-shell p-3"
-                      href={`/posts/${notification.postId}`}
-                      key={notification.id}
-                      onClick={() => setNotificationsOpen(false)}
-                    >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-ink/42">
-                        {notification.profilePhotoUrl ? (
-                          <img alt="" className="h-full w-full object-cover" src={notification.profilePhotoUrl} />
-                        ) : (
-                          <MessageCircle aria-hidden="true" size={18} />
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black leading-tight text-ink">@{notification.username} commented</span>
-                        <span className="mt-0.5 block truncate text-xs font-bold text-ink/50">on {notification.postTitle}</span>
-                        <span className="mt-1 line-clamp-2 block text-xs font-semibold leading-snug text-ink/62">{notification.body}</span>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">No unread comments.</p>
-              )}
-            </section>
-          ) : null}
         </div>
+        <div
+          className={`absolute inset-0 z-50 bg-ink/24 transition-opacity duration-300 ${
+            notificationsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          onClick={() => setNotificationsOpen(false)}
+        />
+        <aside
+          className={`absolute bottom-0 right-0 top-0 z-50 flex w-[88%] max-w-sm flex-col bg-white shadow-[-18px_0_42px_rgba(24,35,31,0.18)] transition-transform duration-300 ease-out ${
+            notificationsOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="border-b border-ink/8 px-5 pb-4 pt-[calc(var(--safe-area-top)+18px)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Notifications</p>
+                <h2 className="mt-1 text-2xl font-black text-ink">Comment history</h2>
+              </div>
+              <button
+                aria-label="Close notifications"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
+                onClick={() => setNotificationsOpen(false)}
+                type="button"
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </div>
+            {unreadCommentCount ? (
+              <p className="mt-2 text-xs font-bold text-ink/50">
+                {unreadCommentCount} unread {unreadCommentCount === 1 ? "comment" : "comments"}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="no-scrollbar flex-1 overflow-y-auto px-4 py-4">
+            {!viewerId ? (
+              <Link className="flex h-12 items-center justify-center rounded-full bg-shell px-4 text-sm font-black text-ink" href="/accounts">
+                Log in to see notifications
+              </Link>
+            ) : notificationStatus === "loading" ? (
+              <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">Loading notifications...</p>
+            ) : notificationMessage ? (
+              <p className="rounded-[20px] bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{notificationMessage}</p>
+            ) : commentNotifications.length ? (
+              <div className="space-y-3">
+                {commentNotifications.map((notification) => (
+                  <Link
+                    className={`relative flex gap-3 rounded-[22px] p-3 ${
+                      notification.isRead ? "bg-shell text-ink/76" : "bg-coral/10 text-ink ring-1 ring-coral/18"
+                    }`}
+                    href={`/posts/${notification.postId}`}
+                    key={notification.id}
+                    onClick={() => handleNotificationOpen(notification)}
+                  >
+                    {!notification.isRead ? <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-coral" /> : null}
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-ink/42">
+                      {notification.profilePhotoUrl ? (
+                        <img alt="" className="h-full w-full object-cover" src={notification.profilePhotoUrl} />
+                      ) : (
+                        <MessageCircle aria-hidden="true" size={18} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 pr-3">
+                      <span className="block text-sm font-black leading-tight">@{notification.username} commented</span>
+                      <span className="mt-0.5 block truncate text-xs font-bold text-ink/50">on {notification.postTitle}</span>
+                      <span className="mt-1 line-clamp-3 block text-xs font-semibold leading-snug text-ink/62">{notification.body}</span>
+                      <span className="mt-2 block text-[10px] font-black uppercase tracking-[0.12em] text-ink/34">
+                        {formatNotificationTime(notification.createdAt)}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">No notifications yet.</p>
+            )}
+          </div>
+        </aside>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-0 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] ${
             sheetDragOffset ? "transition-none" : "transition-all duration-300 ease-out"

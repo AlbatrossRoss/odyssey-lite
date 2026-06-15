@@ -8,6 +8,20 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 15, 2026",
+    id: "v6.4",
+    title: "Branded Loading Screen",
+    summary:
+      "Added a dedicated Odyssey loading screen with logo and animated status bar while the app restores the saved account session, avoiding the create-account screen flash on launch.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v6.3",
+    title: "Notification History and Mentions",
+    summary:
+      "Changed Explore notifications into a slide-in comment history with unread markers, added mention-based comment notifications, and auto-prefixed comments with the relevant @username for replies.",
+  },
+  {
+    date: "June 15, 2026",
     id: "v6.2",
     title: "Expanded Recommendation Cards",
     summary:

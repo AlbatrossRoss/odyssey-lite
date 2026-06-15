@@ -12,7 +12,7 @@ import { fetchAppPostById, type AppPost } from "@/lib/posts";
 import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
-import { readAccountSessionId } from "@/lib/accounts";
+import { fetchAccountById, readAccountSessionId } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
 
 export default function PostDetailPage() {
@@ -32,6 +32,7 @@ export default function PostDetailPage() {
   const [commentDraft, setCommentDraft] = useState("");
   const [commentStatus, setCommentStatus] = useState<"idle" | "loading" | "saving">("loading");
   const [commentMessage, setCommentMessage] = useState("");
+  const [viewerUsername, setViewerUsername] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -53,6 +54,22 @@ export default function PostDetailPage() {
           setLoading(false);
         }
       });
+
+    if (viewerId) {
+      fetchAccountById(viewerId)
+        .then((account) => {
+          if (active) {
+            setViewerUsername(account?.username ?? null);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setViewerUsername(null);
+          }
+        });
+    } else {
+      setViewerUsername(null);
+    }
 
     return () => {
       active = false;
@@ -127,6 +144,24 @@ export default function PostDetailPage() {
       userId: post.accountId,
     };
   }, [post]);
+  const commentMentionTarget = useMemo(() => {
+    if (!post || !accountId) {
+      return null;
+    }
+
+    if (accountId !== post.accountId) {
+      return post.username;
+    }
+
+    const latestOtherComment = comments.find((comment) => comment.accountId !== accountId);
+
+    if (!latestOtherComment || latestOtherComment.username === viewerUsername) {
+      return null;
+    }
+
+    return latestOtherComment.username;
+  }, [accountId, comments, post, viewerUsername]);
+  const resolvedCommentBody = commentBodyWithMention(commentDraft, commentMentionTarget);
 
   if (loading) {
     return (
@@ -281,7 +316,7 @@ export default function PostDetailPage() {
     try {
       const createdComment = await createPostComment({
         accountId,
-        body: commentDraft,
+        body: commentBodyWithMention(commentDraft, commentMentionTarget),
         postId: post.id,
       });
 
@@ -427,15 +462,15 @@ export default function PostDetailPage() {
                     className="min-h-24 w-full resize-none rounded-[22px] bg-shell px-4 py-3 text-sm font-semibold leading-relaxed text-ink outline-none ring-1 ring-ink/8 placeholder:text-ink/34 focus:ring-coral"
                     maxLength={500}
                     onChange={(event) => setCommentDraft(event.target.value)}
-                    placeholder="Add a public comment"
+                    placeholder={commentMentionTarget ? `Reply to @${commentMentionTarget}` : "Add a public comment"}
                     value={commentDraft}
                   />
                 </label>
                 <div className="mt-2 flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold text-ink/38">{commentDraft.trim().length}/500</p>
+                  <p className="text-xs font-bold text-ink/38">{resolvedCommentBody.length}/500</p>
                   <button
                     className="flex h-11 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-black text-white shadow-lift disabled:opacity-45"
-                    disabled={commentStatus === "saving" || !commentDraft.trim()}
+                    disabled={commentStatus === "saving" || !commentDraft.trim() || resolvedCommentBody.length > 500}
                     type="submit"
                   >
                     <Send aria-hidden="true" size={16} />
@@ -586,6 +621,22 @@ export default function PostDetailPage() {
 
 function formatError(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function commentBodyWithMention(body: string, username: string | null) {
+  const trimmedBody = body.trim();
+
+  if (!username) {
+    return trimmedBody;
+  }
+
+  const mention = `@${username}`;
+
+  if (trimmedBody.toLowerCase().startsWith(mention.toLowerCase())) {
+    return trimmedBody;
+  }
+
+  return `${mention} ${trimmedBody}`;
 }
 
 function formatCommentTime(value: string) {

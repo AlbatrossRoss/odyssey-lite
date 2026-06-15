@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { PointerEvent } from "react";
 import { MapPin, UserRound } from "lucide-react";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import type { AppPost } from "@/lib/posts";
@@ -10,6 +11,10 @@ type AppPostCardProps = {
   post: AppPost;
 };
 
+function stopSheetDrag(event: PointerEvent) {
+  event.stopPropagation();
+}
+
 export function AppPostCard({ onOpen, post }: AppPostCardProps) {
   if (!post.imageUrl) {
     return (
@@ -17,7 +22,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
         className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[14px] bg-white p-3 text-left shadow-soft outline-none"
         href={`/posts/${post.id}`}
         onClick={onOpen}
-        onPointerDown={onOpen}
+        onPointerDown={stopSheetDrag}
       >
         <span className="flex items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/50">
@@ -51,7 +56,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
       className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[14px] bg-ink text-left shadow-soft outline-none"
       href={`/posts/${post.id}`}
       onClick={onOpen}
-      onPointerDown={onOpen}
+      onPointerDown={stopSheetDrag}
     >
       <span className="absolute inset-0 block bg-shell">
         <PostMediaPreview
