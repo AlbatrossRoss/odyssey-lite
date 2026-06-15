@@ -269,6 +269,38 @@ export async function fetchFollowingIds(viewerId: string) {
   return data.map((follow) => follow.following_id);
 }
 
+export async function fetchAccountConnections(accountId: string, type: "followers" | "following") {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const relationColumn = type === "followers" ? "following_id" : "follower_id";
+  const accountColumn = type === "followers" ? "follower_id" : "following_id";
+  const { data: follows, error: followsError } = await supabase
+    .from("account_follows")
+    .select("follower_id, following_id")
+    .eq(relationColumn, accountId);
+
+  if (followsError) {
+    throw followsError;
+  }
+
+  const accountIds = follows.map((follow) => follow[accountColumn]);
+
+  if (!accountIds.length) {
+    return [];
+  }
+
+  const { data: accounts, error: accountsError } = await supabase.from("app_accounts").select("*").in("id", accountIds);
+
+  if (accountsError) {
+    throw accountsError;
+  }
+
+  const accountsById = new Map(accounts.map((account) => [account.id, mapAccount(account)]));
+
+  return accountIds.map((id) => accountsById.get(id)).filter((account): account is AppAccount => Boolean(account));
+}
+
 export function normalizeUsername(username: string) {
   return username.trim().replace(/^@+/, "").toLowerCase();
 }

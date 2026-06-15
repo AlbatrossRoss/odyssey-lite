@@ -305,7 +305,7 @@ export default function CreatePage() {
           <span className="h-10 w-10" />
         </header>
 
-        <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-8">
+        <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-36">
           <input
             accept="image/*,video/*"
             className="hidden"
@@ -362,7 +362,7 @@ export default function CreatePage() {
                     <div className="flex flex-wrap gap-2">
                       {selectedTags.map((tag) => (
                         <button
-                          className="flex h-9 items-center gap-2 rounded-full bg-ink px-3 text-xs font-black text-white"
+                            className="flex min-h-11 items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-black text-white"
                           key={tag}
                           onClick={() => toggleTag(tag)}
                           type="button"
@@ -396,7 +396,7 @@ export default function CreatePage() {
                       <div className="mt-3 overflow-hidden rounded-[22px] border border-ink/8 bg-white py-1 shadow-soft">
                         {locationSuggestions.map((suggestion) => (
                           <button
-                            className="flex w-full flex-col px-4 py-3 text-left transition hover:bg-shell"
+                            className="flex min-h-14 w-full flex-col justify-center px-4 py-3 text-left transition hover:bg-shell"
                             key={`${suggestion.label}-${suggestion.description ?? ""}`}
                             onClick={() => {
                               setLocation(suggestion.query ?? suggestion.label);
@@ -438,7 +438,7 @@ export default function CreatePage() {
                     .filter((tag) => !selectedTags.includes(tag))
                     .map((tag) => (
                       <button
-                        className="h-10 rounded-full bg-white px-4 text-sm font-black text-ink/56 shadow-sm"
+                        className="min-h-11 rounded-full bg-white px-4 py-2 text-sm font-black text-ink/56 shadow-sm"
                         key={tag}
                         onClick={() => toggleTag(tag)}
                         type="button"

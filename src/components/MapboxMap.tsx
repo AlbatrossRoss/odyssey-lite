@@ -34,6 +34,7 @@ type MapboxMapProps = {
   zoom?: number;
   interactive?: boolean;
   dark?: boolean;
+  userLocation?: [number, number] | null;
 };
 
 const hawaiiCenter: [number, number] = [-156.45, 20.55];
@@ -160,6 +161,7 @@ export function MapboxMap({
   zoom = 6.35,
   interactive = true,
   dark = false,
+  userLocation = null,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -268,6 +270,15 @@ export function MapboxMap({
     }
 
     markersRef.current.forEach((marker) => marker.remove());
+    const userLocationMarker = userLocation
+      ? (() => {
+          const element = document.createElement("span");
+          element.className = "odyssey-user-location";
+          element.setAttribute("aria-label", "Your current location");
+
+          return new mapboxgl.Marker({ element, anchor: "center" }).setLngLat(userLocation).addTo(mapRef.current!);
+        })()
+      : null;
     const experienceMarkers = experiences.map((experience) => {
       const element = document.createElement("button");
       element.className = "odyssey-marker";
@@ -322,8 +333,8 @@ export function MapboxMap({
       return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
     });
 
-    markersRef.current = [...experienceMarkers, ...postMarkers];
-  }, [appPosts, experiences, onPostSelect, onSelect, selectedPostId, selectedSlug]);
+    markersRef.current = [...(userLocationMarker ? [userLocationMarker] : []), ...experienceMarkers, ...postMarkers];
+  }, [appPosts, experiences, onPostSelect, onSelect, selectedPostId, selectedSlug, userLocation]);
 
   return (
     <div className={`${hasPositionClass ? "" : "relative"} bg-[#a9d7ed] ${className}`} onWheel={onMapInteraction}>

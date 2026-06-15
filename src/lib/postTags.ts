@@ -56,3 +56,25 @@ export function emojiForPostTag(tag: AppPostTag) {
   if (tag === "Stay") return "🛏️";
   return "💎";
 }
+
+export function inferPostTagFromText(...parts: Array<string | null | undefined>): AppPostTag {
+  const text = parts.join(" ").toLowerCase();
+
+  if (/(restaurant|bar|coffee|cafe|café|drink|cocktail|beer|wine|brunch|breakfast|lunch|dinner|meal|food|pizza|taco|sushi|bakery|dessert)/.test(text)) {
+    return "Food & Drink";
+  }
+
+  if (/(hotel|stay|bnb|airbnb|resort|inn|lodge|suite|room|hostel|cabin)/.test(text)) {
+    return "Stay";
+  }
+
+  if (/(hike|trail|park|beach|mountain|lake|river|waterfall|garden|sunset|sunrise|forest|nature|view|scenic|outdoor)/.test(text)) {
+    return "Nature";
+  }
+
+  if (/(hidden|secret|underrated|local|hole in the wall|gem|quiet|tucked|favorite)/.test(text)) {
+    return "Hidden Gem";
+  }
+
+  return "Experience";
+}

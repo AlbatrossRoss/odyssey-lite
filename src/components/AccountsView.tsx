@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Camera, Check, ImagePlus, LogOut, Map, Search, Trash2, UserPlus, UserRound, X } from "lucide-react";
 import {
+  type AppAccount,
   AccountWithStats,
   accountDisplayName,
   clearAccountSessionId,
+  fetchAccountConnections,
   fetchAccountsWithStats,
   readAccountSessionId,
   setAccountFollow,
@@ -66,11 +68,15 @@ export function AccountsView({ username }: AccountsViewProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const setupPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const localRecPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const postsSectionRef = useRef<HTMLElement | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountWithStats[]>([]);
   const [profilePosts, setProfilePosts] = useState<AppPost[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [message, setMessage] = useState("");
+  const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
+  const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "loading">("idle");
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>("photo");
   const [setupMessage, setSetupMessage] = useState("");
@@ -246,6 +252,28 @@ export function AccountsView({ username }: AccountsViewProps) {
       setMessage(error instanceof Error ? error.message : "Unable to update follow.");
       setStatus("ready");
     }
+  }
+
+  async function openConnections(type: "followers" | "following") {
+    if (!profile) {
+      return;
+    }
+
+    setConnectionOpen(type);
+    setConnectionStatus("loading");
+    setConnectionAccounts([]);
+
+    try {
+      setConnectionAccounts(await fetchAccountConnections(profile.id, type));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
+    } finally {
+      setConnectionStatus("idle");
+    }
+  }
+
+  function scrollToPosts() {
+    postsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function handlePhotoSelect(file: File | undefined) {
@@ -442,11 +470,11 @@ export function AccountsView({ username }: AccountsViewProps) {
         <div className="px-5">
           {profile ? (
             <section className="pt-3">
-              <div className="flex items-end justify-between gap-4">
-                <div className="relative">
+              <div className="flex items-end gap-5">
+                <div className="relative shrink-0">
                   <button
                     aria-label="Change profile photo"
-                    className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-shell bg-white text-ink/52 shadow-lift"
+                    className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-shell bg-white text-ink/52 shadow-lift"
                     disabled={!isOwnProfile}
                     onClick={() => fileInputRef.current?.click()}
                     type="button"
@@ -459,7 +487,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                     )}
                   </button>
                   {isOwnProfile ? (
-                    <span className="absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full bg-ink text-white shadow-lift">
+                    <span className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-ink text-white shadow-lift">
                       <Camera aria-hidden="true" size={17} />
                     </span>
                   ) : null}
@@ -471,19 +499,11 @@ export function AccountsView({ username }: AccountsViewProps) {
                     type="file"
                   />
                 </div>
-                {!isOwnProfile ? (
-                  <button
-                    className={`mb-3 flex h-11 items-center gap-2 rounded-full px-5 text-sm font-black shadow-lift ${
-                      profile.isFollowedByViewer ? "bg-white text-ink" : "bg-ink text-white"
-                    }`}
-                    disabled={status === "saving"}
-                    onClick={() => void toggleFollow(profile)}
-                    type="button"
-                  >
-                    <UserPlus aria-hidden="true" size={17} />
-                    {profile.isFollowedByViewer ? "Following" : "Follow"}
-                  </button>
-                ) : null}
+                <div className="flex min-w-0 flex-1 flex-col gap-2 pb-2">
+                  <StatTile label="Followers" onClick={() => void openConnections("followers")} value={profile.stats.followers} />
+                  <StatTile label="Following" onClick={() => void openConnections("following")} value={profile.stats.following} />
+                  <StatTile label="Posts" onClick={scrollToPosts} value={profile.stats.posts} />
+                </div>
               </div>
 
               <div className="mt-4">
@@ -491,28 +511,27 @@ export function AccountsView({ username }: AccountsViewProps) {
                   <Map aria-hidden="true" size={14} />
                   Account
                 </p>
-                <div className="mt-1 flex items-center justify-between gap-3">
+                <div className="mt-1">
                   <h1 className="min-w-0 truncate text-3xl font-black text-ink">{accountDisplayName(profile)}</h1>
-                  {isOwnProfile ? (
-                    <button
-                      className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-white px-4 text-xs font-black text-ink shadow-lift"
-                      onClick={logout}
-                      type="button"
-                    >
-                      <LogOut aria-hidden="true" size={15} />
-                      Log out
-                    </button>
-                  ) : null}
+                  {profile.currentCity ? <p className="mt-1 text-sm font-bold text-ink/50">{profile.currentCity}</p> : null}
                 </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <StatTile label="Followers" value={profile.stats.followers} />
-                <StatTile label="Following" value={profile.stats.following} />
-                <StatTile label="Posts" value={profile.stats.posts} />
-              </div>
+              {!isOwnProfile ? (
+                <button
+                  className={`mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-black shadow-lift ${
+                    profile.isFollowedByViewer ? "bg-white text-ink" : "bg-ink text-white"
+                  }`}
+                  disabled={status === "saving"}
+                  onClick={() => void toggleFollow(profile)}
+                  type="button"
+                >
+                  <UserPlus aria-hidden="true" size={17} />
+                  {profile.isFollowedByViewer ? "Following" : "Follow"}
+                </button>
+              ) : null}
 
-              {isOwnProfile ? (
+              {isOwnProfile && setupProgress < setupTotal ? (
                 <button
                   className="mt-5 w-full rounded-[26px] bg-white p-4 text-left shadow-lift"
                   onClick={() => setSetupOpen(true)}
@@ -534,7 +553,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                 </button>
               ) : null}
 
-              <section className="mt-7 overflow-hidden rounded-[26px] bg-white shadow-lift">
+              <section className="mt-7 overflow-hidden rounded-[26px] bg-white shadow-lift" ref={postsSectionRef}>
                 <div className="flex items-end justify-between border-b border-ink/8 px-4 py-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-coral">Posts</p>
@@ -861,6 +880,51 @@ export function AccountsView({ username }: AccountsViewProps) {
           </section>
         </div>
       ) : null}
+      {connectionOpen && profile ? (
+        <div className="safe-modal-bottom absolute inset-x-0 top-0 z-50 flex h-full items-end bg-ink/28 backdrop-blur-sm">
+          <section className="max-h-[82%] w-full overflow-y-auto rounded-t-[30px] bg-white p-5 shadow-soft">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-coral">{accountDisplayName(profile)}</p>
+                <h2 className="mt-1 text-2xl font-black text-ink">{connectionOpen === "followers" ? "Followers" : "Following"}</h2>
+              </div>
+              <button
+                aria-label="Close account list"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
+                onClick={() => setConnectionOpen(null)}
+                type="button"
+              >
+                <X aria-hidden="true" size={19} />
+              </button>
+            </div>
+
+            {connectionStatus === "loading" ? (
+              <p className="rounded-[22px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/50">Loading accounts...</p>
+            ) : connectionAccounts.length ? (
+              <div className="space-y-3">
+                {connectionAccounts.map((account) => (
+                  <Link
+                    className="flex items-center gap-3 rounded-[22px] bg-shell p-3"
+                    href={`/accounts/${account.username}`}
+                    key={account.id}
+                    onClick={() => setConnectionOpen(null)}
+                  >
+                    <Avatar account={account} />
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base font-black text-ink">{accountDisplayName(account)}</h3>
+                      {account.currentCity ? <p className="truncate text-xs font-bold text-ink/48">{account.currentCity}</p> : null}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-[22px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/50">
+                {connectionOpen === "followers" ? "No followers yet." : "Not following anyone yet."}
+              </p>
+            )}
+          </section>
+        </div>
+      ) : null}
       <BottomNav activeTab="Accounts" />
     </MobileFrame>
   );
@@ -960,16 +1024,16 @@ function fetchPlaceSuggestions(
   };
 }
 
-function StatTile({ label, value }: { label: string; value: number }) {
+function StatTile({ label, onClick, value }: { label: string; onClick: () => void; value: number }) {
   return (
-    <div className="rounded-[22px] bg-white p-4 text-center shadow-lift">
-      <p className="text-2xl font-black text-ink">{value}</p>
-      <p className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-ink/45">{label}</p>
-    </div>
+    <button className="flex min-h-8 items-baseline gap-2 text-left" onClick={onClick} type="button">
+      <span className="text-xl font-black leading-none text-ink">{value}</span>
+      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-ink/45">{label}</span>
+    </button>
   );
 }
 
-function Avatar({ account }: { account: AccountWithStats }) {
+function Avatar({ account }: { account: Pick<AppAccount, "profilePhotoUrl"> }) {
   return (
     <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45">
       {account.profilePhotoUrl ? (

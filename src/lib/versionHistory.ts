@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 15, 2026",
+    id: "v5.5",
+    title: "Profile Header and Grid Polish",
+    summary:
+      "Refined account headers with larger profile photos, current city display, cleaner clickable stats, and improved travel-grid previews for text-only and media recommendations.",
+  },
+  {
+    date: "June 15, 2026",
     id: "v5.4",
     title: "Profile Setup Checklist",
     summary:

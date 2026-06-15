@@ -251,6 +251,7 @@ export default function ExplorePage() {
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
@@ -353,7 +354,7 @@ export default function ExplorePage() {
   }, [currentMapView.center, searchQuery]);
 
   useEffect(() => {
-    if (restoredExploreState || typeof navigator === "undefined" || !("geolocation" in navigator)) {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
       return;
     }
 
@@ -361,14 +362,24 @@ export default function ExplorePage() {
       (position) => {
         const nextView = {
           center: [position.coords.longitude, position.coords.latitude] as [number, number],
-          zoom: 9.5,
+          zoom: 10.2,
         };
+
+        setUserLocation(nextView.center);
+        if (restoredExploreState) {
+          return;
+        }
 
         setDefaultMapView(nextView);
         setCurrentMapView(nextView);
         setMapTarget(nextView);
       },
       () => {
+        setUserLocation(null);
+        if (restoredExploreState) {
+          return;
+        }
+
         setDefaultMapView(worldView);
         setCurrentMapView(worldView);
         setMapTarget(worldView);
@@ -676,6 +687,7 @@ export default function ExplorePage() {
           onMoveEnd={handleMapMoveEnd}
           onPostSelect={handleAppPostSelect}
           selectedPostId={selectedPostId ?? undefined}
+          userLocation={userLocation}
           zoom={1.35}
         />
         <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">

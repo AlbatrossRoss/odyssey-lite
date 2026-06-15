@@ -1,7 +1,7 @@
 "use client";
 
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { normalizePostTag, type AppPostTag } from "@/lib/postTags";
+import { inferPostTagFromText, normalizePostTag, type AppPostTag } from "@/lib/postTags";
 
 export type AppPost = {
   id: string;
@@ -84,7 +84,8 @@ const accountSummaryCache = new Map<string, AppPostAccountRow>();
 function mapPost(post: AppPostRow, account?: AppPostAccountRow): AppPost {
   const mediaUrls = post.media_urls?.length ? post.media_urls : post.image_url ? [post.image_url] : [];
   const mediaTypes = mediaUrls.map((url, index) => normalizeMediaType(post.media_types?.[index], url));
-  const tags = Array.from(new Set(post.tags?.map(normalizePostTag).filter((tag): tag is AppPostTag => Boolean(tag)) ?? []));
+  const storedTags = Array.from(new Set(post.tags?.map(normalizePostTag).filter((tag): tag is AppPostTag => Boolean(tag)) ?? []));
+  const tags = storedTags.length ? storedTags : [inferPostTagFromText(post.title, post.caption, post.location)];
 
   return {
     id: post.id,
@@ -252,7 +253,7 @@ export async function createAppPost(draft: AppPostDraft) {
     image_url: draft.imageUrl,
     media_urls: draft.mediaUrls?.length ? draft.mediaUrls : [],
     media_types: draft.mediaTypes?.length ? draft.mediaTypes : [],
-    tags: draft.tags ?? [],
+    tags: draft.tags?.length ? draft.tags : [inferPostTagFromText(draft.title, draft.caption, draft.location)],
     longitude: draft.coordinates[0],
     latitude: draft.coordinates[1],
     date_label: draft.dateLabel,

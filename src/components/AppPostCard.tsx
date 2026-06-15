@@ -141,10 +141,14 @@ export function AppPostExploreTile({ post, featured = false }: AppPostCardProps 
 export function AppPostTile({ post }: AppPostCardProps) {
   if (!post.imageUrl) {
     return (
-      <Link className="group relative block aspect-square overflow-hidden bg-white p-2 ring-1 ring-ink/8" href={`/posts/${post.id}`}>
-        <span className="absolute inset-x-2 bottom-2">
-          <span className="line-clamp-3 block text-xs font-black leading-tight text-ink">{post.title}</span>
-          <span className="mt-1 block truncate text-[10px] font-semibold text-ink/46">{post.type}</span>
+      <Link className="group flex aspect-square flex-col overflow-hidden bg-white p-2.5 ring-1 ring-ink/8" href={`/posts/${post.id}`}>
+        <span className="line-clamp-3 block text-xs font-black leading-tight text-ink">{post.title}</span>
+        {post.caption ? (
+          <span className="mt-1.5 line-clamp-5 block text-[10px] font-semibold leading-snug text-ink/52">{post.caption}</span>
+        ) : null}
+        <span className="mt-auto flex items-start gap-1 text-[9px] font-bold leading-tight text-ink/38">
+          <MapPin aria-hidden="true" className="mt-px shrink-0 text-coral" size={10} />
+          <span className="line-clamp-2">{post.location}</span>
         </span>
       </Link>
     );
@@ -161,8 +165,7 @@ export function AppPostTile({ post }: AppPostCardProps) {
       />
       <span className="absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/82 opacity-95" />
       <span className="absolute bottom-2 left-2 right-2">
-        <span className="block truncate text-xs font-normal text-white">{post.title}</span>
-        <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/76">{post.type}</span>
+        <span className="line-clamp-3 block text-xs font-normal leading-tight text-white drop-shadow-sm">{post.title}</span>
       </span>
     </Link>
   );
