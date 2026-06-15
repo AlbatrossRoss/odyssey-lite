@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
@@ -12,12 +12,14 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import { consumeActionBanner, type ActionBanner } from "@/lib/actionBanner";
-import { fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
+import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
+import { isExploreCategoryFilter, tagForExploreFilter } from "@/lib/postTags";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
+const appPostsCacheKey = "odyssey-app-posts-cache-v2";
 
 type MapBounds = {
   east: number;
@@ -88,7 +90,7 @@ function postSearchHasContent(query: string, post: AppPost) {
     return false;
   }
 
-  const searchableText = `${post.title} ${post.location} ${post.caption}`.toLowerCase();
+  const searchableText = `${post.title} ${post.location} ${post.caption} ${(post.tags ?? []).join(" ")}`.toLowerCase();
   const hawaiiAliases = ["hawaii", "maui", "kona", "oahu", "o‘ahu", "big island", "wailea", "hana", "haleakalā", "haleakala", "punalu"];
 
   if (hawaiiAliases.some((alias) => normalizedQuery.includes(alias))) {
@@ -105,6 +107,43 @@ function coordinateInBounds(coordinates: [number, number], bounds: MapBounds) {
     bounds.west <= bounds.east ? longitude >= bounds.west && longitude <= bounds.east : longitude >= bounds.west || longitude <= bounds.east;
 
   return isInLatitude && isInLongitude;
+}
+
+function filterPostsByExploreFilter(posts: AppPost[], activeFilter: string, followingIds: string[], viewerId: string | null) {
+  if (activeFilter === "All") {
+    return posts;
+  }
+
+  if (activeFilter === "Mine") {
+    return viewerId ? posts.filter((post) => post.accountId === viewerId) : [];
+  }
+
+  if (activeFilter === "Friends") {
+    return posts.filter((post) => followingIds.includes(post.accountId));
+  }
+
+  if (isExploreCategoryFilter(activeFilter)) {
+    const tag = tagForExploreFilter(activeFilter);
+    return posts.filter((post) => (post.tags ?? []).includes(tag));
+  }
+
+  return posts.filter((post) => followingIds.includes(post.accountId));
+}
+
+function recommendationSubtitleSuffix(activeFilter: string) {
+  if (activeFilter === "Friends") {
+    return "from people you follow";
+  }
+
+  if (activeFilter === "Mine") {
+    return "from you";
+  }
+
+  if (isExploreCategoryFilter(activeFilter)) {
+    return `tagged ${activeFilter}`;
+  }
+
+  return "from all travelers";
 }
 
 function mapAreaLabel(center: [number, number]) {
@@ -138,7 +177,7 @@ function readStoredExploreState(): StoredExploreState | null {
 
     const restoredState: StoredExploreState = {
       activeDestination: typeof parsed.activeDestination === "string" ? parsed.activeDestination : "",
-      activeFilter: parsed.activeFilter === "All" ? "All" : "Friends",
+      activeFilter: isExploreFilter(parsed.activeFilter) ? parsed.activeFilter : "Friends",
       currentMapView: {
         center: parsed.currentMapView.center,
         zoom: typeof parsed.currentMapView.zoom === "number" ? parsed.currentMapView.zoom : worldView.zoom,
@@ -166,11 +205,36 @@ function readStoredExploreState(): StoredExploreState | null {
   }
 }
 
+function isExploreFilter(value: unknown): value is string {
+  return value === "Mine" || value === "Friends" || value === "All" || (typeof value === "string" && isExploreCategoryFilter(value));
+}
+
 function writeStoredExploreState(state: StoredExploreState) {
   try {
     window.sessionStorage.setItem(exploreStateStorageKey, JSON.stringify(state));
   } catch {
     // Explore can still work if private browsing or storage settings block session storage.
+  }
+}
+
+function readCachedAppPosts() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const cached = window.sessionStorage.getItem(appPostsCacheKey);
+    return cached ? (JSON.parse(cached) as AppPost[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedAppPosts(posts: AppPost[]) {
+  try {
+    window.sessionStorage.setItem(appPostsCacheKey, JSON.stringify(posts));
+  } catch {
+    // Explore can still refresh from Supabase if session storage is unavailable.
   }
 }
 
@@ -183,8 +247,10 @@ export default function ExplorePage() {
   const [mapArea, setMapArea] = useState<MapArea | null>(restoredExploreState?.mapArea ?? null);
   const [searchQuery, setSearchQuery] = useState(restoredExploreState?.searchQuery ?? "");
   const [activeDestination, setActiveDestination] = useState(restoredExploreState?.activeDestination ?? "");
-  const [appPosts, setAppPosts] = useState<AppPost[]>([]);
+  const [appPosts, setAppPosts] = useState<AppPost[]>(() => readCachedAppPosts());
   const [followingIds, setFollowingIds] = useState<string[]>([]);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
@@ -245,8 +311,9 @@ export default function ExplorePage() {
         access_token: token,
         autocomplete: "true",
         language: "en",
-        limit: "5",
-        types: "country,region,place,locality,neighborhood,poi,address",
+        limit: "8",
+        proximity: currentMapView.center.join(","),
+        types: "poi,address,neighborhood,locality,place,region,country",
       });
 
       try {
@@ -283,7 +350,7 @@ export default function ExplorePage() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [searchQuery]);
+  }, [currentMapView.center, searchQuery]);
 
   useEffect(() => {
     if (restoredExploreState || typeof navigator === "undefined" || !("geolocation" in navigator)) {
@@ -335,6 +402,7 @@ export default function ExplorePage() {
           return;
         }
 
+        writeCachedAppPosts(sharedPosts);
         setAppPosts(sharedPosts);
       })
       .catch(() => {
@@ -348,23 +416,27 @@ export default function ExplorePage() {
 
   useEffect(() => {
     const viewerId = readAccountSessionId();
+    setViewerId(viewerId);
 
     if (!viewerId) {
       setFollowingIds([]);
+      setViewerPhotoUrl(null);
       return;
     }
 
     let active = true;
 
-    fetchFollowingIds(viewerId)
-      .then((ids) => {
+    Promise.all([fetchFollowingIds(viewerId), fetchAccountById(viewerId)])
+      .then(([ids, account]) => {
         if (active) {
           setFollowingIds(ids);
+          setViewerPhotoUrl(account?.profilePhotoUrl ?? null);
         }
       })
       .catch(() => {
         if (active) {
           setFollowingIds([]);
+          setViewerPhotoUrl(null);
         }
       });
 
@@ -415,7 +487,7 @@ export default function ExplorePage() {
     const params = new URLSearchParams({
       access_token: token,
       limit: "1",
-      types: "country,region,place,locality,neighborhood,address,poi",
+      types: "poi,address,neighborhood,locality,place,region,country",
     });
     try {
       const response = await fetch(
@@ -473,7 +545,7 @@ export default function ExplorePage() {
   }, []);
 
   const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
-    const sourcePosts = activeFilter === "All" ? appPosts : appPosts.filter((post) => followingIds.includes(post.accountId));
+    const sourcePosts = filterPostsByExploreFilter(appPosts, activeFilter, followingIds, viewerId);
     const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
     const canUseMapArea = zoom >= mapExploreZoomThreshold;
 
@@ -492,13 +564,12 @@ export default function ExplorePage() {
       setMapArea(null);
       setActiveDestination("");
     }
-  }, [activeFilter, appPosts, exploreSource, followingIds]);
+  }, [activeFilter, appPosts, exploreSource, followingIds, viewerId]);
 
-  const followedPosts = useMemo(
-    () => appPosts.filter((post) => followingIds.includes(post.accountId)),
-    [appPosts, followingIds],
+  const filteredPosts = useMemo(
+    () => filterPostsByExploreFilter(appPosts, activeFilter, followingIds, viewerId),
+    [activeFilter, appPosts, followingIds, viewerId],
   );
-  const filteredPosts = activeFilter === "All" ? appPosts : followedPosts;
   const searchText = activeDestination || searchQuery;
   const searchPosts = searchText ? filteredPosts.filter((post) => postSearchHasContent(searchText, post)) : filteredPosts;
   const mapAreaPosts = mapArea ? filteredPosts.filter((post) => coordinateInBounds(post.coordinates, mapArea.bounds)) : [];
@@ -509,10 +580,12 @@ export default function ExplorePage() {
   const recommendationCount = visibleAppPosts.length;
   const recommendationSubtitle =
     recommendationCount > 0
-      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${activeFilter === "Friends" ? "from people you follow" : "from all travelers"}`
+      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter)}`
       : activeFilter === "Friends"
         ? "Follow accounts to see their recommendations here"
-        : "No recommendations in this area yet";
+        : activeFilter === "Mine"
+          ? "Your recommendations will show up here"
+          : "No recommendations in this area yet";
   const sheetClassName =
     sheetPosition === "expanded"
       ? "nav-cleared-bottom top-[82px] pb-4"
@@ -611,11 +684,17 @@ export default function ExplorePage() {
               className="mb-3 flex items-center gap-3 rounded-[24px] bg-white/96 p-2 pr-4 text-left shadow-lift backdrop-blur"
               href={actionBanner.href}
             >
-              <PostMediaPreview
-                className="h-14 w-14 shrink-0 rounded-[18px] object-cover"
-                mediaType={actionBanner.mediaType}
-                src={actionBanner.imageUrl}
-              />
+              {actionBanner.imageUrl ? (
+                <PostMediaPreview
+                  className="h-14 w-14 shrink-0 rounded-[18px] object-cover"
+                  mediaType={actionBanner.mediaType}
+                  src={actionBanner.imageUrl}
+                />
+              ) : (
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-shell text-coral">
+                  <MapPin aria-hidden="true" size={20} />
+                </span>
+              )}
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-black uppercase tracking-[0.12em] text-coral">{actionBanner.message}</span>
                 <span className="mt-0.5 block truncate text-sm font-black text-ink">{actionBanner.title}</span>
@@ -646,7 +725,7 @@ export default function ExplorePage() {
               />
             </div>
           </div>
-          <FilterChips active={activeFilter} onChange={setActiveFilter} />
+          <FilterChips active={activeFilter} onChange={setActiveFilter} userPhotoUrl={viewerPhotoUrl} />
         </div>
         <section
           className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-0 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] ${

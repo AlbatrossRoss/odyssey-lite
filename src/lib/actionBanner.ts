@@ -4,7 +4,7 @@ import type { AppPostMediaType } from "@/lib/posts";
 
 export type ActionBanner = {
   href: string;
-  imageUrl: string;
+  imageUrl: string | null;
   mediaType?: AppPostMediaType;
   message: string;
   title: string;

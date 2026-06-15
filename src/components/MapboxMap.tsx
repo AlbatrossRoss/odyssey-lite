@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import type { Experience } from "@/lib/data";
 import { getUser } from "@/lib/data";
 import type { AppPost } from "@/lib/posts";
+import { emojiForPostTag } from "@/lib/postTags";
 
 type MapboxMapProps = {
   experiences: Experience[];
@@ -298,8 +299,10 @@ export function MapboxMap({
       element.type = "button";
       element.setAttribute("aria-label", post.title);
       const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${post.profilePhotoUrl}" alt="" />` : "";
-      const mediaMarkup =
-        post.mediaTypes[0] === "video"
+      const textOnlyEmoji = post.tags[0] ? emojiForPostTag(post.tags[0]) : "📍";
+      const mediaMarkup = !post.imageUrl
+        ? `<span class="odyssey-marker-text">${escapeHtml(textOnlyEmoji)}</span>`
+        : post.mediaTypes[0] === "video"
           ? `<video class="odyssey-marker-photo" src="${post.imageUrl}" autoplay loop muted playsinline></video>`
           : `<img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" />`;
 
@@ -369,4 +372,14 @@ export function MapboxMap({
       ) : null}
     </div>
   );
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    if (character === "&") return "&amp;";
+    if (character === "<") return "&lt;";
+    if (character === ">") return "&gt;";
+    if (character === '"') return "&quot;";
+    return "&#39;";
+  });
 }

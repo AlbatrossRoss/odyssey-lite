@@ -7,6 +7,27 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 15, 2026",
+    id: "v5.4",
+    title: "Profile Setup Checklist",
+    summary:
+      "Added a profile setup checklist with guided profile photo, local city, follow suggestions, and conversational local recommendation prompts that can create tagged first posts for the map.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v5.3",
+    title: "Explore Category Filters",
+    summary:
+      "Added Mine, Food & Drink, Experiences, Nature, Stays, and Hidden Gem filters to Explore, connected post tags to map/feed filtering, and added emoji map pins for text-only tagged recommendations.",
+  },
+  {
+    date: "June 15, 2026",
+    id: "v5.2",
+    title: "Text-Only Recommendations",
+    summary:
+      "Made media optional in Create, supported text-only recommendation cards across Explore and profiles, kept current-location defaults for posting, and allowed recommendations to publish without photos or videos.",
+  },
+  {
     date: "June 14, 2026",
     id: "v5.1",
     title: "Posting Location Suggestions",

@@ -1,6 +1,7 @@
 "use client";
 
 import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { normalizePostTag, type AppPostTag } from "@/lib/postTags";
 
 export type AppPost = {
   id: string;
@@ -11,9 +12,10 @@ export type AppPost = {
   title: string;
   location: string;
   caption: string;
-  imageUrl: string;
+  imageUrl: string | null;
   mediaUrls: string[];
   mediaTypes: AppPostMediaType[];
+  tags: AppPostTag[];
   coordinates: [number, number];
   dateLabel: string;
   visibility: string;
@@ -28,9 +30,10 @@ export type AppPostDraft = {
   title: string;
   location: string;
   caption: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   mediaUrls?: string[];
   mediaTypes?: AppPostMediaType[];
+  tags?: AppPostTag[];
   coordinates: [number, number];
   dateLabel: string;
   visibility: string;
@@ -43,9 +46,10 @@ type AppPostRow = {
   title: string;
   location: string;
   caption: string;
-  image_url: string;
+  image_url: string | null;
   media_urls?: string[] | null;
   media_types?: string[] | null;
+  tags?: string[] | null;
   latitude: number;
   longitude: number;
   date_label: string;
@@ -62,7 +66,8 @@ type AppPostAccountRow = {
 const basePostSelectColumns =
   "id, account_id, type, title, location, caption, image_url, latitude, longitude, date_label, visibility, created_at";
 const postSelectColumnsWithMediaUrls = `${basePostSelectColumns}, media_urls`;
-const postSelectColumns = `${postSelectColumnsWithMediaUrls}, media_types`;
+const postSelectColumnsWithMediaTypes = `${postSelectColumnsWithMediaUrls}, media_types`;
+const postSelectColumns = `${postSelectColumnsWithMediaTypes}, tags`;
 
 function assertPostsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -77,8 +82,9 @@ function safeProfilePhotoUrl(value: string | null | undefined) {
 const accountSummaryCache = new Map<string, AppPostAccountRow>();
 
 function mapPost(post: AppPostRow, account?: AppPostAccountRow): AppPost {
-  const mediaUrls = post.media_urls?.length ? post.media_urls : [post.image_url];
+  const mediaUrls = post.media_urls?.length ? post.media_urls : post.image_url ? [post.image_url] : [];
   const mediaTypes = mediaUrls.map((url, index) => normalizeMediaType(post.media_types?.[index], url));
+  const tags = Array.from(new Set(post.tags?.map(normalizePostTag).filter((tag): tag is AppPostTag => Boolean(tag)) ?? []));
 
   return {
     id: post.id,
@@ -92,6 +98,7 @@ function mapPost(post: AppPostRow, account?: AppPostAccountRow): AppPost {
     imageUrl: post.image_url,
     mediaUrls,
     mediaTypes,
+    tags,
     coordinates: [post.longitude, post.latitude],
     dateLabel: post.date_label,
     visibility: post.visibility,
@@ -148,7 +155,7 @@ async function hydratePosts(posts: AppPostRow[]) {
   return posts.map((post) => mapPost(post, accounts.get(post.account_id)));
 }
 
-function missingMediaColumnName(error: unknown) {
+function missingPostColumnName(error: unknown) {
   if (!error || typeof error !== "object") {
     return null;
   }
@@ -157,8 +164,12 @@ function missingMediaColumnName(error: unknown) {
   const code = typeof candidate.code === "string" ? candidate.code : "";
   const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
 
-  if (code !== "42703" && !message.includes("media_") && !message.includes("media ")) {
+  if (code !== "42703" && !message.includes("media_") && !message.includes("media ") && !message.includes("tags")) {
     return null;
+  }
+
+  if (message.includes("tags")) {
+    return "tags";
   }
 
   if (message.includes("media_types") || message.includes("media types")) {
@@ -187,7 +198,7 @@ async function fetchPostRows(applyQuery: (query: PostRowsQuery) => PromiseLike<{
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await applyQuery(supabase.from("app_posts").select(postSelectColumns) as unknown as PostRowsQuery);
 
-  if (!missingMediaColumnName(error)) {
+  if (!missingPostColumnName(error)) {
     if (error) {
       throw error;
     }
@@ -195,11 +206,23 @@ async function fetchPostRows(applyQuery: (query: PostRowsQuery) => PromiseLike<{
     return data as unknown as AppPostRow[];
   }
 
+  const { data: mediaTypesData, error: mediaTypesError } = await applyQuery(
+    supabase.from("app_posts").select(postSelectColumnsWithMediaTypes) as unknown as PostRowsQuery,
+  );
+
+  if (!missingPostColumnName(mediaTypesError)) {
+    if (mediaTypesError) {
+      throw mediaTypesError;
+    }
+
+    return mediaTypesData as unknown as AppPostRow[];
+  }
+
   const { data: mediaUrlsData, error: mediaUrlsError } = await applyQuery(
     supabase.from("app_posts").select(postSelectColumnsWithMediaUrls) as unknown as PostRowsQuery,
   );
 
-  if (!missingMediaColumnName(mediaUrlsError)) {
+  if (!missingPostColumnName(mediaUrlsError)) {
     if (mediaUrlsError) {
       throw mediaUrlsError;
     }
@@ -227,8 +250,9 @@ export async function createAppPost(draft: AppPostDraft) {
     location: draft.location,
     caption: draft.caption,
     image_url: draft.imageUrl,
-    media_urls: draft.mediaUrls?.length ? draft.mediaUrls : [draft.imageUrl],
-    media_types: draft.mediaTypes?.length ? draft.mediaTypes : ["image"],
+    media_urls: draft.mediaUrls?.length ? draft.mediaUrls : [],
+    media_types: draft.mediaTypes?.length ? draft.mediaTypes : [],
+    tags: draft.tags ?? [],
     longitude: draft.coordinates[0],
     latitude: draft.coordinates[1],
     date_label: draft.dateLabel,
@@ -242,7 +266,32 @@ export async function createAppPost(draft: AppPostDraft) {
   let data: unknown = response.data;
   let error: unknown = response.error;
 
-  if (missingMediaColumnName(error) === "media_types") {
+  if (missingPostColumnName(error) === "tags") {
+    const mediaTypesPostInsert = {
+      account_id: postInsert.account_id,
+      type: postInsert.type,
+      title: postInsert.title,
+      location: postInsert.location,
+      caption: postInsert.caption,
+      image_url: postInsert.image_url,
+      media_urls: postInsert.media_urls,
+      media_types: postInsert.media_types,
+      longitude: postInsert.longitude,
+      latitude: postInsert.latitude,
+      date_label: postInsert.date_label,
+      visibility: postInsert.visibility,
+    };
+    const fallbackResponse = await supabase
+      .from("app_posts")
+      .insert(mediaTypesPostInsert as never)
+      .select(postSelectColumnsWithMediaTypes)
+      .single();
+
+    data = fallbackResponse.data;
+    error = fallbackResponse.error;
+  }
+
+  if (missingPostColumnName(error) === "media_types") {
     const mediaUrlsPostInsert = {
       account_id: postInsert.account_id,
       type: postInsert.type,
@@ -266,7 +315,7 @@ export async function createAppPost(draft: AppPostDraft) {
     error = fallbackResponse.error;
   }
 
-  if (missingMediaColumnName(error) === "media_urls") {
+  if (missingPostColumnName(error) === "media_urls") {
     const basePostInsert = {
       account_id: postInsert.account_id,
       type: postInsert.type,
@@ -332,7 +381,16 @@ export async function fetchAppPostById(postId: string) {
   let data = response.data;
   let error = response.error;
 
-  if (missingMediaColumnName(error)) {
+  if (missingPostColumnName(error)) {
+    const mediaTypesResponse = await (supabase.from("app_posts").select(postSelectColumnsWithMediaTypes) as unknown as SinglePostQuery)
+      .eq("id", postId)
+      .maybeSingle();
+
+    data = mediaTypesResponse.data;
+    error = mediaTypesResponse.error;
+  }
+
+  if (missingPostColumnName(error)) {
     const mediaUrlsResponse = await (supabase.from("app_posts").select(postSelectColumnsWithMediaUrls) as unknown as SinglePostQuery)
       .eq("id", postId)
       .maybeSingle();
@@ -341,7 +399,7 @@ export async function fetchAppPostById(postId: string) {
     error = mediaUrlsResponse.error;
   }
 
-  if (missingMediaColumnName(error)) {
+  if (missingPostColumnName(error)) {
     const baseResponse = await (supabase.from("app_posts").select(basePostSelectColumns) as unknown as SinglePostQuery)
       .eq("id", postId)
       .maybeSingle();

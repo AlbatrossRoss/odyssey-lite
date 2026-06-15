@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Calendar, Check, ImagePlus, Images, MapPin, Share2, X } from "lucide-react";
+import { Calendar, Check, ImagePlus, MapPin, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/BottomNav";
@@ -9,6 +9,7 @@ import { readAccountSessionId } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
 import { uploadPostMedia } from "@/lib/media";
 import { createAppPost } from "@/lib/posts";
+import { postTagOptions, type AppPostTag } from "@/lib/postTags";
 import type { SearchSuggestion } from "@/components/SearchBar";
 
 type MediaMetadata = {
@@ -31,11 +32,12 @@ const videoFileExtensions = /\.(avi|m4v|mov|mp4|webm)$/i;
 export default function CreatePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const attemptedInitialPickerRef = useRef(false);
+  const currentCoordinatesRef = useRef<[number, number] | undefined>(undefined);
+  const currentLocationRef = useRef("");
   const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
-  const [step, setStep] = useState<"picker" | "details">("picker");
   const [recommendation, setRecommendation] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedTags, setSelectedTags] = useState<AppPostTag[]>([]);
   const [location, setLocation] = useState("");
   const [date, setDate] = useState("");
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
@@ -44,6 +46,10 @@ export default function CreatePage() {
   const [metadataNote, setMetadataNote] = useState("Choose photos or videos to read date and location metadata.");
   const [status, setStatus] = useState<"idle" | "reading" | "sharing" | "published">("idle");
   const [message, setMessage] = useState("");
+  const showMetadataFields = selectedMedia.length > 0 || recommendation.trim().length > 0;
+  const showDateField = selectedMedia.length > 0;
+  const canShare =
+    recommendation.trim().length > 0 && description.trim().length > 0 && location.trim().length > 0 && status !== "sharing" && status !== "reading";
 
   useEffect(() => {
     return () => {
@@ -52,21 +58,40 @@ export default function CreatePage() {
   }, [selectedMedia]);
 
   useEffect(() => {
-    if (attemptedInitialPickerRef.current || step !== "picker" || selectedMedia.length) {
+    if (!navigator.geolocation) {
       return;
     }
 
-    attemptedInitialPickerRef.current = true;
-    const timeoutId = window.setTimeout(() => fileInputRef.current?.click(), 350);
+    let active = true;
 
-    return () => window.clearTimeout(timeoutId);
-  }, [selectedMedia.length, step]);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const nextCoordinates: [number, number] = [position.coords.longitude, position.coords.latitude];
+        const nextLocation = (await reverseGeocodeCoordinates(nextCoordinates)) ?? formatCoordinates(nextCoordinates);
+
+        if (!active) {
+          return;
+        }
+
+        currentCoordinatesRef.current = nextCoordinates;
+        currentLocationRef.current = nextLocation;
+        setCoordinates((current) => current ?? nextCoordinates);
+        setLocation((current) => (current.trim() ? current : nextLocation));
+      },
+      () => undefined,
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 },
+    );
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const query = location.trim();
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
-    if (!token || step !== "details" || !locationFocused || query.length < 2) {
+    if (!token || !locationFocused || query.length < 2) {
       setLocationSuggestions([]);
       return;
     }
@@ -77,9 +102,14 @@ export default function CreatePage() {
         access_token: token,
         autocomplete: "true",
         language: "en",
-        limit: "5",
+        limit: "8",
         types: "poi,address,neighborhood,locality,place,region,country",
       });
+      const proximity = coordinates ?? currentCoordinatesRef.current;
+
+      if (proximity) {
+        params.set("proximity", proximity.join(","));
+      }
 
       try {
         const response = await fetch(
@@ -113,7 +143,7 @@ export default function CreatePage() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [location, locationFocused, step]);
+  }, [coordinates, location, locationFocused]);
 
   async function handleUpload(files: FileList | null) {
     const mediaFiles = Array.from(files ?? []).filter(isSupportedMediaFile);
@@ -158,9 +188,11 @@ export default function CreatePage() {
 
     selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
     setSelectedMedia(nextMedia);
-    setCoordinates(nextCoordinates);
+    if (nextCoordinates) {
+      setCoordinates(nextCoordinates);
+    }
     setDate(nextDate);
-    setLocation(nextLocation ?? "");
+    setLocation((current) => nextLocation ?? current);
     setMetadataNote(
       nextCoordinates && nextDate
         ? "Using date and location metadata from the first selected item."
@@ -171,20 +203,18 @@ export default function CreatePage() {
             : "No embedded date or location metadata was available. Add the details below.",
     );
     setStatus("idle");
-    setStep("details");
   }
 
   async function shareRecommendation() {
     setMessage("");
 
-    if (!selectedMedia.length) {
-      setMessage("Choose at least one photo or video before sharing.");
-      setStep("picker");
+    if (!recommendation.trim()) {
+      setMessage("Add a recommendation before sharing.");
       return;
     }
 
-    if (!recommendation.trim()) {
-      setMessage("Add a recommendation before sharing.");
+    if (!description.trim()) {
+      setMessage("Add a description before sharing.");
       return;
     }
 
@@ -212,9 +242,10 @@ export default function CreatePage() {
         caption: description.trim(),
         coordinates: resolvedCoordinates,
         dateLabel: date || "Just now",
-        imageUrl: mediaUrls[0],
+        imageUrl: mediaUrls[0] ?? null,
         mediaTypes,
         mediaUrls,
+        tags: selectedTags,
         location: location.trim() || formatCoordinates(resolvedCoordinates),
         title: recommendation.trim(),
         type: "experience",
@@ -241,55 +272,37 @@ export default function CreatePage() {
     selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
 
     setSelectedMedia([]);
-    setStep("picker");
     setRecommendation("");
     setDescription("");
-    setLocation("");
+    setSelectedTags([]);
+    setLocation(currentLocationRef.current);
     setLocationFocused(false);
     setLocationSuggestions([]);
     setDate("");
-    setCoordinates(undefined);
+    setCoordinates(currentCoordinatesRef.current);
     setMetadataNote("Choose photos or videos to read date and location metadata.");
     setStatus("idle");
     setMessage("");
+  }
+
+  function toggleTag(tag: AppPostTag) {
+    setSelectedTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
   }
 
   return (
     <MobileFrame>
       <section className="relative h-full overflow-hidden bg-white pb-24 text-ink">
         <header className="safe-top-bar flex items-center justify-between border-b border-ink/8 bg-white px-5 pb-3">
-          {step === "details" ? (
-            <button
-              aria-label="Back to camera roll"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
-              onClick={() => setStep("picker")}
-              type="button"
-            >
-              <ArrowLeft aria-hidden="true" size={21} />
-            </button>
-          ) : (
-            <button
-              aria-label="Clear selected media"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
-              onClick={resetPost}
-              type="button"
-            >
-              <X aria-hidden="true" size={21} />
-            </button>
-          )}
-          <h1 className="text-lg font-black text-ink">{step === "picker" ? "New post" : "Recommendation"}</h1>
-          {step === "picker" ? (
-            <button
-              className="h-10 rounded-full px-3 text-sm font-black text-coral disabled:text-ink/26"
-              disabled={!selectedMedia.length || status === "reading"}
-              onClick={() => setStep("details")}
-              type="button"
-            >
-              Next
-            </button>
-          ) : (
-            <span className="h-10 w-10" />
-          )}
+          <button
+            aria-label="Clear post"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
+            onClick={resetPost}
+            type="button"
+          >
+            <X aria-hidden="true" size={21} />
+          </button>
+          <h1 className="text-lg font-black text-ink">Recommendation</h1>
+          <span className="h-10 w-10" />
         </header>
 
         <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-8">
@@ -302,79 +315,6 @@ export default function CreatePage() {
             type="file"
           />
 
-          {step === "picker" ? (
-            <section className="bg-white">
-              <div className="relative aspect-square bg-shell">
-                {selectedMedia[0] ? (
-                  <MediaPreview className="h-full w-full object-cover" item={selectedMedia[0]} />
-                ) : (
-                  <button
-                    className="flex h-full w-full flex-col items-center justify-center text-center"
-                    onClick={() => fileInputRef.current?.click()}
-                    type="button"
-                  >
-                    <span className="grid h-16 w-16 place-items-center rounded-full bg-white text-ink shadow-lift">
-                      <ImagePlus aria-hidden="true" size={28} />
-                    </span>
-                    <span className="mt-5 text-xl font-black text-ink">Choose from camera roll</span>
-                    <span className="mt-2 max-w-64 text-sm font-semibold leading-relaxed text-ink/50">
-                      Select photos or videos to start a recommendation.
-                    </span>
-                  </button>
-                )}
-                {selectedMedia.length ? (
-                  <span className="absolute bottom-3 left-3 rounded-full bg-ink/82 px-3 py-1.5 text-xs font-black text-white">
-                    {selectedMedia.length} selected
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="flex items-center justify-between border-b border-ink/8 px-4 py-3">
-                <h2 className="text-sm font-black text-ink">Camera roll</h2>
-                <button
-                  className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-black text-white shadow-lift"
-                  onClick={() => fileInputRef.current?.click()}
-                  type="button"
-                >
-                  <Images aria-hidden="true" size={17} />
-                  Select
-                </button>
-              </div>
-
-              {selectedMedia.length ? (
-                <div className="grid grid-cols-4 gap-0.5 bg-white p-0.5">
-                  {selectedMedia.map((item, index) => (
-                    <button
-                      className="relative aspect-square overflow-hidden bg-shell"
-                      key={item.id}
-                      onClick={() => fileInputRef.current?.click()}
-                      type="button"
-                    >
-                      <MediaPreview className="h-full w-full object-cover" item={item} />
-                      <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-coral text-[10px] font-black text-white">
-                        {index + 1}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <button
-                  className="flex min-h-64 w-full flex-col items-center justify-center px-8 text-center"
-                  onClick={() => fileInputRef.current?.click()}
-                  type="button"
-                >
-                  <span className="grid h-14 w-14 place-items-center rounded-full bg-shell text-ink/58">
-                    <ImagePlus aria-hidden="true" size={25} />
-                  </span>
-                  <span className="mt-4 text-sm font-bold text-ink/56">Tap Select to choose media from your camera roll.</span>
-                </button>
-              )}
-
-              {status === "reading" ? (
-                <p className="mx-4 mt-4 rounded-[20px] bg-shell px-4 py-3 text-sm font-semibold text-ink/56">Reading metadata...</p>
-              ) : null}
-            </section>
-          ) : (
             <section className="space-y-3 px-4 py-3">
               <div className="no-scrollbar flex gap-2 overflow-x-auto">
                 {selectedMedia.map((item, index) => (
@@ -394,9 +334,11 @@ export default function CreatePage() {
                 </button>
               </div>
 
-              <p className="rounded-[18px] bg-shell px-4 py-2 text-xs font-semibold leading-snug text-ink/56">
-                {status === "reading" ? "Reading metadata..." : metadataNote}
-              </p>
+              {selectedMedia.length || status === "reading" ? (
+                <p className="rounded-[18px] bg-shell px-4 py-2 text-xs font-semibold leading-snug text-ink/56">
+                  {status === "reading" ? "Reading metadata..." : metadataNote}
+                </p>
+              ) : null}
 
               <section className="overflow-hidden rounded-[28px] bg-white shadow-soft ring-1 ring-ink/8">
                 <ReviewField label="Recommendation">
@@ -415,60 +357,98 @@ export default function CreatePage() {
                     value={description}
                   />
                 </ReviewField>
-                <ReviewField label="Location">
-                  <div className="flex items-center gap-2">
-                    <MapPin aria-hidden="true" className="text-coral" size={17} />
-                    <div className="relative min-w-0 flex-1">
-                      <input
-                        className="w-full bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink/28"
-                        onBlur={() => window.setTimeout(() => setLocationFocused(false), 140)}
-                        onChange={(event) => {
-                          setLocation(event.target.value);
-                          setCoordinates(undefined);
-                        }}
-                        onFocus={() => setLocationFocused(true)}
-                        placeholder="Add a location"
-                        value={location}
-                      />
-                      {locationSuggestions.length ? (
-                        <div className="absolute left-[-28px] right-0 top-[calc(100%+12px)] z-50 overflow-hidden rounded-[22px] border border-ink/8 bg-white py-1 shadow-soft">
-                          {locationSuggestions.map((suggestion) => (
-                            <button
-                              className="flex w-full flex-col px-4 py-3 text-left transition hover:bg-shell"
-                              key={`${suggestion.label}-${suggestion.description ?? ""}`}
-                              onClick={() => {
-                                setLocation(suggestion.query ?? suggestion.label);
-                                setCoordinates(suggestion.center);
-                                setLocationFocused(false);
-                                setLocationSuggestions([]);
-                              }}
-                              type="button"
-                            >
-                              <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
-                              {suggestion.description ? (
-                                <span className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink/54">{suggestion.description}</span>
-                              ) : null}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
+                {selectedTags.length ? (
+                  <ReviewField label="Selected tags">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTags.map((tag) => (
+                        <button
+                          className="flex h-9 items-center gap-2 rounded-full bg-ink px-3 text-xs font-black text-white"
+                          key={tag}
+                          onClick={() => toggleTag(tag)}
+                          type="button"
+                        >
+                          {tag}
+                          <X aria-hidden="true" size={13} />
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                </ReviewField>
-                <ReviewField label="Date">
-                  <div className="flex items-center gap-2">
-                    <Calendar aria-hidden="true" className="text-coral" size={17} />
-                    <input
-                      className="w-full bg-transparent text-sm font-bold text-ink outline-none"
-                      onChange={(event) => setDate(event.target.value)}
-                      type="date"
-                      value={date}
-                    />
-                  </div>
-                </ReviewField>
+                  </ReviewField>
+                ) : null}
+                {showMetadataFields ? (
+                  <ReviewField label="Location">
+                    <div className="flex items-center gap-2">
+                      <MapPin aria-hidden="true" className="text-coral" size={17} />
+                      <div className="min-w-0 flex-1">
+                        <input
+                          className="w-full bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink/28"
+                          onBlur={() => window.setTimeout(() => setLocationFocused(false), 140)}
+                          onChange={(event) => {
+                            setLocation(event.target.value);
+                            setCoordinates(undefined);
+                          }}
+                          onFocus={() => setLocationFocused(true)}
+                          placeholder="Add a location"
+                          value={location}
+                        />
+                      </div>
+                    </div>
+                    {locationSuggestions.length ? (
+                      <div className="mt-3 overflow-hidden rounded-[22px] border border-ink/8 bg-white py-1 shadow-soft">
+                        {locationSuggestions.map((suggestion) => (
+                          <button
+                            className="flex w-full flex-col px-4 py-3 text-left transition hover:bg-shell"
+                            key={`${suggestion.label}-${suggestion.description ?? ""}`}
+                            onClick={() => {
+                              setLocation(suggestion.query ?? suggestion.label);
+                              setCoordinates(suggestion.center);
+                              setLocationFocused(false);
+                              setLocationSuggestions([]);
+                            }}
+                            type="button"
+                          >
+                            <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
+                            {suggestion.description ? (
+                              <span className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink/54">{suggestion.description}</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </ReviewField>
+                ) : null}
+                {showDateField ? (
+                  <ReviewField label="Date">
+                    <div className="flex items-center gap-2">
+                      <Calendar aria-hidden="true" className="text-coral" size={17} />
+                      <input
+                        className="w-full bg-transparent text-sm font-bold text-ink outline-none"
+                        onChange={(event) => setDate(event.target.value)}
+                        type="date"
+                        value={date}
+                      />
+                    </div>
+                  </ReviewField>
+                ) : null}
+              </section>
+
+              <section className="rounded-[24px] bg-shell p-4">
+                <h2 className="text-xs font-black uppercase tracking-[0.14em] text-ink/42">Tags</h2>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {postTagOptions
+                    .filter((tag) => !selectedTags.includes(tag))
+                    .map((tag) => (
+                      <button
+                        className="h-10 rounded-full bg-white px-4 text-sm font-black text-ink/56 shadow-sm"
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        type="button"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                </div>
               </section>
             </section>
-          )}
 
             {status === "published" ? (
               <div className="mx-5 mt-5 rounded-[26px] bg-ink p-5 text-white shadow-soft">
@@ -488,11 +468,10 @@ export default function CreatePage() {
           {message ? <p className="mx-5 mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
         </div>
 
-        {step === "details" ? (
           <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
             <button
               className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:opacity-40"
-              disabled={status === "sharing" || status === "reading"}
+              disabled={!canShare}
               onClick={shareRecommendation}
               type="button"
             >
@@ -500,7 +479,6 @@ export default function CreatePage() {
               {status === "sharing" ? "Sharing..." : "Share"}
             </button>
           </footer>
-        ) : null}
 
         <BottomNav activeTab="Create" />
       </section>
@@ -734,7 +712,7 @@ async function reverseGeocodeCoordinates([longitude, latitude]: [number, number]
     access_token: token,
     language: "en",
     limit: "1",
-    types: "poi,neighborhood,locality,place,region,country",
+    types: "poi,address,neighborhood,locality,place,region,country",
   });
 
   try {
@@ -763,7 +741,7 @@ async function geocodePlace(place: string) {
     access_token: token,
     language: "en",
     limit: "1",
-    types: "poi,neighborhood,locality,place,region,country,address",
+    types: "poi,address,neighborhood,locality,place,region,country",
   });
 
   try {

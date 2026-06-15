@@ -88,7 +88,7 @@ export default function PostDetailPage() {
       caption: post.caption,
       coordinates: post.coordinates,
       id: post.id,
-      imageUrl: post.imageUrl,
+      imageUrl: post.imageUrl ?? "/hawaii-reference-map.png",
       island: post.location,
       location: post.location,
       name: post.title,
@@ -128,7 +128,7 @@ export default function PostDetailPage() {
 
   const savedBoardIds = boards.filter((board) => board.postIds.includes(post.id)).map((board) => board.id);
   const isSaved = savedBoardIds.length > 0;
-  const postMediaUrls = post.mediaUrls.length ? post.mediaUrls : [post.imageUrl];
+  const postMediaUrls = post.mediaUrls.length ? post.mediaUrls : post.imageUrl ? [post.imageUrl] : [];
   const postMediaItems = postMediaUrls.map((url, index) => ({
     mediaType: post.mediaTypes[index] ?? "image",
     url,
@@ -169,14 +169,14 @@ export default function PostDetailPage() {
     setSaveMessage("");
 
     try {
-      await savePostToBoard(board.id, post.id, post.imageUrl);
+      await savePostToBoard(board.id, post.id, post.imageUrl ?? undefined);
       setBoards((current) =>
         current.map((item) =>
           item.id === board.id
             ? {
                 ...item,
-                coverImageUrl: item.coverImageUrl === "/hawaii-reference-map.png" ? post.imageUrl : item.coverImageUrl,
-                previewImageUrls: Array.from(new Set([post.imageUrl, ...item.previewImageUrls])).slice(0, 3),
+                coverImageUrl: post.imageUrl && item.coverImageUrl === "/hawaii-reference-map.png" ? post.imageUrl : item.coverImageUrl,
+                previewImageUrls: post.imageUrl ? Array.from(new Set([post.imageUrl, ...item.previewImageUrls])).slice(0, 3) : item.previewImageUrls,
                 postIds: Array.from(new Set([...item.postIds, post.id])),
               }
             : item,
@@ -211,13 +211,13 @@ export default function PostDetailPage() {
     try {
       const board = await createAppBoard({
         accountId,
-        coverImageUrl: post.imageUrl,
+        coverImageUrl: post.imageUrl ?? undefined,
         subtitle: newBoardSubtitle,
         title: newBoardTitle,
       });
 
-      await savePostToBoard(board.id, post.id, post.imageUrl);
-      const savedBoard = { ...board, previewImageUrls: [post.imageUrl], postIds: [post.id] };
+      await savePostToBoard(board.id, post.id, post.imageUrl ?? undefined);
+      const savedBoard = { ...board, previewImageUrls: post.imageUrl ? [post.imageUrl] : [], postIds: [post.id] };
       setBoards((current) => [...current, savedBoard]);
       setNewBoardTitle("");
       setNewBoardSubtitle("");
@@ -241,19 +241,25 @@ export default function PostDetailPage() {
   return (
     <MobileFrame>
       <article className="safe-page-bottom h-full overflow-y-auto bg-shell">
-        <div className="relative h-[430px] overflow-hidden bg-ink">
-          <div className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto" onScroll={handleMediaScroll} ref={mediaScrollerRef}>
-            {postMediaItems.map((item, index) => (
-              <PostMediaPreview
-                alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
-                className="h-full w-full shrink-0 snap-center object-cover"
-                key={`${item.url}-${index}`}
-                mediaType={item.mediaType}
-                src={item.url}
-              />
-            ))}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
+        <div className={`relative h-[430px] overflow-hidden ${postMediaItems.length ? "bg-ink" : "bg-white"}`}>
+          {postMediaItems.length ? (
+            <>
+              <div className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto" onScroll={handleMediaScroll} ref={mediaScrollerRef}>
+                {postMediaItems.map((item, index) => (
+                  <PostMediaPreview
+                    alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
+                    className="h-full w-full shrink-0 snap-center object-cover"
+                    controls={item.mediaType === "video"}
+                    key={`${item.url}-${index}`}
+                    mediaType={item.mediaType}
+                    muted={item.mediaType !== "video"}
+                    src={item.url}
+                  />
+                ))}
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
+            </>
+          ) : null}
           {postMediaUrls.length > 1 ? (
             <div className="absolute right-4 top-[calc(var(--safe-area-top)+1.25rem)] rounded-full bg-ink/62 px-3 py-1 text-xs font-black text-white backdrop-blur">
               {postMediaUrls.length} items
@@ -267,7 +273,7 @@ export default function PostDetailPage() {
           >
             <ArrowLeft aria-hidden="true" size={20} />
           </button>
-          <div className="absolute bottom-6 left-5 right-5 text-white">
+          <div className={`absolute bottom-6 left-5 right-5 ${postMediaItems.length ? "text-white" : "text-ink"}`}>
             <Link className="mb-4 flex items-center gap-3" href={`/accounts/${post.username}`}>
               <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-shell text-ink shadow-lift">
                 {post.profilePhotoUrl ? (
@@ -278,10 +284,11 @@ export default function PostDetailPage() {
               </span>
               <span>
                 <span className="block text-sm font-black">@{post.username}</span>
-                <span className="block text-xs font-semibold capitalize text-white/72">{post.type}</span>
+                <span className={`block text-xs font-semibold capitalize ${postMediaItems.length ? "text-white/72" : "text-ink/52"}`}>{post.type}</span>
               </span>
             </Link>
             <h1 className="text-4xl font-black leading-none">{post.title}</h1>
+            {!postMediaItems.length ? <p className="mt-4 line-clamp-4 text-base font-semibold leading-relaxed text-ink/62">{post.caption}</p> : null}
           </div>
         </div>
 
@@ -318,6 +325,15 @@ export default function PostDetailPage() {
                 {post.dateLabel}
               </p>
             </div>
+            {post.tags.length ? (
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-ink/8 pt-4">
+                {post.tags.map((tag) => (
+                  <span className="rounded-full bg-shell px-3 py-2 text-xs font-black text-ink/62" key={tag}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <button
               className={`mt-5 flex w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-sm font-black shadow-lift ${
                 isSaved ? "bg-ink text-white" : "bg-coral text-white"

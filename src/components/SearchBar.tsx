@@ -38,23 +38,12 @@ export function SearchBar({
   const router = useRouter();
   const value = controlledValue ?? internalValue;
   const filteredSuggestions = useMemo(() => {
-    const normalizedValue = value.trim().toLowerCase();
-
     if (!suggestions.length || !focused) {
       return [];
     }
 
-    if (!normalizedValue) {
-      return suggestions.slice(0, 5);
-    }
-
-    return suggestions
-      .filter((suggestion) => {
-        const searchableText = `${suggestion.label} ${suggestion.description ?? ""}`.toLowerCase();
-        return searchableText.includes(normalizedValue);
-      })
-      .slice(0, 5);
-  }, [focused, suggestions, value]);
+    return suggestions.slice(0, 8);
+  }, [focused, suggestions]);
 
   useEffect(() => {
     setInternalValue(initialValue);

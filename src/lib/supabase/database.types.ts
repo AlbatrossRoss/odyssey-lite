@@ -9,6 +9,9 @@ export type Database = {
           username: string;
           password: string;
           profile_photo_url: string | null;
+          current_city: string | null;
+          current_city_longitude: number | null;
+          current_city_latitude: number | null;
           created_at: string;
         };
         Insert: {
@@ -16,6 +19,9 @@ export type Database = {
           username: string;
           password: string;
           profile_photo_url?: string | null;
+          current_city?: string | null;
+          current_city_longitude?: number | null;
+          current_city_latitude?: number | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["app_accounts"]["Insert"]>;
@@ -45,9 +51,10 @@ export type Database = {
           title: string;
           location: string;
           caption: string;
-          image_url: string;
+          image_url: string | null;
           media_types: string[];
           media_urls: string[];
+          tags: string[];
           latitude: number;
           longitude: number;
           date_label: string;
@@ -61,9 +68,10 @@ export type Database = {
           title: string;
           location: string;
           caption: string;
-          image_url: string;
+          image_url?: string | null;
           media_types?: string[];
           media_urls?: string[];
+          tags?: string[];
           latitude: number;
           longitude: number;
           date_label: string;

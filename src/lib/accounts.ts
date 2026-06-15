@@ -7,6 +7,8 @@ export type AppAccount = {
   username: string;
   password: string;
   profilePhotoUrl: string | null;
+  currentCity: string | null;
+  currentCityCoordinates: [number, number] | null;
   createdAt: string;
 };
 
@@ -28,13 +30,24 @@ function mapAccount(account: {
   username: string;
   password: string;
   profile_photo_url: string | null;
+  current_city?: string | null;
+  current_city_longitude?: number | null;
+  current_city_latitude?: number | null;
   created_at: string;
 }): AppAccount {
+  const longitude = account.current_city_longitude;
+  const latitude = account.current_city_latitude;
+
   return {
     id: account.id,
     username: account.username,
     password: account.password,
     profilePhotoUrl: account.profile_photo_url,
+    currentCity: account.current_city ?? null,
+    currentCityCoordinates:
+      typeof longitude === "number" && typeof latitude === "number" && Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? [longitude, latitude]
+        : null,
     createdAt: account.created_at,
   };
 }
@@ -145,6 +158,28 @@ export async function updateAccountPhoto(accountId: string, profilePhotoUrl: str
   const { data, error } = await supabase
     .from("app_accounts")
     .update({ profile_photo_url: profilePhotoUrl })
+    .eq("id", accountId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapAccount(data);
+}
+
+export async function updateAccountCurrentCity(accountId: string, currentCity: string, coordinates?: [number, number]) {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("app_accounts")
+    .update({
+      current_city: currentCity.trim() || null,
+      current_city_longitude: coordinates?.[0] ?? null,
+      current_city_latitude: coordinates?.[1] ?? null,
+    })
     .eq("id", accountId)
     .select("*")
     .single();

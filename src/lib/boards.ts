@@ -38,7 +38,7 @@ type AppBoardPostRow = {
 
 type BoardPreviewPostRow = {
   id: string;
-  image_url: string;
+  image_url: string | null;
 };
 
 const defaultBoardCover = "/hawaii-reference-map.png";
