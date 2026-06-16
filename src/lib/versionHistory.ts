@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 16, 2026",
+    id: "v6.7",
+    title: "Profile Page Redesign",
+    summary:
+      "Redesigned Profile with a real travel-map header, username-forward layout, condensed counters, Recently Added and Boards sections, a dedicated My Posts grid, capped account suggestions, and owner-only post deletion from detail pages.",
+  },
+  {
+    date: "June 16, 2026",
     id: "v6.6",
     title: "Longer Video Posts",
     summary:

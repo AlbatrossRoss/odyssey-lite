@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, History, ImagePlus, LogOut, Map, Search, Trash2, UserPlus, UserRound, X } from "lucide-react";
+import { ArrowLeft, Bookmark, Camera, Check, History, ImagePlus, LogOut, MapPin, Search, UserPlus, UserRound, X } from "lucide-react";
 import {
   type AppAccount,
   AccountWithStats,
@@ -15,10 +15,12 @@ import {
   updateAccountCurrentCity,
   updateAccountPhoto,
 } from "@/lib/accounts";
-import { AppPostTile } from "@/components/AppPostCard";
 import { BottomNav } from "@/components/BottomNav";
+import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
-import { createAppPost, deleteAppPost, fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
+import { PostMediaPreview } from "@/components/PostMediaPreview";
+import { fetchBoardsByAccount, type AppBoard } from "@/lib/boards";
+import { createAppPost, fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
 import { uploadPostMedia } from "@/lib/media";
 import type { AppPostTag } from "@/lib/postTags";
 
@@ -28,6 +30,7 @@ type AccountsViewProps = {
 
 const accountsCachePrefix = "odyssey-accounts-cache-v1";
 const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
+const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 
 type SetupStep = "photo" | "city" | "follow" | "local-recs" | "done";
 type PlaceSuggestion = {
@@ -72,11 +75,13 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountWithStats[]>([]);
   const [profilePosts, setProfilePosts] = useState<AppPost[]>([]);
+  const [profileBoards, setProfileBoards] = useState<AppBoard[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [message, setMessage] = useState("");
   const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
   const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "loading">("idle");
+  const [postsGridOpen, setPostsGridOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>("photo");
   const [setupMessage, setSetupMessage] = useState("");
@@ -135,6 +140,7 @@ export function AccountsView({ username }: AccountsViewProps) {
     return accounts.find((account) => account.username === username) ?? null;
   }, [accounts, username, viewer]);
   const otherAccounts = useMemo(() => accounts.filter((account) => account.id !== viewerId), [accounts, viewerId]);
+  const suggestedAccounts = useMemo(() => otherAccounts.filter((account) => !account.isFollowedByViewer).slice(0, 5), [otherAccounts]);
   const isOwnProfile = Boolean(profile && profile.id === viewerId);
   const followingCount = viewer?.stats.following ?? 0;
   const completedLocalRecTags = useMemo(() => {
@@ -169,6 +175,7 @@ export function AccountsView({ username }: AccountsViewProps) {
 
     if (!profile) {
       setProfilePosts([]);
+      setProfileBoards([]);
       return;
     }
 
@@ -188,6 +195,18 @@ export function AccountsView({ username }: AccountsViewProps) {
       .catch(() => {
         if (active) {
           setProfilePosts([]);
+        }
+      });
+
+    fetchBoardsByAccount(profile.id)
+      .then((boards) => {
+        if (active) {
+          setProfileBoards(boards);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setProfileBoards([]);
         }
       });
 
@@ -418,34 +437,10 @@ export function AccountsView({ username }: AccountsViewProps) {
     window.location.assign("/");
   }
 
-  async function handleDeletePost(post: AppPost) {
-    if (!viewerId || !isOwnProfile) {
-      return;
-    }
-
-    const confirmed = window.confirm(`Delete "${post.title}"?`);
-
-    if (!confirmed) {
-      return;
-    }
-
-    setStatus("saving");
-    setMessage("");
-
-    try {
-      await deleteAppPost(post.id, viewerId);
-      setProfilePosts((current) => current.filter((item) => item.id !== post.id));
-      await loadAccounts(viewerId);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to delete post.");
-      setStatus("ready");
-    }
-  }
-
   return (
     <MobileFrame>
-      <section className="safe-page-bottom h-full overflow-y-auto bg-shell">
-        <header className="safe-top-bar flex items-center justify-between px-5 pb-2">
+      <section className="safe-page-bottom h-full overflow-y-auto bg-[#fbfaf7]">
+        <header className="hidden">
           <span className="h-11 w-11" />
           {isOwnProfile ? (
             <div className="flex items-center gap-2">
@@ -470,59 +465,78 @@ export function AccountsView({ username }: AccountsViewProps) {
           )}
         </header>
 
-        <div className="px-5">
+        <div className="px-4">
           {profile ? (
-            <section className="pt-3">
-              <div className="flex items-end gap-5">
-                <div className="relative shrink-0">
-                  <button
-                    aria-label="Change profile photo"
-                    className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-shell bg-white text-ink/52 shadow-lift"
-                    disabled={!isOwnProfile}
-                    onClick={() => fileInputRef.current?.click()}
-                    type="button"
-                  >
-                    {profile.profilePhotoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img alt="" className="h-full w-full object-cover" src={profile.profilePhotoUrl} />
-                    ) : (
-                      <UserRound aria-hidden="true" size={42} />
-                    )}
-                  </button>
-                  {isOwnProfile ? (
-                    <span className="absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-ink text-white shadow-lift">
-                      <Camera aria-hidden="true" size={17} />
-                    </span>
-                  ) : null}
-                  <input
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => void handlePhotoSelect(event.target.files?.[0])}
-                    ref={fileInputRef}
-                    type="file"
-                  />
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-2 pb-2">
-                  <StatTile label="Followers" onClick={() => void openConnections("followers")} value={profile.stats.followers} />
-                  <StatTile label="Following" onClick={() => void openConnections("following")} value={profile.stats.following} />
-                  <StatTile label="Posts" onClick={scrollToPosts} value={profile.stats.posts} />
-                </div>
-              </div>
+            <section className="pt-2">
+              <ProfileMapHero isOwnProfile={isOwnProfile} posts={profilePosts} profile={profile} />
 
-              <div className="mt-4">
-                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-coral">
-                  <Map aria-hidden="true" size={14} />
-                  Account
-                </p>
-                <div className="mt-1">
-                  <h1 className="min-w-0 truncate text-3xl font-black text-ink">{accountDisplayName(profile)}</h1>
-                  {profile.currentCity ? <p className="mt-1 text-sm font-bold text-ink/50">{profile.currentCity}</p> : null}
+              <section className="-mt-24 relative z-10 bg-transparent px-1 pb-2 pt-0">
+                <div className="px-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="relative shrink-0">
+                      <button
+                        aria-label="Change profile photo"
+                        className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-ink/52 shadow-lift"
+                        disabled={!isOwnProfile}
+                        onClick={() => fileInputRef.current?.click()}
+                        type="button"
+                      >
+                        {profile.profilePhotoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img alt="" className="h-full w-full object-cover" src={profile.profilePhotoUrl} />
+                        ) : (
+                          <UserRound aria-hidden="true" size={38} />
+                        )}
+                      </button>
+                      {isOwnProfile ? (
+                        <span className="absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full bg-ink text-white shadow-lift">
+                          <Camera aria-hidden="true" size={17} />
+                        </span>
+                      ) : null}
+                      <input
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => void handlePhotoSelect(event.target.files?.[0])}
+                        ref={fileInputRef}
+                        type="file"
+                      />
+                    </div>
+                    {isOwnProfile ? (
+                      <div className="mt-10 flex gap-2">
+                        <Link
+                          aria-label="Version history"
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+                          href="/versions"
+                        >
+                          <History aria-hidden="true" size={18} />
+                        </Link>
+                        <button
+                          aria-label="Log out"
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+                          onClick={logout}
+                          type="button"
+                        >
+                          <LogOut aria-hidden="true" size={18} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4">
+                    <h1 className="min-w-0 truncate text-[30px] font-black leading-none text-ink">@{profile.username}</h1>
+                    {profile.currentCity ? <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-moss"><MapPin aria-hidden="true" size={14} />{profile.currentCity}</p> : null}
+                  </div>
+
+                  <div className="mt-4 flex items-start justify-start gap-8">
+                    <ProfileStat label="Posts" onClick={scrollToPosts} value={profile.stats.posts} />
+                    <ProfileStat label="Followers" onClick={() => void openConnections("followers")} value={profile.stats.followers} />
+                    <ProfileStat label="Following" onClick={() => void openConnections("following")} value={profile.stats.following} />
+                  </div>
                 </div>
-              </div>
 
               {!isOwnProfile ? (
                 <button
-                  className={`mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-black shadow-lift ${
+                  className={`mx-3 mt-5 flex h-12 items-center justify-center gap-2 rounded-full px-5 text-sm font-black shadow-lift ${
                     profile.isFollowedByViewer ? "bg-white text-ink" : "bg-ink text-white"
                   }`}
                   disabled={status === "saving"}
@@ -536,7 +550,7 @@ export function AccountsView({ username }: AccountsViewProps) {
 
               {isOwnProfile && setupProgress < setupTotal ? (
                 <button
-                  className="mt-5 w-full rounded-[26px] bg-white p-4 text-left shadow-lift"
+                  className="mx-3 mt-6 w-[calc(100%-1.5rem)] rounded-[24px] bg-white p-4 text-left shadow-lift"
                   onClick={() => setSetupOpen(true)}
                   type="button"
                 >
@@ -556,40 +570,55 @@ export function AccountsView({ username }: AccountsViewProps) {
                 </button>
               ) : null}
 
-              <section className="mt-7 overflow-hidden rounded-[26px] bg-white shadow-lift" ref={postsSectionRef}>
-                <div className="flex items-end justify-between border-b border-ink/8 px-4 py-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-coral">Posts</p>
-                    <h2 className="text-lg font-black text-ink">Travel grid</h2>
+                <section className="mt-7" ref={postsSectionRef}>
+                  <div className="mb-3 flex items-end justify-between px-3">
+                    <div>
+                      <h2 className="text-xl font-black text-ink">Recently Added</h2>
+                      <p className="text-xs font-bold text-ink/46">Latest recommendations shared</p>
+                    </div>
+                    <button className="text-xs font-black text-moss" onClick={() => setPostsGridOpen(true)} type="button">
+                      View all
+                    </button>
                   </div>
-                  <p className="text-xs font-black text-ink/42">{profilePosts.length}</p>
-                </div>
-                {profilePosts.length ? (
-                  <div className="grid grid-cols-3 gap-px bg-white">
-                    {profilePosts.map((post) => (
-                      <div className="relative" key={post.id}>
-                        <AppPostTile post={post} />
-                        {isOwnProfile ? (
-                          <button
-                            aria-label={`Delete ${post.title}`}
-                            className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-ink/72 text-white shadow-lift backdrop-blur"
-                            disabled={status === "saving"}
-                            onClick={() => void handleDeletePost(post)}
-                            type="button"
-                          >
-                            <Trash2 aria-hidden="true" size={15} />
-                          </button>
-                        ) : null}
-                      </div>
-                    ))}
+                  {profilePosts.length ? (
+                    <div className="no-scrollbar flex gap-3 overflow-x-auto px-3 pb-2">
+                      {profilePosts.slice(0, 8).map((post) => (
+                        <ProfileRecentCard key={post.id} post={post} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mx-3 rounded-[24px] bg-white px-5 py-8 text-center shadow-lift">
+                      <p className="text-sm font-bold leading-relaxed text-ink/52">
+                        {isOwnProfile ? "Share a trip or experience to start your profile." : "No posts here yet."}
+                      </p>
+                    </div>
+                  )}
+                </section>
+
+                <section className="mt-6">
+                  <div className="mb-3 flex items-end justify-between px-3">
+                    <div>
+                      <h2 className="text-xl font-black text-ink">My Boards</h2>
+                      <p className="text-xs font-bold text-ink/46">Saved collections for later</p>
+                    </div>
+                    <Link className="text-xs font-black text-moss" href="/boards">
+                      View all
+                    </Link>
                   </div>
-                ) : (
-                  <div className="px-5 py-8 text-center">
-                    <p className="text-sm font-bold leading-relaxed text-ink/52">
-                      {isOwnProfile ? "Share a trip or experience to start your grid." : "No posts here yet."}
-                    </p>
-                  </div>
-                )}
+                  {profileBoards.length ? (
+                    <div className="no-scrollbar flex gap-3 overflow-x-auto px-3 pb-2">
+                      {profileBoards.slice(0, 6).map((board) => (
+                        <ProfileBoardCard board={board} key={board.id} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mx-3 rounded-[24px] bg-white px-5 py-7 text-center shadow-lift">
+                      <Bookmark aria-hidden="true" className="mx-auto text-ink/34" size={26} />
+                      <p className="mt-2 text-sm font-bold leading-relaxed text-ink/52">No boards saved yet.</p>
+                    </div>
+                  )}
+                </section>
+
               </section>
             </section>
           ) : status === "loading" ? (
@@ -612,11 +641,10 @@ export function AccountsView({ username }: AccountsViewProps) {
 
           {message ? <p className="mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
 
-          {!username && otherAccounts.length ? (
+          {!username && suggestedAccounts.length ? (
             <section className="mt-7">
               <div className="mb-3 flex items-end justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-coral">People</p>
                   <h2 className="text-xl font-black text-ink">Accounts to follow</h2>
                 </div>
                 <button className="text-xs font-black text-ink/50" onClick={() => void loadAccounts()} type="button">
@@ -624,8 +652,8 @@ export function AccountsView({ username }: AccountsViewProps) {
                 </button>
               </div>
               <div className="space-y-3">
-                {otherAccounts.map((account) => (
-                  <article className="flex items-center gap-3 rounded-[24px] bg-white p-3 shadow-lift" key={account.id}>
+                {suggestedAccounts.map((account) => (
+                  <article className="flex items-center gap-3 rounded-[14px] bg-white p-3 shadow-sm ring-1 ring-ink/5" key={account.id}>
                     <Link
                       aria-label={`Open ${accountDisplayName(account)}`}
                       className="flex min-w-0 flex-1 items-center gap-3"
@@ -883,6 +911,31 @@ export function AccountsView({ username }: AccountsViewProps) {
           </section>
         </div>
       ) : null}
+      {postsGridOpen && profile ? (
+        <div className="safe-modal-bottom absolute inset-x-0 top-0 z-50 flex h-full flex-col bg-[#fbfaf7]">
+          <header className="safe-top-bar flex items-center justify-between px-5 pb-3">
+            <button
+              aria-label="Close all posts"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+              onClick={() => setPostsGridOpen(false)}
+              type="button"
+            >
+              <ArrowLeft aria-hidden="true" size={19} />
+            </button>
+            <h2 className="text-right text-2xl font-black text-ink">My posts</h2>
+          </header>
+          <div className="no-scrollbar grid flex-1 grid-cols-2 gap-3 overflow-y-auto px-5 pb-[calc(var(--safe-area-bottom)+1rem)]">
+            {profilePosts.map((post) => (
+              <ProfileGridPostCard key={post.id} post={post} />
+            ))}
+            {!profilePosts.length ? (
+              <p className="col-span-2 rounded-[18px] bg-white px-5 py-8 text-center text-sm font-bold text-ink/52 shadow-sm">
+                {isOwnProfile ? "Share a recommendation to start your post grid." : "No posts here yet."}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {connectionOpen && profile ? (
         <div className="safe-modal-bottom absolute inset-x-0 top-0 z-50 flex h-full items-end bg-ink/28 backdrop-blur-sm">
           <section className="max-h-[82%] w-full overflow-y-auto rounded-t-[30px] bg-white p-5 shadow-soft">
@@ -1027,12 +1080,155 @@ function fetchPlaceSuggestions(
   };
 }
 
-function StatTile({ label, onClick, value }: { label: string; onClick: () => void; value: number }) {
+function writeProfileExploreState(posts: AppPost[], isOwnProfile: boolean, profile: AccountWithStats) {
+  const center = profile.currentCityCoordinates ?? posts[0]?.coordinates ?? ([-25, 22] as [number, number]);
+
+  try {
+    window.sessionStorage.setItem(
+      exploreStateStorageKey,
+      JSON.stringify({
+        activeDestination: "",
+        activeCategoryFilters: [],
+        activeFilter: isOwnProfile ? "Mine" : "All",
+        currentMapView: {
+          center,
+          zoom: posts.length || profile.currentCityCoordinates ? 4.2 : 1.35,
+        },
+        exploreSource: "search",
+        mapArea: null,
+        searchQuery: "",
+        selectedPostId: null,
+        sheetPosition: "peek",
+      }),
+    );
+  } catch {
+    // Explore still opens normally if session storage is unavailable.
+  }
+}
+
+function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolean; posts: AppPost[]; profile: AccountWithStats }) {
+  const mapCenter = profile.currentCityCoordinates ?? posts[0]?.coordinates ?? ([-98.5795, 39.8283] as [number, number]);
+  const mapZoom = posts.length || profile.currentCityCoordinates ? 3.9 : 2.45;
+
   return (
-    <button className="flex min-h-8 items-baseline gap-2 text-left" onClick={onClick} type="button">
-      <span className="text-xl font-black leading-none text-ink">{value}</span>
-      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-ink/45">{label}</span>
+    <div className="relative -mx-4 h-[207px] overflow-hidden bg-[#b9ddec]">
+      <MapboxMap
+        appPosts={posts}
+        className="absolute inset-0 h-full w-full"
+        experiences={[]}
+        interactive={false}
+        mapTarget={{ center: mapCenter, zoom: mapZoom }}
+        zoom={mapZoom}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-white/0 via-56% to-[#fbfaf7]/72" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#fbfaf7] via-[#fbfaf7]/88 via-56% to-transparent" />
+      <Link
+        aria-label="Open travel map"
+        className="absolute inset-0 z-10"
+        href="/explore"
+        onClick={() => writeProfileExploreState(posts, isOwnProfile, profile)}
+      />
+      <div className="pointer-events-none absolute left-5 top-[calc(var(--safe-area-top)+0.65rem)] z-20 text-sm font-black text-white drop-shadow">9:41</div>
+      <div className="pointer-events-none absolute right-5 top-[calc(var(--safe-area-top)+0.65rem)] z-20 flex gap-1.5 text-white drop-shadow">
+        <span className="h-3 w-4 rounded-sm border-2 border-current" />
+        <span className="h-3 w-3 rounded-full border-2 border-current" />
+      </div>
+      <div className="pointer-events-none absolute left-[39%] top-[34%] z-20 flex h-12 w-12 items-center justify-center rounded-full bg-moss text-lg font-black text-white shadow-lift">
+        {Math.max(posts.length, profile.stats.posts)}
+      </div>
+    </div>
+  );
+}
+
+function ProfileStat({ label, onClick, value }: { label: string; onClick: () => void; value: number }) {
+  return (
+    <button className="min-w-[3.7rem] text-center" onClick={onClick} type="button">
+      <span className="block text-[15px] font-black leading-none text-ink">{value}</span>
+      <span className="mt-1 block text-[11px] font-semibold leading-tight text-ink/58">{label}</span>
     </button>
+  );
+}
+
+function ProfileRecentCard({ post }: { post: AppPost }) {
+  return (
+    <div className="relative shrink-0">
+      <Link className="relative block h-[158px] w-[116px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-ink/5" href={`/posts/${post.id}`}>
+        {post.imageUrl ? (
+          <>
+            <PostMediaPreview
+              alt={post.title}
+              className="absolute inset-0 h-full w-full object-cover"
+              mediaType={post.mediaTypes[0]}
+              src={post.imageUrl}
+            />
+            <span className="absolute inset-x-0 bottom-0 h-[72%] bg-gradient-to-t from-ink via-ink/72 to-transparent" />
+            <span className="absolute bottom-2.5 left-2.5 right-2.5 text-white">
+              <span className="line-clamp-2 block text-xs font-black leading-tight">{post.title}</span>
+              <span className="mt-1.5 flex items-start gap-1 text-[10px] font-semibold leading-tight text-white/88">
+                <MapPin aria-hidden="true" className="mt-px shrink-0" size={11} />
+                <span className="line-clamp-1">{post.location}</span>
+              </span>
+            </span>
+          </>
+        ) : (
+          <span className="flex h-full flex-col p-3">
+            <span className="line-clamp-3 text-xs font-black leading-tight text-ink">{post.title}</span>
+            <span className="mt-2 line-clamp-4 text-[10px] font-semibold leading-snug text-ink/56">{post.caption}</span>
+            <span className="mt-auto flex items-start gap-1 text-[10px] font-bold leading-tight text-ink/42">
+              <MapPin aria-hidden="true" className="mt-px shrink-0 text-coral" size={11} />
+              <span className="line-clamp-2">{post.location}</span>
+            </span>
+          </span>
+        )}
+      </Link>
+    </div>
+  );
+}
+
+function ProfileGridPostCard({ post }: { post: AppPost }) {
+  return (
+    <Link className="relative block h-[226px] min-h-0 overflow-hidden rounded-[10px] bg-white shadow-sm ring-1 ring-ink/5" href={`/posts/${post.id}`}>
+      {post.imageUrl ? (
+        <>
+          <PostMediaPreview alt={post.title} className="absolute inset-0 h-full w-full object-cover" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
+          <span className="absolute inset-x-0 bottom-0 h-[68%] bg-gradient-to-t from-ink/92 via-ink/58 to-transparent" />
+          <span className="absolute bottom-3 left-3 right-3 flex max-h-[5.3rem] flex-col justify-end text-white">
+            <span className="line-clamp-2 block text-sm font-black leading-tight">{post.title}</span>
+            <span className="mt-1.5 flex min-h-[1rem] items-center gap-1 text-[11px] font-semibold leading-tight text-white/86">
+              <MapPin aria-hidden="true" className="shrink-0" size={11} />
+              <span className="min-w-0 truncate">{post.location}</span>
+            </span>
+          </span>
+        </>
+      ) : (
+        <span className="grid h-full grid-rows-[auto_1fr_auto] gap-2 p-3">
+          <span className="line-clamp-3 text-sm font-black leading-tight text-ink">{post.title}</span>
+          <span className="min-h-0 overflow-hidden">
+            <span className="line-clamp-5 text-xs font-semibold leading-snug text-ink/56">{post.caption}</span>
+          </span>
+          <span className="flex min-h-[2rem] items-start gap-1 text-[11px] font-bold leading-tight text-ink/42">
+            <MapPin aria-hidden="true" className="mt-px shrink-0 text-coral" size={11} />
+            <span className="line-clamp-2">{post.location}</span>
+          </span>
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function ProfileBoardCard({ board }: { board: AppBoard }) {
+  const imageUrl = board.previewImageUrls[0] ?? board.coverImageUrl;
+
+  return (
+    <Link className="block w-[132px] shrink-0 overflow-hidden rounded-[12px] bg-white shadow-lift" href={`/boards/${board.slug}`}>
+      <img alt="" className="h-24 w-full object-cover" src={imageUrl} />
+      <span className="block p-3">
+        <span className="line-clamp-1 text-sm font-black text-ink">{board.title}</span>
+        <span className="mt-1 block text-xs font-bold text-ink/48">
+          {board.postIds.length} {board.postIds.length === 1 ? "place" : "places"}
+        </span>
+      </span>
+    </Link>
   );
 }
 

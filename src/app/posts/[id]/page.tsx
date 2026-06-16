@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Plus,
   Send,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -22,7 +23,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
-import { fetchAppPostById, type AppPost } from "@/lib/posts";
+import { deleteAppPost, fetchAppPostById, type AppPost } from "@/lib/posts";
 import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
@@ -344,6 +345,25 @@ export default function PostDetailPage() {
     }
   }
 
+  async function handleDeletePost() {
+    if (!accountId || !post || accountId !== post.accountId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete "${post.title}"?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteAppPost(post.id, accountId);
+      router.push("/accounts");
+    } catch (error) {
+      setCommentMessage(formatError(error));
+    }
+  }
+
   return (
     <MobileFrame>
       <article className="h-full overflow-y-auto bg-[#f8f5ef] pb-[6.25rem]">
@@ -437,9 +457,21 @@ export default function PostDetailPage() {
                   <span className="block text-xs font-bold text-ink/44">{post.dateLabel}</span>
                 </span>
               </Link>
-              <button aria-label="More post options" className="flex h-9 w-9 items-center justify-center rounded-full text-ink/54" type="button">
-                <MoreHorizontal aria-hidden="true" size={20} />
-              </button>
+              {accountId === post.accountId ? (
+                <button
+                  aria-label="Delete post"
+                  className="flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-black text-coral"
+                  onClick={() => void handleDeletePost()}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={15} />
+                  Delete
+                </button>
+              ) : (
+                <button aria-label="More post options" className="flex h-9 w-9 items-center justify-center rounded-full text-ink/54" type="button">
+                  <MoreHorizontal aria-hidden="true" size={20} />
+                </button>
+              )}
             </div>
           </section>
 
