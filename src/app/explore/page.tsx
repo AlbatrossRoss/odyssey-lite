@@ -884,10 +884,10 @@ export default function ExplorePage() {
           userLocation={userLocation}
           zoom={1.35}
         />
-        <div className="absolute inset-x-0 top-0 z-40 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
-          {actionBanner ? (
+        {actionBanner ? (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[60] px-4 pt-[calc(var(--safe-area-top)+18px)]">
             <Link
-              className="mb-3 flex items-center gap-3 rounded-[24px] bg-white/96 p-2 pr-4 text-left shadow-lift backdrop-blur"
+              className="pointer-events-auto flex items-center gap-3 rounded-[24px] bg-white/96 p-2 pr-4 text-left shadow-lift backdrop-blur"
               href={actionBanner.href}
             >
               {actionBanner.imageUrl ? (
@@ -907,7 +907,9 @@ export default function ExplorePage() {
               </span>
               <span className="text-xs font-black text-ink/42">View</span>
             </Link>
-          ) : null}
+          </div>
+        ) : null}
+        <div className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
           <div className="flex items-center gap-3">
             {searchQuery || activeDestination || mapArea ? (
               <button
