@@ -26,7 +26,7 @@ type SelectedUpload = {
   url: string;
 };
 
-const maxVideoDurationSeconds = 30;
+const maxVideoDurationSeconds = 60;
 const videoFileExtensions = /\.(avi|m4v|mov|mp4|webm)$/i;
 
 export default function CreatePage() {

@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 16, 2026",
+    id: "v6.6",
+    title: "Longer Video Posts",
+    summary:
+      "Increased the Create video upload limit from 30 seconds to 1 minute while keeping the same multi-media posting flow and duration validation.",
+  },
+  {
     date: "June 15, 2026",
     id: "v6.5",
     title: "Recommendation Detail Redesign",
