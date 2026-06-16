@@ -55,6 +55,7 @@ export default function PostDetailPage() {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
+  const expandedMediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -234,6 +235,16 @@ export default function PostDetailPage() {
     });
   }, [activePhotoIndex, postMediaItems]);
 
+  useEffect(() => {
+    if (expandedMediaIndex === null) {
+      return;
+    }
+
+    const scroller = expandedMediaScrollerRef.current;
+
+    scroller?.scrollTo({ left: scroller.clientWidth * expandedMediaIndex });
+  }, [expandedMediaIndex]);
+
   if (loading) {
     return (
       <MobileFrame>
@@ -281,6 +292,18 @@ export default function PostDetailPage() {
     const nextIndex = Math.round(scroller.scrollLeft / Math.max(scroller.clientWidth, 1));
 
     setActivePhotoIndex(Math.min(Math.max(nextIndex, 0), postMediaUrls.length - 1));
+  }
+
+  function handleExpandedMediaScroll() {
+    const scroller = expandedMediaScrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    const nextIndex = Math.round(scroller.scrollLeft / Math.max(scroller.clientWidth, 1));
+
+    setExpandedMediaIndex(Math.min(Math.max(nextIndex, 0), postMediaItems.length - 1));
   }
 
   function handleBackToExplore() {
@@ -669,20 +692,45 @@ export default function PostDetailPage() {
               </span>
             ) : null}
           </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            {postMediaItems[expandedMediaIndex].mediaType === "video" ? (
-              <video
-                aria-label={`${post.title} full size media`}
-                className="max-h-full max-w-full object-contain"
-                controls
-                playsInline
-                preload="metadata"
-                src={postMediaItems[expandedMediaIndex].url}
-              />
-            ) : (
-              <img alt={`${post.title} full size media`} className="max-h-full max-w-full object-contain" src={postMediaItems[expandedMediaIndex].url} />
-            )}
+          <div
+            className="no-scrollbar flex min-h-0 flex-1 touch-pan-x snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth"
+            onScroll={handleExpandedMediaScroll}
+            ref={expandedMediaScrollerRef}
+          >
+            {postMediaItems.map((item, index) => (
+              <div className="flex h-full w-full shrink-0 snap-center items-center justify-center" key={`${item.url}-expanded-${index}`}>
+                {item.mediaType === "video" ? (
+                  <video
+                    aria-label={index === 0 ? `${post.title} full size media` : `${post.title} full size media ${index + 1}`}
+                    className="max-h-full max-w-full object-contain"
+                    controls
+                    playsInline
+                    preload="metadata"
+                    src={item.url}
+                  />
+                ) : (
+                  <img
+                    alt={index === 0 ? `${post.title} full size media` : `${post.title} full size media ${index + 1}`}
+                    className="max-h-full max-w-full object-contain"
+                    src={item.url}
+                  />
+                )}
+              </div>
+            ))}
           </div>
+          {postMediaItems.length > 1 ? (
+            <div className="flex justify-center gap-1.5 px-5 pb-4">
+              {postMediaItems.map((item, index) => (
+                <button
+                  aria-label={`Show full size media ${index + 1}`}
+                  className={`h-2 rounded-full transition-all ${expandedMediaIndex === index ? "w-5 bg-white" : "w-2 bg-white/42"}`}
+                  key={`${item.url}-expanded-dot-${index}`}
+                  onClick={() => setExpandedMediaIndex(index)}
+                  type="button"
+                />
+              ))}
+            </div>
+          ) : null}
           <div className="h-[calc(var(--safe-area-bottom)+1rem)]" />
         </div>
       ) : null}

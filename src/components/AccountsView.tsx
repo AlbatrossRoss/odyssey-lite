@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bookmark, Camera, Check, History, ImagePlus, LogOut, MapPin, Search, UserPlus, UserRound, X } from "lucide-react";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   type AppAccount,
   AccountWithStats,
@@ -31,6 +32,7 @@ type AccountsViewProps = {
 const accountsCachePrefix = "odyssey-accounts-cache-v1";
 const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
+const profileHydrationTimeoutMs = 4500;
 
 type SetupStep = "photo" | "city" | "follow" | "local-recs" | "done";
 type PlaceSuggestion = {
@@ -83,6 +85,7 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
   const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "loading">("idle");
+  const [connectionSearch, setConnectionSearch] = useState("");
   const [postsGridOpen, setPostsGridOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>("photo");
@@ -112,9 +115,13 @@ export function AccountsView({ username }: AccountsViewProps) {
     }
 
     try {
-      const nextAccounts = await fetchAccountsWithStats(sessionId);
-      writeCachedAccounts(sessionId, nextAccounts);
-      setAccounts(nextAccounts);
+      const nextAccounts = await withTimeout(fetchAccountsWithStats(sessionId), profileHydrationTimeoutMs);
+
+      if (nextAccounts) {
+        writeCachedAccounts(sessionId, nextAccounts);
+        setAccounts(nextAccounts);
+      }
+
       setAccountsHydrated(true);
       setStatus("ready");
     } catch (error) {
@@ -147,6 +154,17 @@ export function AccountsView({ username }: AccountsViewProps) {
   }, [accounts, username, viewer]);
   const otherAccounts = useMemo(() => accounts.filter((account) => account.id !== viewerId), [accounts, viewerId]);
   const suggestedAccounts = useMemo(() => otherAccounts.filter((account) => !account.isFollowedByViewer).slice(0, 5), [otherAccounts]);
+  const filteredConnectionAccounts = useMemo(() => {
+    const query = connectionSearch.trim().toLowerCase();
+
+    if (!query) {
+      return connectionAccounts;
+    }
+
+    return connectionAccounts.filter((account) =>
+      `${account.username} ${account.currentCity ?? ""}`.toLowerCase().includes(query),
+    );
+  }, [connectionAccounts, connectionSearch]);
   const isOwnProfile = Boolean(profile && profile.id === viewerId);
   const followingCount = viewer?.stats.following ?? 0;
   const completedLocalRecTags = useMemo(() => {
@@ -176,6 +194,7 @@ export function AccountsView({ username }: AccountsViewProps) {
   const setupTotal = 5;
   const setupPercent = Math.round((setupProgress / setupTotal) * 100);
   const showProfileSetup = isOwnProfile && status === "ready" && accountsHydrated && profilePostsHydrated && setupProgress < setupTotal;
+  const isProfileLoading = status === "loading" && !accounts.length;
 
   useEffect(() => {
     let active = true;
@@ -192,13 +211,16 @@ export function AccountsView({ username }: AccountsViewProps) {
 
     if (cachedPosts.length) {
       setProfilePosts(cachedPosts);
+      setProfilePostsHydrated(true);
     }
 
-    fetchAppPostsByAccount(profile.id)
+    withTimeout(fetchAppPostsByAccount(profile.id), profileHydrationTimeoutMs)
       .then((posts) => {
         if (active) {
-          writeCachedProfilePosts(profile.id, posts);
-          setProfilePosts(posts);
+          if (posts) {
+            writeCachedProfilePosts(profile.id, posts);
+            setProfilePosts(posts);
+          }
           setProfilePostsHydrated(true);
         }
       })
@@ -209,10 +231,12 @@ export function AccountsView({ username }: AccountsViewProps) {
         }
       });
 
-    fetchBoardsByAccount(profile.id)
+    withTimeout(fetchBoardsByAccount(profile.id), profileHydrationTimeoutMs)
       .then((boards) => {
         if (active) {
-          setProfileBoards(boards);
+          if (boards) {
+            setProfileBoards(boards);
+          }
         }
       })
       .catch(() => {
@@ -292,6 +316,7 @@ export function AccountsView({ username }: AccountsViewProps) {
     setConnectionOpen(type);
     setConnectionStatus("loading");
     setConnectionAccounts([]);
+    setConnectionSearch("");
 
     try {
       setConnectionAccounts(await fetchAccountConnections(profile.id, type));
@@ -448,6 +473,10 @@ export function AccountsView({ username }: AccountsViewProps) {
     window.location.assign("/");
   }
 
+  if (isProfileLoading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <MobileFrame>
       <section className="safe-page-bottom h-full overflow-y-auto bg-[#fbfaf7]">
@@ -582,48 +611,46 @@ export function AccountsView({ username }: AccountsViewProps) {
               ) : null}
 
                 <section className="mt-7" ref={postsSectionRef}>
-                  <div className="mb-3 flex items-end justify-between px-3">
+                  <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-black text-ink">Recently Added</h2>
-                      <p className="text-xs font-bold text-ink/46">Latest recommendations shared</p>
+                      <h2 className="text-lg font-black text-ink">Recently Added</h2>
                     </div>
                     <button className="text-xs font-black text-moss" onClick={() => setPostsGridOpen(true)} type="button">
                       View all
                     </button>
                   </div>
                   {profilePosts.length ? (
-                    <div className="no-scrollbar flex gap-3 overflow-x-auto px-3 pb-2">
+                    <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
                       {profilePosts.slice(0, 8).map((post) => (
                         <ProfileRecentCard key={post.id} post={post} />
                       ))}
                     </div>
-                  ) : (
-                    <div className="mx-3 rounded-[24px] bg-white px-5 py-8 text-center shadow-lift">
+                  ) : profilePostsHydrated ? (
+                    <div className="rounded-[24px] bg-white px-5 py-8 text-center shadow-lift">
                       <p className="text-sm font-bold leading-relaxed text-ink/52">
                         {isOwnProfile ? "Share a trip or experience to start your profile." : "No posts here yet."}
                       </p>
                     </div>
-                  )}
+                  ) : null}
                 </section>
 
                 <section className="mt-6">
-                  <div className="mb-3 flex items-end justify-between px-3">
+                  <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-black text-ink">My Boards</h2>
-                      <p className="text-xs font-bold text-ink/46">Saved collections for later</p>
+                      <h2 className="text-lg font-black text-ink">{isOwnProfile ? "My Boards" : "Boards"}</h2>
                     </div>
                     <Link className="text-xs font-black text-moss" href="/boards">
                       View all
                     </Link>
                   </div>
                   {profileBoards.length ? (
-                    <div className="no-scrollbar flex gap-3 overflow-x-auto px-3 pb-2">
+                    <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
                       {profileBoards.slice(0, 6).map((board) => (
                         <ProfileBoardCard board={board} key={board.id} />
                       ))}
                     </div>
                   ) : (
-                    <div className="mx-3 rounded-[24px] bg-white px-5 py-7 text-center shadow-lift">
+                    <div className="rounded-[24px] bg-white px-5 py-7 text-center shadow-lift">
                       <Bookmark aria-hidden="true" className="mx-auto text-ink/34" size={26} />
                       <p className="mt-2 text-sm font-bold leading-relaxed text-ink/52">No boards saved yet.</p>
                     </div>
@@ -631,16 +658,6 @@ export function AccountsView({ username }: AccountsViewProps) {
                 </section>
 
               </section>
-            </section>
-          ) : status === "loading" ? (
-            <section className="mt-8 rounded-[28px] bg-white p-5 shadow-lift">
-              <div className="mx-auto h-20 w-20 animate-pulse rounded-full bg-shell" />
-              <div className="mx-auto mt-5 h-6 w-44 animate-pulse rounded-full bg-shell" />
-              <div className="mt-6 grid grid-cols-3 gap-3">
-                <div className="h-20 animate-pulse rounded-[22px] bg-shell" />
-                <div className="h-20 animate-pulse rounded-[22px] bg-shell" />
-                <div className="h-20 animate-pulse rounded-[22px] bg-shell" />
-              </div>
             </section>
           ) : (
             <section className="mt-8 rounded-[28px] bg-white p-5 text-center shadow-lift">
@@ -656,7 +673,7 @@ export function AccountsView({ username }: AccountsViewProps) {
             <section className="mt-7">
               <div className="mb-3 flex items-end justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-ink">Accounts to follow</h2>
+                  <h2 className="text-lg font-black text-ink">Accounts to follow</h2>
                 </div>
                 <button className="text-xs font-black text-ink/50" onClick={() => void loadAccounts()} type="button">
                   Refresh
@@ -933,7 +950,7 @@ export function AccountsView({ username }: AccountsViewProps) {
             >
               <ArrowLeft aria-hidden="true" size={19} />
             </button>
-            <h2 className="text-right text-2xl font-black text-ink">My posts</h2>
+            <h2 className="text-right text-2xl font-black text-ink">{profile.username}&apos;s posts</h2>
           </header>
           <div className="no-scrollbar grid flex-1 grid-cols-2 gap-3 overflow-y-auto px-5 pb-[calc(var(--safe-area-bottom)+1rem)]">
             {profilePosts.map((post) => (
@@ -949,32 +966,60 @@ export function AccountsView({ username }: AccountsViewProps) {
       ) : null}
       {connectionOpen && profile ? (
         <div className="safe-modal-bottom absolute inset-x-0 top-0 z-50 flex h-full items-end bg-ink/28 backdrop-blur-sm">
-          <section className="max-h-[82%] w-full overflow-y-auto rounded-t-[30px] bg-white p-5 shadow-soft">
-            <div className="mb-5 flex items-start justify-between gap-3">
+          <section className="max-h-[84%] w-full overflow-y-auto rounded-t-[30px] bg-[#fbfaf7] p-5 shadow-soft">
+            <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-xs font-black uppercase tracking-[0.16em] text-coral">{accountDisplayName(profile)}</p>
-                <h2 className="mt-1 text-2xl font-black text-ink">{connectionOpen === "followers" ? "Followers" : "Following"}</h2>
+                <h2 className="mt-1 text-[26px] font-black leading-none text-ink">{connectionOpen === "followers" ? "Followers" : "Following"}</h2>
               </div>
               <button
                 aria-label="Close account list"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
-                onClick={() => setConnectionOpen(null)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+                onClick={() => {
+                  setConnectionOpen(null);
+                  setConnectionSearch("");
+                }}
                 type="button"
               >
                 <X aria-hidden="true" size={19} />
               </button>
             </div>
 
+            <label className="mb-4 flex h-12 items-center gap-2 rounded-full bg-white px-4 shadow-sm ring-1 ring-ink/6">
+              <Search aria-hidden="true" className="shrink-0 text-moss" size={18} />
+              <span className="sr-only">Search accounts</span>
+              <input
+                autoCapitalize="none"
+                className="min-w-0 flex-1 bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink/34"
+                onChange={(event) => setConnectionSearch(event.target.value)}
+                placeholder={`Search ${connectionOpen}`}
+                value={connectionSearch}
+              />
+              {connectionSearch ? (
+                <button
+                  aria-label="Clear account search"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-shell text-ink/52"
+                  onClick={() => setConnectionSearch("")}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={14} />
+                </button>
+              ) : null}
+            </label>
+
             {connectionStatus === "loading" ? (
-              <p className="rounded-[22px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/50">Loading accounts...</p>
-            ) : connectionAccounts.length ? (
+              <p className="rounded-[22px] bg-white px-4 py-5 text-center text-sm font-bold text-ink/50 shadow-sm">Loading accounts...</p>
+            ) : filteredConnectionAccounts.length ? (
               <div className="space-y-3">
-                {connectionAccounts.map((account) => (
+                {filteredConnectionAccounts.map((account) => (
                   <Link
-                    className="flex items-center gap-3 rounded-[22px] bg-shell p-3"
+                    className="flex items-center gap-3 rounded-[18px] bg-white p-3 shadow-sm ring-1 ring-ink/5"
                     href={`/accounts/${account.username}`}
                     key={account.id}
-                    onClick={() => setConnectionOpen(null)}
+                    onClick={() => {
+                      setConnectionOpen(null);
+                      setConnectionSearch("");
+                    }}
                   >
                     <Avatar account={account} />
                     <div className="min-w-0">
@@ -985,8 +1030,12 @@ export function AccountsView({ username }: AccountsViewProps) {
                 ))}
               </div>
             ) : (
-              <p className="rounded-[22px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/50">
-                {connectionOpen === "followers" ? "No followers yet." : "Not following anyone yet."}
+              <p className="rounded-[22px] bg-white px-4 py-5 text-center text-sm font-bold text-ink/50 shadow-sm">
+                {connectionSearch
+                  ? "No accounts match that search."
+                  : connectionOpen === "followers"
+                    ? "No followers yet."
+                    : "Not following anyone yet."}
               </p>
             )}
           </section>
@@ -1029,6 +1078,15 @@ function writeCachedProfilePosts(accountId: string, posts: AppPost[]) {
   } catch {
     // Profile posts still refresh from Supabase if session storage is unavailable.
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return Promise.race<T | null>([
+    promise,
+    new Promise<null>((resolve) => {
+      window.setTimeout(() => resolve(null), timeoutMs);
+    }),
+  ]);
 }
 
 function fetchPlaceSuggestions(
@@ -1107,6 +1165,8 @@ function writeProfileExploreState(posts: AppPost[], isOwnProfile: boolean, profi
         },
         exploreSource: "search",
         mapArea: null,
+        profileAccountId: isOwnProfile ? null : profile.id,
+        profileUsername: isOwnProfile ? null : profile.username,
         searchQuery: "",
         selectedPostId: null,
         sheetPosition: "peek",

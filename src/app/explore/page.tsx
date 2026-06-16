@@ -51,6 +51,8 @@ type StoredExploreState = {
   currentMapView: MapView;
   exploreSource: "search" | "map";
   mapArea: MapArea | null;
+  profileAccountId: string | null;
+  profileUsername: string | null;
   searchQuery: string;
   selectedPostId: string | null;
   sheetPosition: SheetPosition;
@@ -118,15 +120,17 @@ function filterPostsByExploreFilter(
   activeCategoryFilters: ExploreCategoryFilter[],
   followingIds: string[],
   viewerId: string | null,
+  profileAccountId: string | null,
 ) {
+  const filterablePosts = profileAccountId ? posts.filter((post) => post.accountId === profileAccountId) : posts;
   const sourcePosts =
     activeFilter === "All"
-      ? posts
+      ? filterablePosts
       : activeFilter === "Mine"
         ? viewerId
-          ? posts.filter((post) => post.accountId === viewerId)
+          ? filterablePosts.filter((post) => post.accountId === viewerId)
           : []
-        : posts.filter((post) => followingIds.includes(post.accountId));
+        : filterablePosts.filter((post) => followingIds.includes(post.accountId));
 
   if (!activeCategoryFilters.length) {
     return sourcePosts;
@@ -137,8 +141,12 @@ function filterPostsByExploreFilter(
   return sourcePosts.filter((post) => tags.some((tag) => (post.tags ?? []).includes(tag)));
 }
 
-function recommendationSubtitleSuffix(activeFilter: string, activeCategoryFilters: ExploreCategoryFilter[]) {
+function recommendationSubtitleSuffix(activeFilter: string, activeCategoryFilters: ExploreCategoryFilter[], profileUsername: string | null) {
   const categorySuffix = activeCategoryFilters.length ? `, filtered by ${activeCategoryFilters.join(", ")}` : "";
+
+  if (profileUsername) {
+    return `from @${profileUsername}${categorySuffix}`;
+  }
 
   if (activeFilter === "Friends") {
     return `from people you follow${categorySuffix}`;
@@ -194,6 +202,8 @@ function readStoredExploreState(): StoredExploreState | null {
       },
       exploreSource: parsed.exploreSource === "map" ? "map" : "search",
       mapArea: parsed.mapArea && isCoordinatePair(parsed.mapArea.center) ? parsed.mapArea : null,
+      profileAccountId: typeof parsed.profileAccountId === "string" ? parsed.profileAccountId : null,
+      profileUsername: typeof parsed.profileUsername === "string" ? parsed.profileUsername : null,
       searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : "",
       selectedPostId: typeof parsed.selectedPostId === "string" ? parsed.selectedPostId : null,
       sheetPosition: isSheetPosition(parsed.sheetPosition) ? parsed.sheetPosition : "peek",
@@ -204,6 +214,7 @@ function readStoredExploreState(): StoredExploreState | null {
       !restoredState.activeDestination &&
       !restoredState.searchQuery &&
       !restoredState.mapArea &&
+      !restoredState.profileAccountId &&
       !restoredState.selectedPostId
     ) {
       return null;
@@ -304,6 +315,8 @@ export default function ExplorePage() {
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
   const [activeCategoryFilters, setActiveCategoryFilters] = useState<ExploreCategoryFilter[]>(restoredExploreState?.activeCategoryFilters ?? []);
+  const [profileAccountId, setProfileAccountId] = useState<string | null>(restoredExploreState?.profileAccountId ?? null);
+  const [profileUsername, setProfileUsername] = useState<string | null>(restoredExploreState?.profileUsername ?? null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
@@ -320,6 +333,8 @@ export default function ExplorePage() {
     currentMapView: restoredExploreState?.currentMapView ?? worldView,
     exploreSource: restoredExploreState?.exploreSource ?? "search",
     mapArea: restoredExploreState?.mapArea ?? null,
+    profileAccountId: restoredExploreState?.profileAccountId ?? null,
+    profileUsername: restoredExploreState?.profileUsername ?? null,
     searchQuery: restoredExploreState?.searchQuery ?? "",
     selectedPostId: restoredExploreState?.selectedPostId ?? null,
     sheetPosition: "peek",
@@ -451,6 +466,8 @@ export default function ExplorePage() {
       currentMapView,
       exploreSource,
       mapArea,
+      profileAccountId,
+      profileUsername,
       searchQuery,
       selectedPostId,
       sheetPosition,
@@ -458,7 +475,7 @@ export default function ExplorePage() {
 
     exploreStateRef.current = nextState;
     writeStoredExploreState(nextState);
-  }, [activeCategoryFilters, activeDestination, activeFilter, currentMapView, exploreSource, mapArea, searchQuery, selectedPostId, sheetPosition]);
+  }, [activeCategoryFilters, activeDestination, activeFilter, currentMapView, exploreSource, mapArea, profileAccountId, profileUsername, searchQuery, selectedPostId, sheetPosition]);
 
   useEffect(() => {
     let active = true;
@@ -648,6 +665,8 @@ export default function ExplorePage() {
     setExploreSource("search");
     setActiveDestination("");
     setMapArea(null);
+    setProfileAccountId(null);
+    setProfileUsername(null);
     setSheetPosition("peek");
     setSelectedPostId(null);
     setCurrentMapView(nextView);
@@ -746,7 +765,7 @@ export default function ExplorePage() {
   );
 
   const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
-    const sourcePosts = filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId);
+    const sourcePosts = filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId);
     const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
     const canUseMapArea = zoom >= mapExploreZoomThreshold;
 
@@ -765,11 +784,11 @@ export default function ExplorePage() {
       setMapArea(null);
       setActiveDestination("");
     }
-  }, [activeCategoryFilters, activeFilter, appPosts, exploreSource, followingIds, viewerId]);
+  }, [activeCategoryFilters, activeFilter, appPosts, exploreSource, followingIds, profileAccountId, viewerId]);
 
   const filteredPosts = useMemo(
-    () => filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId),
-    [activeCategoryFilters, activeFilter, appPosts, followingIds, viewerId],
+    () => filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId),
+    [activeCategoryFilters, activeFilter, appPosts, followingIds, profileAccountId, viewerId],
   );
   const searchText = activeDestination || searchQuery;
   const searchPosts = searchText ? filteredPosts.filter((post) => postSearchHasContent(searchText, post)) : filteredPosts;
@@ -781,12 +800,14 @@ export default function ExplorePage() {
   const recommendationCount = visibleAppPosts.length;
   const recommendationSubtitle =
     recommendationCount > 0
-      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter, activeCategoryFilters)}`
-      : activeFilter === "Friends"
-        ? "Follow accounts to see their recommendations here"
-        : activeFilter === "Mine"
-          ? "Your recommendations will show up here"
-          : "No recommendations in this area yet";
+      ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter, activeCategoryFilters, profileUsername)}`
+      : profileUsername
+        ? `@${profileUsername} has no recommendations here yet`
+        : activeFilter === "Friends"
+          ? "Follow accounts to see their recommendations here"
+          : activeFilter === "Mine"
+            ? "Your recommendations will show up here"
+            : "No recommendations in this area yet";
   const sheetClassName =
     sheetPosition === "expanded"
       ? "nav-cleared-bottom top-[82px] pb-4"
@@ -911,7 +932,7 @@ export default function ExplorePage() {
         ) : null}
         <div className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
           <div className="flex items-center gap-3">
-            {searchQuery || activeDestination || mapArea ? (
+            {searchQuery || activeDestination || mapArea || profileAccountId ? (
               <button
                 aria-label="Clear search and show world map"
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
@@ -946,19 +967,25 @@ export default function ExplorePage() {
               ) : null}
             </button>
           </div>
-          <FilterChips
-            active={activeFilter}
-            activeCategoryFilters={activeCategoryFilters}
-            categoriesOpen={categoriesOpen}
-            onCategoryToggle={handleCategoryToggle}
-            onChange={(filter) => {
-              setActiveFilter(filter);
-              setSelectedPostId(null);
-              setSheetPosition("peek");
-            }}
-            onToggleCategories={() => setCategoriesOpen((open) => !open)}
-            userPhotoUrl={viewerPhotoUrl}
-          />
+          {profileUsername ? (
+            <div className="mt-3 inline-flex h-10 items-center rounded-full bg-white px-4 text-sm font-black text-ink shadow-lift">
+              @{profileUsername}&apos;s map
+            </div>
+          ) : (
+            <FilterChips
+              active={activeFilter}
+              activeCategoryFilters={activeCategoryFilters}
+              categoriesOpen={categoriesOpen}
+              onCategoryToggle={handleCategoryToggle}
+              onChange={(filter) => {
+                setActiveFilter(filter);
+                setSelectedPostId(null);
+                setSheetPosition("peek");
+              }}
+              onToggleCategories={() => setCategoriesOpen((open) => !open)}
+              userPhotoUrl={viewerPhotoUrl}
+            />
+          )}
         </div>
         <div
           className={`absolute inset-0 z-50 bg-ink/24 transition-opacity duration-300 ${

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ImagePlus, LogIn } from "lucide-react";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   AppAccount,
   createAccount,
@@ -21,6 +22,7 @@ type Mode = "create" | "login";
 
 export function AccountGate({ children }: AccountGateProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [hasStoredSession, setHasStoredSession] = useState(() => Boolean(readAccountSessionId()));
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [mode, setMode] = useState<Mode>("create");
   const [username, setUsername] = useState("");
@@ -38,6 +40,7 @@ export function AccountGate({ children }: AccountGateProps) {
 
       if (!accountId || !isSupabaseConfigured()) {
         if (active) {
+          setHasStoredSession(false);
           setRestoreStatus("ready");
         }
         return;
@@ -47,7 +50,11 @@ export function AccountGate({ children }: AccountGateProps) {
         const restored = await withTimeout(fetchAccountById(accountId), 2500);
 
         if (active) {
-          setAccount(restored);
+          if (restored) {
+            setAccount(restored);
+          } else {
+            setHasStoredSession(false);
+          }
         }
       } catch {
         // Let the user log in again if session restore fails.
@@ -89,6 +96,7 @@ export function AccountGate({ children }: AccountGateProps) {
       }
 
       writeAccountSessionId(nextAccount.id);
+      setHasStoredSession(true);
       setAccount(nextAccount);
       setStatus("ready");
     } catch (error) {
@@ -106,7 +114,7 @@ export function AccountGate({ children }: AccountGateProps) {
     setPhotoUrl(await fileToDataUrl(file));
   }
 
-  if (account) {
+  if (account || (restoreStatus === "checking" && hasStoredSession)) {
     return children;
   }
 
@@ -215,21 +223,6 @@ export function AccountGate({ children }: AccountGateProps) {
             {status === "saving" ? "Saving..." : mode === "create" ? "Create Account" : "Log In"}
           </button>
         </form>
-      </section>
-    </main>
-  );
-}
-
-function LoadingScreen() {
-  return (
-    <main className="grid min-h-[100dvh] place-items-center bg-shell px-5 text-ink">
-      <section className="flex w-full max-w-[393px] flex-col items-center rounded-[34px] bg-white px-8 py-12 text-center shadow-soft">
-        <Image alt="Odyssey Lite" className="h-20 w-20 rounded-[22px] shadow-lift" height={80} src="/icon-192.png" width={80} priority />
-        <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-coral">Odyssey Lite</p>
-        <h1 className="mt-2 text-2xl font-black text-ink">Loading your map</h1>
-        <div className="mt-8 h-2 w-full overflow-hidden rounded-full bg-shell">
-          <div className="h-full w-2/5 rounded-full bg-coral motion-safe:animate-[odyssey-loading_1.2s_ease-in-out_infinite]" />
-        </div>
       </section>
     </main>
   );
