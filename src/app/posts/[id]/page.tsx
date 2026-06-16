@@ -226,7 +226,9 @@ export default function PostDetailPage() {
       return;
     }
 
-    setActivePhotoIndex(Math.round(scroller.scrollLeft / Math.max(scroller.clientWidth, 1)));
+    const nextIndex = Math.round(scroller.scrollLeft / Math.max(scroller.clientWidth, 1));
+
+    setActivePhotoIndex(Math.min(Math.max(nextIndex, 0), postMediaUrls.length - 1));
   }
 
   function handleBackToExplore() {
@@ -348,7 +350,11 @@ export default function PostDetailPage() {
         <section className={`relative overflow-hidden ${postMediaItems.length ? "h-[338px] bg-ink" : "h-[72px] bg-white"}`}>
           {postMediaItems.length ? (
             <>
-              <div className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto" onScroll={handleMediaScroll} ref={mediaScrollerRef}>
+              <div
+                className="no-scrollbar flex h-full touch-pan-x snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth"
+                onScroll={handleMediaScroll}
+                ref={mediaScrollerRef}
+              >
                 {postMediaItems.map((item, index) => (
                   <PostMediaPreview
                     alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
@@ -361,7 +367,7 @@ export default function PostDetailPage() {
                   />
                 ))}
               </div>
-              <div className="absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/42" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/42" />
             </>
           ) : (
             <div className="h-full bg-white" />
