@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 16, 2026",
+    id: "v7.1",
+    title: "Trip Publishing",
+    summary:
+      "Added the first publish path for Trips, including profile My Trips sections, trip detail pages, Explore placement for trip stops and recommendations, and stop posts that open in the recommendation detail view.",
+  },
+  {
+    date: "June 16, 2026",
     id: "v7.0",
     title: "Create Post Flow Refresh",
     summary:
