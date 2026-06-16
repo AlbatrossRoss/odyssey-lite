@@ -3,7 +3,21 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bookmark, Calendar, Check, MapPin, MessageCircle, Plus, Send, UserRound, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Bookmark,
+  Calendar,
+  Check,
+  ChevronDown,
+  Expand,
+  Heart,
+  MapPin,
+  MoreHorizontal,
+  Plus,
+  Send,
+  UserRound,
+  X,
+} from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
@@ -198,7 +212,6 @@ export default function PostDetailPage() {
     mediaType: post.mediaTypes[index] ?? "image",
     url,
   }));
-
   function showPhotoAt(index: number) {
     const scroller = mediaScrollerRef.current;
 
@@ -331,8 +344,8 @@ export default function PostDetailPage() {
 
   return (
     <MobileFrame>
-      <article className="safe-page-bottom h-full overflow-y-auto bg-shell">
-        <div className={`relative h-[430px] overflow-hidden ${postMediaItems.length ? "bg-ink" : "bg-white"}`}>
+      <article className="h-full overflow-y-auto bg-[#f8f5ef] pb-[6.25rem]">
+        <section className={`relative overflow-hidden ${postMediaItems.length ? "h-[338px] bg-ink" : "h-[72px] bg-white"}`}>
           {postMediaItems.length ? (
             <>
               <div className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto" onScroll={handleMediaScroll} ref={mediaScrollerRef}>
@@ -348,135 +361,172 @@ export default function PostDetailPage() {
                   />
                 ))}
               </div>
-              <div className="absolute inset-0 bg-gradient-to-b from-ink/34 via-transparent to-ink/74" />
+              <div className="absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/42" />
             </>
-          ) : null}
-          {postMediaUrls.length > 1 ? (
-            <div className="absolute right-4 top-[calc(var(--safe-area-top)+1.25rem)] rounded-full bg-ink/62 px-3 py-1 text-xs font-black text-white backdrop-blur">
-              {postMediaUrls.length} items
-            </div>
-          ) : null}
+          ) : (
+            <div className="h-full bg-white" />
+          )}
           <button
             aria-label="Back to Explore"
-            className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/88 text-ink shadow-lift backdrop-blur"
+            className="absolute left-5 top-[calc(var(--safe-area-top)+1rem)] flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift backdrop-blur"
             onClick={handleBackToExplore}
             type="button"
           >
             <ArrowLeft aria-hidden="true" size={20} />
           </button>
-          <div className={`absolute bottom-6 left-5 right-5 ${postMediaItems.length ? "text-white" : "text-ink"}`}>
-            <Link className="mb-4 flex items-center gap-3" href={`/accounts/${post.username}`}>
-              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-shell text-ink shadow-lift">
-                {post.profilePhotoUrl ? (
-                  <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} />
-                ) : (
-                  <UserRound aria-hidden="true" size={22} />
-                )}
-              </span>
-              <span>
-                <span className="block text-sm font-black">@{post.username}</span>
-                <span className={`block text-xs font-semibold capitalize ${postMediaItems.length ? "text-white/72" : "text-ink/52"}`}>{post.type}</span>
-              </span>
-            </Link>
-            <h1 className="text-4xl font-black leading-none">{post.title}</h1>
-            {!postMediaItems.length ? <p className="mt-4 line-clamp-4 text-base font-semibold leading-relaxed text-ink/62">{post.caption}</p> : null}
-          </div>
-        </div>
-
-        <div className="-mt-5 space-y-4 rounded-t-[34px] bg-shell px-5 pb-8 pt-5">
           {postMediaUrls.length > 1 ? (
-            <section className="rounded-[24px] bg-white p-2 shadow-soft">
-              <div className="grid grid-cols-4 gap-2">
-                {postMediaItems.slice(0, 8).map((item, index) => (
-                  <button
-                    aria-label={`Show media ${index + 1}`}
-                    className={`relative aspect-square overflow-hidden rounded-[16px] bg-shell ring-offset-2 ring-offset-white ${
-                      activePhotoIndex === index ? "ring-2 ring-coral" : "ring-1 ring-ink/8"
-                    }`}
-                    key={`${item.url}-thumb-${index}`}
-                    onClick={() => showPhotoAt(index)}
-                    type="button"
-                  >
-                    <PostMediaPreview className="h-full w-full object-cover" mediaType={item.mediaType} src={item.url} />
-                  </button>
-                ))}
-              </div>
-            </section>
+            <div className="absolute bottom-6 right-5 rounded-full bg-white/88 px-4 py-2 text-xs font-black text-ink shadow-lift backdrop-blur">
+              {activePhotoIndex + 1} / {postMediaUrls.length}
+            </div>
           ) : null}
+          {postMediaUrls.length > 1 ? (
+            <div className="absolute bottom-8 left-1/2 flex -translate-x-1/2 gap-1.5">
+              {postMediaUrls.map((url, index) => (
+                <button
+                  aria-label={`Show media ${index + 1}`}
+                  className={`h-2 rounded-full transition-all ${activePhotoIndex === index ? "w-5 bg-white" : "w-2 bg-white/54"}`}
+                  key={`${url}-dot`}
+                  onClick={() => showPhotoAt(index)}
+                  type="button"
+                />
+              ))}
+            </div>
+          ) : null}
+        </section>
 
-          <section className="rounded-[28px] bg-white p-4 shadow-soft">
-            <p className="text-[15px] leading-relaxed text-ink/74">{post.caption}</p>
-            <div className="mt-4 grid gap-2">
-              <p className="flex items-center gap-2 text-sm font-bold text-ink/58">
-                <MapPin aria-hidden="true" className="text-coral" size={17} />
-                {post.location}
-              </p>
-              <p className="flex items-center gap-2 text-sm font-bold text-ink/58">
-                <Calendar aria-hidden="true" className="text-coral" size={17} />
+        <div className={`rounded-t-[18px] bg-white px-5 pb-8 shadow-[0_-10px_24px_rgba(24,35,31,0.08)] ${postMediaItems.length ? "pt-8" : "pt-4"}`}>
+          <section>
+            <h1 className="text-[26px] font-black leading-tight text-ink">{post.title}</h1>
+            <p className="mt-3 whitespace-pre-wrap text-[15px] font-normal leading-relaxed text-ink">{post.caption}</p>
+            <div className="mt-3 flex flex-nowrap items-center gap-2 text-xs font-semibold text-ink/56">
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                <MapPin aria-hidden="true" className="shrink-0" size={13} />
+                <span className="truncate">{post.location}</span>
+              </span>
+              <span className="h-1 w-1 shrink-0 rounded-full bg-ink/28" />
+              <span className="flex shrink-0 items-center gap-1.5">
+                <Calendar aria-hidden="true" size={13} />
                 {post.dateLabel}
-              </p>
+              </span>
             </div>
             {post.tags.length ? (
-              <div className="mt-5 flex flex-wrap gap-2 border-t border-ink/8 pt-4">
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
                 {post.tags.map((tag) => (
-                  <span className="rounded-full bg-shell px-3 py-2 text-xs font-black text-ink/62" key={tag}>
+                  <span className="shrink-0 rounded-full bg-[#f1efeb] px-3.5 py-2 text-xs font-black text-ink/72" key={tag}>
                     {tag}
                   </span>
                 ))}
               </div>
             ) : null}
-            <button
-              className={`mt-5 flex w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-sm font-black shadow-lift ${
-                isSaved ? "bg-ink text-white" : "bg-coral text-white"
-              }`}
-              onClick={() => setSaveOpen(true)}
-              type="button"
-            >
-              <Bookmark aria-hidden="true" fill={isSaved ? "currentColor" : "none"} size={18} />
-              {isSaved ? "Saved to Board" : "Save to Board"}
-            </button>
           </section>
 
-          <MapboxMap
-            className="h-56 overflow-hidden rounded-[28px] shadow-soft"
-            experiences={[mapExperience]}
-            mapTarget={{ center: post.coordinates, zoom: 14.2 }}
-            selectedSlug={mapExperience.slug}
-            zoom={10.4}
-          />
+          <section className="mt-5 border-t border-ink/8 pt-5">
+            <div className="flex items-start justify-between gap-3">
+              <Link className="flex items-center gap-3" href={`/accounts/${post.username}`}>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45">
+                  {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <UserRound aria-hidden="true" size={20} />}
+                </span>
+                <span>
+                  <span className="block text-sm font-normal text-ink/64">Shared by <strong className="font-black text-ink">{post.username}</strong></span>
+                  <span className="block text-xs font-bold text-ink/44">{post.dateLabel}</span>
+                </span>
+              </Link>
+              <button aria-label="More post options" className="flex h-9 w-9 items-center justify-center rounded-full text-ink/54" type="button">
+                <MoreHorizontal aria-hidden="true" size={20} />
+              </button>
+            </div>
+          </section>
 
-          <section className="rounded-[28px] bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Comments</p>
-                <h2 className="mt-1 text-xl font-black text-ink">{comments.length} public {comments.length === 1 ? "comment" : "comments"}</h2>
+          <section className="mt-5 rounded-[18px] border border-ink/10 bg-white p-4 shadow-[0_8px_22px_rgba(24,35,31,0.05)]">
+            <p className="text-base font-black text-ink">Location</p>
+            <div className="mt-3 grid grid-cols-[1fr_1.15fr] gap-4">
+              <div className="space-y-3 text-sm font-normal text-ink/62">
+                <p className="flex items-start gap-2">
+                  <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-ink" size={17} />
+                  <span>
+                    <span className="block font-black text-ink">{post.location}</span>
+                  </span>
+                </p>
               </div>
-              <MessageCircle aria-hidden="true" className="text-ink/34" size={24} />
+              <div className="relative overflow-hidden rounded-[16px]">
+                <MapboxMap
+                  className="h-36"
+                  experiences={[mapExperience]}
+                  mapTarget={{ center: post.coordinates, zoom: 14.2 }}
+                  selectedSlug={mapExperience.slug}
+                  zoom={10.4}
+                />
+                <button
+                  aria-label="Expand map"
+                  className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-ink shadow-lift"
+                  type="button"
+                >
+                  <Expand aria-hidden="true" size={17} />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-5 rounded-[18px] border border-ink/10 bg-white p-4 shadow-[0_8px_22px_rgba(24,35,31,0.05)]">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-black text-ink">Comments ({comments.length})</h2>
+              <ChevronDown aria-hidden="true" className="text-ink/44" size={21} />
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {commentStatus === "loading" ? (
+                <p className="py-4 text-center text-sm font-bold text-ink/42">Loading comments...</p>
+              ) : comments.length ? (
+                comments.slice(0, 2).map((comment) => (
+                  <article className="flex gap-3" key={comment.id}>
+                    <Link
+                      aria-label={`Open @${comment.username}`}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45"
+                      href={`/accounts/${comment.username}`}
+                    >
+                      {comment.profilePhotoUrl ? (
+                        <img alt="" className="h-full w-full object-cover" src={comment.profilePhotoUrl} />
+                      ) : (
+                        <UserRound aria-hidden="true" size={17} />
+                      )}
+                    </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <Link className="text-sm font-black text-ink" href={`/accounts/${comment.username}`}>
+                          {comment.username}
+                        </Link>
+                        <span className="text-xs font-bold text-ink/38">{formatCommentTime(comment.createdAt)}</span>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-relaxed text-ink/68">{comment.body}</p>
+                    </div>
+                    <Heart aria-hidden="true" className="mt-1 shrink-0 text-ink/38" size={17} />
+                  </article>
+                ))
+              ) : (
+                <p className="py-2 text-center text-sm font-bold text-ink/42">No comments yet.</p>
+              )}
             </div>
 
             {accountId ? (
-              <form className="mt-4" onSubmit={handleCreateComment}>
-                <label className="block">
+              <form className="mt-5 flex items-end gap-2 rounded-full border border-ink/8 bg-white p-2 shadow-inner" onSubmit={handleCreateComment}>
+                <label className="block flex-1">
                   <span className="sr-only">Add a public comment</span>
                   <textarea
-                    className="min-h-24 w-full resize-none rounded-[22px] bg-shell px-4 py-3 text-sm font-semibold leading-relaxed text-ink outline-none ring-1 ring-ink/8 placeholder:text-ink/34 focus:ring-coral"
+                    className="max-h-24 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/34"
                     maxLength={500}
                     onChange={(event) => setCommentDraft(event.target.value)}
                     placeholder={commentMentionTarget ? `Reply to @${commentMentionTarget}` : "Add a public comment"}
                     value={commentDraft}
                   />
                 </label>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold text-ink/38">{resolvedCommentBody.length}/500</p>
-                  <button
-                    className="flex h-11 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-black text-white shadow-lift disabled:opacity-45"
-                    disabled={commentStatus === "saving" || !commentDraft.trim() || resolvedCommentBody.length > 500}
-                    type="submit"
-                  >
-                    <Send aria-hidden="true" size={16} />
-                    Post
-                  </button>
-                </div>
+                <button
+                  aria-label="Post comment"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-white shadow-lift disabled:opacity-35"
+                  disabled={commentStatus === "saving" || !commentDraft.trim() || resolvedCommentBody.length > 500}
+                  type="submit"
+                >
+                  <Send aria-hidden="true" size={16} />
+                </button>
               </form>
             ) : (
               <Link className="mt-4 flex h-12 items-center justify-center rounded-full bg-shell px-5 text-sm font-black text-ink" href="/accounts">
@@ -485,42 +535,17 @@ export default function PostDetailPage() {
             )}
 
             {commentMessage ? <p className="mt-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{commentMessage}</p> : null}
-
-            <div className="mt-5 space-y-4 border-t border-ink/8 pt-4">
-              {commentStatus === "loading" ? (
-                <p className="py-4 text-center text-sm font-bold text-ink/42">Loading comments...</p>
-              ) : comments.length ? (
-                comments.map((comment) => (
-                  <article className="flex gap-3" key={comment.id}>
-                    <Link
-                      aria-label={`Open @${comment.username}`}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45"
-                      href={`/accounts/${comment.username}`}
-                    >
-                      {comment.profilePhotoUrl ? (
-                        <img alt="" className="h-full w-full object-cover" src={comment.profilePhotoUrl} />
-                      ) : (
-                        <UserRound aria-hidden="true" size={18} />
-                      )}
-                    </Link>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <Link className="text-sm font-black text-ink" href={`/accounts/${comment.username}`}>
-                          @{comment.username}
-                        </Link>
-                        <span className="text-xs font-bold text-ink/38">{formatCommentTime(comment.createdAt)}</span>
-                      </div>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-relaxed text-ink/68">{comment.body}</p>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="py-4 text-center text-sm font-bold text-ink/42">No comments yet.</p>
-              )}
-            </div>
           </section>
+
         </div>
       </article>
+
+      <div className="absolute inset-x-5 bottom-[calc(var(--safe-area-bottom)+1.1rem)] z-40 flex h-16 items-center overflow-hidden rounded-[9px] bg-moss text-white shadow-lift">
+        <button className="flex h-full w-full items-center justify-center gap-2 text-sm font-black" onClick={() => setSaveOpen(true)} type="button">
+          <Bookmark aria-hidden="true" fill={isSaved ? "currentColor" : "none"} size={18} />
+          Save to Board
+        </button>
+      </div>
 
       {saveOpen ? (
         <div className="safe-modal-bottom absolute inset-x-0 top-0 z-50 flex h-full items-end bg-ink/28 backdrop-blur-sm">
@@ -614,7 +639,6 @@ export default function PostDetailPage() {
           </section>
         </div>
       ) : null}
-      <BottomNav />
     </MobileFrame>
   );
 }

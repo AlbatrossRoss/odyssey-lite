@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 15, 2026",
+    id: "v6.5",
+    title: "Recommendation Detail Redesign",
+    summary:
+      "Redesigned post detail pages with edge-to-edge media, cleaner title and description placement, simpler text-only layouts, a trimmed location/map block, comments-focused content, and a single bottom Save to Board action.",
+  },
+  {
+    date: "June 15, 2026",
     id: "v6.4",
     title: "Branded Loading Screen",
     summary:
