@@ -72,6 +72,19 @@ export function AccountGate({ children }: AccountGateProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (restoreStatus !== "checking") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setHasStoredSession(false);
+      setRestoreStatus("ready");
+    }, 3500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [restoreStatus]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");

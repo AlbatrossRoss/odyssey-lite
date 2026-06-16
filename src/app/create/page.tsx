@@ -19,8 +19,11 @@ type MediaMetadata = {
 type SelectedUpload = {
   id: string;
   file: File;
+  isHeic: boolean;
   kind: "image" | "video";
   metadata: MediaMetadata;
+  posterUrl?: string;
+  previewReady: boolean;
   url: string;
 };
 
@@ -39,6 +42,7 @@ type PostedSuccess = {
 
 const maxVideoDurationSeconds = 60;
 const videoFileExtensions = /\.(avi|m4v|mov|mp4|webm)$/i;
+const heicFileExtensions = /\.(heic|heif)$/i;
 
 export default function CreatePage() {
   const router = useRouter();
@@ -68,7 +72,7 @@ export default function CreatePage() {
 
   useEffect(() => {
     return () => {
-      selectedMediaRef.current.forEach((item) => URL.revokeObjectURL(item.url));
+      selectedMediaRef.current.forEach(revokeSelectedUploadUrls);
     };
   }, []);
 
@@ -195,9 +199,10 @@ export default function CreatePage() {
       mediaFiles.map(async (item) => ({
         file: item,
         id: `${item.name}-${item.lastModified}-${item.size}`,
+        isHeic: isHeicFile(item),
         kind: isVideoFile(item) ? ("video" as const) : ("image" as const),
         metadata: item === file ? metadata : await readMediaMetadata(item),
-        url: URL.createObjectURL(item),
+        ...(await createPreview(item)),
       })),
     );
 
@@ -266,7 +271,7 @@ export default function CreatePage() {
   }
 
   function resetPost() {
-    selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
+    selectedMedia.forEach(revokeSelectedUploadUrls);
 
     setSelectedMedia([]);
     setRecommendation("");
@@ -362,9 +367,9 @@ export default function CreatePage() {
           </div>
         </header>
 
-        <div className="app-scroll h-[calc(100%-128px)] overflow-y-auto px-3 pb-32">
+        <div className="app-scroll h-[calc(100%-128px)] overflow-y-auto px-3 pb-32 pt-1">
           <input
-            accept="image/*,video/*"
+            accept="image/*,video/*,.heic,.heif,.mov,.mp4,.m4v"
             className="hidden"
             multiple
             onChange={(event) => void handleUpload(event.target.files)}
@@ -372,30 +377,31 @@ export default function CreatePage() {
             type="file"
           />
 
-          <button
-            aria-label="Choose recommendation media"
-            className="relative mt-3 block h-[246px] w-full overflow-hidden rounded-[10px] bg-shell text-ink/46 shadow-[0_10px_24px_rgba(24,35,31,0.08)]"
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-          >
-            {selectedMedia[0] ? (
-              <MediaPreview className="h-full w-full object-cover" item={selectedMedia[0]} />
-            ) : (
-              <span className="grid h-full place-items-center">
-                <ImagePlus aria-hidden="true" size={34} />
-              </span>
-            )}
-            {!selectedMedia[0] ? (
-              <span className="absolute bottom-4 right-4 grid h-11 w-11 place-items-center rounded-full bg-ink/70 text-white backdrop-blur">
-                <ImagePlus aria-hidden="true" size={18} />
-              </span>
-            ) : null}
-            {selectedMedia.length > 1 ? (
-              <span className="absolute right-4 top-4 rounded-full bg-ink/58 px-2.5 py-1 text-xs font-black text-white">
-                {selectedMedia.length}
-              </span>
-            ) : null}
-          </button>
+          <section>
+            <p className="text-xs font-semibold text-ink/56">Add photos or videos</p>
+            <button
+              aria-label="Choose recommendation media"
+              className="relative mt-4 block aspect-[1.34] w-full overflow-hidden rounded-[10px] bg-shell text-ink/46 shadow-[0_10px_24px_rgba(24,35,31,0.08)]"
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+            >
+              {selectedMedia[0] ? (
+                <MediaPreview className="h-full w-full object-cover" item={selectedMedia[0]} />
+              ) : (
+                <span className="grid h-full place-items-center">
+                  <span className="flex flex-col items-center gap-2">
+                    <ImagePlus aria-hidden="true" size={34} />
+                    <span className="text-sm font-semibold text-ink/56">Add media</span>
+                  </span>
+                </span>
+              )}
+              {selectedMedia.length > 1 ? (
+                <span className="absolute right-4 top-4 rounded-full bg-ink/58 px-2.5 py-1 text-xs font-black text-white">
+                  {selectedMedia.length}
+                </span>
+              ) : null}
+            </button>
+          </section>
 
           {selectedMedia.length ? (
             <section className="mt-3">
@@ -456,45 +462,41 @@ export default function CreatePage() {
             </section>
           ) : null}
 
-          <section className="mt-5 space-y-5">
+          <section className="mt-6 space-y-4">
             <label className="block">
-              <span className="mb-2 block text-sm font-black text-ink">Recommendation</span>
-              <span className="block rounded-[9px] border border-ink/12 bg-white px-4 py-3 shadow-sm">
-                <input
-                  className="w-full bg-transparent text-base font-semibold text-ink outline-none placeholder:text-ink/34"
-                  maxLength={80}
-                  onChange={(event) => setRecommendation(event.target.value)}
-                  placeholder="Sunrise from Areopagus Hill"
-                  value={recommendation}
-                />
-              </span>
-              <span className="mt-1 block text-right text-xs font-bold text-ink/46">{recommendation.length}/80</span>
+              <span className="mb-2 block text-sm font-normal text-ink">Recommendation title</span>
+              <input
+                className="h-12 w-full rounded-[9px] border border-ink/12 bg-white px-3 text-base font-semibold text-ink outline-none placeholder:text-ink/34 focus:border-moss"
+                maxLength={80}
+                onChange={(event) => setRecommendation(event.target.value)}
+                placeholder="e.g. Sunrise from Areopagus Hill"
+                value={recommendation}
+              />
+              <span className="mt-1 block text-right text-xs font-bold text-ink/42">{recommendation.length}/80</span>
             </label>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-black text-ink">Description</span>
-              <span className="block rounded-[9px] border border-ink/12 bg-white px-4 py-3 shadow-sm">
-                <textarea
-                  className="min-h-[132px] w-full resize-none bg-transparent text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/34"
-                  maxLength={1000}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="What should friends know before they go?"
-                  value={description}
-                />
-              </span>
-              <span className="mt-1 block text-right text-xs font-bold text-ink/46">{description.length}/1000</span>
+              <span className="mb-2 block text-sm font-normal text-ink">Description</span>
+              <textarea
+                className="min-h-[106px] w-full resize-none rounded-[9px] border border-ink/12 bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/34 focus:border-moss"
+                maxLength={1000}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Share what makes this place or experience special."
+                value={description}
+              />
+              <span className="mt-1 block text-right text-xs font-bold text-ink/42">{description.length}/1000</span>
             </label>
 
             <section>
-              <h2 className="mb-3 text-sm font-black text-ink">Add tags</h2>
+              <h2 className="mb-2 text-sm font-normal text-ink">Tags</h2>
               <div className="flex flex-wrap gap-2">
                 {postTagOptions.map((tag) => {
                   const isSelected = selectedTags.includes(tag);
 
                   return (
                     <button
-                      className={`flex h-8 items-center rounded-full px-3 text-xs font-normal ring-1 transition ${
-                        isSelected ? "bg-moss text-white ring-moss" : "bg-[#f1efeb] text-ink/72 ring-ink/5"
+                      className={`rounded-full px-3 py-2 text-xs font-normal transition ${
+                        isSelected ? "bg-moss text-white shadow-sm" : "bg-[#f1efeb] text-ink/72"
                       }`}
                       key={tag}
                       onClick={() => toggleTag(tag)}
@@ -506,12 +508,11 @@ export default function CreatePage() {
                 })}
               </div>
             </section>
-          </section>
 
-          <div className="mt-6 divide-y divide-ink/8 border-y border-ink/8">
-            <ReviewSection action="Edit" label="Location">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-normal text-ink">
+            <section>
+              <label className="block">
+                <span className="mb-2 block text-sm font-normal text-ink">Location</span>
+                <span className="flex h-12 items-center gap-2 rounded-[9px] border border-ink/12 bg-white px-3 text-sm font-semibold text-ink focus-within:border-moss">
                   <MapPin aria-hidden="true" size={15} />
                   <input
                     className="min-w-0 flex-1 bg-transparent font-normal outline-none placeholder:text-ink/34"
@@ -524,9 +525,9 @@ export default function CreatePage() {
                     placeholder="Add a location"
                     value={location}
                   />
-                </label>
+                </span>
                 {locationSuggestions.length ? (
-                  <div className="overflow-hidden rounded-[16px] border border-ink/8 bg-white py-1 shadow-soft">
+                  <div className="mt-2 overflow-hidden rounded-[12px] border border-ink/8 bg-white py-1 shadow-soft">
                     {locationSuggestions.map((suggestion) => (
                       <button
                         className="flex min-h-12 w-full flex-col justify-center px-4 py-2 text-left transition hover:bg-shell"
@@ -545,11 +546,12 @@ export default function CreatePage() {
                     ))}
                   </div>
                 ) : null}
-              </div>
-            </ReviewSection>
+              </label>
+            </section>
 
-            <ReviewSection action="Edit" label="Date">
-              <label className="flex items-center gap-2 text-sm font-normal text-ink">
+            <label className="block">
+              <span className="mb-2 block text-sm font-normal text-ink">Date</span>
+              <span className="flex h-12 items-center gap-2 rounded-[9px] border border-ink/12 bg-white px-3 text-sm font-semibold text-ink focus-within:border-moss">
                 <Calendar aria-hidden="true" size={15} />
                 <input
                   className="min-w-0 flex-1 bg-transparent font-normal outline-none"
@@ -557,9 +559,9 @@ export default function CreatePage() {
                   type="date"
                   value={date}
                 />
-              </label>
-            </ReviewSection>
-          </div>
+              </span>
+            </label>
+          </section>
 
           {message ? <p className="mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
 
@@ -593,18 +595,6 @@ export default function CreatePage() {
   );
 }
 
-function ReviewSection({ action, children, label }: { action?: string; children: React.ReactNode; label: string }) {
-  return (
-    <section className="py-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-black text-ink">{label}</h2>
-        {action ? <span className="text-sm font-semibold text-ink/64">{action}</span> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 function PostedSuccessPage({
   onDone,
   onShare,
@@ -618,8 +608,8 @@ function PostedSuccessPage({
 }) {
   return (
     <MobileFrame>
-      <section className="safe-top-bar flex h-full flex-col bg-white px-3 pb-5 text-ink">
-        <div className="flex flex-1 flex-col items-center justify-center">
+      <section className="safe-top-bar flex h-full flex-col bg-white px-3 pb-12 text-ink">
+        <div className="flex flex-1 flex-col items-center justify-center pt-1">
           <div className="mb-4 text-center">
             <p className="text-sm font-black">Posted!</p>
             <div className="relative mx-auto mt-4 grid h-16 w-16 place-items-center rounded-full bg-[#9bc58f] text-white shadow-[0_12px_30px_rgba(77,111,65,0.22)]">
@@ -693,18 +683,115 @@ function SuccessMedia({ imageUrl, mediaType }: { imageUrl: string | null; mediaT
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {
   if (item.kind === "video") {
+    if (item.posterUrl) {
+      return <img alt="" className={className} src={item.posterUrl} />;
+    }
+
     return <video aria-label="Selected video preview" autoPlay className={className} loop muted playsInline src={item.url} />;
+  }
+
+  if (item.isHeic && !item.previewReady) {
+    return <HeicPreview className={className} />;
   }
 
   return <img alt="" className={className} src={item.url} />;
 }
 
 function isSupportedMediaFile(file: File) {
-  return file.type.startsWith("image/") || isVideoFile(file);
+  return file.type.startsWith("image/") || isHeicFile(file) || isVideoFile(file);
+}
+
+function isHeicFile(file: File) {
+  return /hei[cf]/i.test(file.type) || heicFileExtensions.test(file.name);
 }
 
 function isVideoFile(file: File) {
   return file.type.startsWith("video/") || videoFileExtensions.test(file.name);
+}
+
+async function createPreview(file: File) {
+  if (isVideoFile(file)) {
+    const url = URL.createObjectURL(file);
+    return { posterUrl: await createVideoPosterUrl(url), previewReady: true, url };
+  }
+
+  if (!isHeicFile(file)) {
+    return { previewReady: true, url: URL.createObjectURL(file) };
+  }
+
+  try {
+    const heic2any = (await import("heic2any")).default;
+    const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.82 });
+    const previewBlob = Array.isArray(converted) ? converted[0] : converted;
+
+    if (previewBlob) {
+      return { previewReady: true, url: URL.createObjectURL(previewBlob) };
+    }
+  } catch {
+    // Keep the HEIC selected even when browser-side conversion is unavailable.
+  }
+
+  return { previewReady: false, url: URL.createObjectURL(file) };
+}
+
+function createVideoPosterUrl(videoUrl: string) {
+  return new Promise<string | undefined>((resolve) => {
+    const video = document.createElement("video");
+    const canvas = document.createElement("canvas");
+    const timeoutId = window.setTimeout(() => cleanup(), 5000);
+
+    function cleanup(value?: string) {
+      window.clearTimeout(timeoutId);
+      video.removeAttribute("src");
+      video.load();
+      resolve(value);
+    }
+
+    function drawPoster() {
+      if (!video.videoWidth || !video.videoHeight) {
+        cleanup();
+        return;
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => cleanup(blob ? URL.createObjectURL(blob) : undefined), "image/jpeg", 0.82);
+    }
+
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.onloadeddata = () => {
+      try {
+        video.currentTime = Math.min(0.1, Number.isFinite(video.duration) ? video.duration / 2 : 0.1);
+      } catch {
+        drawPoster();
+      }
+    };
+    video.onseeked = drawPoster;
+    video.onerror = () => cleanup();
+    video.src = videoUrl;
+    video.load();
+  });
+}
+
+function revokeSelectedUploadUrls(item: SelectedUpload) {
+  URL.revokeObjectURL(item.url);
+  if (item.posterUrl) {
+    URL.revokeObjectURL(item.posterUrl);
+  }
+}
+
+function HeicPreview({ className }: { className: string }) {
+  return (
+    <span className={`${className} grid place-items-center bg-[#f1efeb] text-ink/62`}>
+      <span className="flex flex-col items-center gap-1">
+        <ImagePlus aria-hidden="true" size={24} strokeWidth={1.9} />
+        <span className="text-[10px] font-black">HEIC</span>
+      </span>
+    </span>
+  );
 }
 
 function readVideoDuration(file: File) {

@@ -54,6 +54,7 @@ export default function PostDetailPage() {
   const [viewerUsername, setViewerUsername] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
   const expandedMediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -491,7 +492,9 @@ export default function PostDetailPage() {
           )}
           <button
             aria-label="Back to Explore"
-            className="absolute left-5 top-[calc(var(--safe-area-top)+1rem)] flex h-11 w-11 items-center justify-center rounded-full bg-white/94 text-ink shadow-lift backdrop-blur"
+            className={`absolute left-5 top-[calc(var(--safe-area-top)+1rem)] flex h-11 w-11 items-center justify-center rounded-full shadow-lift backdrop-blur ${
+              postMediaItems.length ? "bg-ink/42 text-white" : "bg-white/94 text-ink"
+            }`}
             onClick={handleBackToExplore}
             type="button"
           >
@@ -594,6 +597,7 @@ export default function PostDetailPage() {
                 <button
                   aria-label="Expand map"
                   className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-ink shadow-lift"
+                  onClick={() => setMapExpanded(true)}
                   type="button"
                 >
                   <Expand aria-hidden="true" size={17} />
@@ -732,6 +736,34 @@ export default function PostDetailPage() {
             </div>
           ) : null}
           <div className="h-[calc(var(--safe-area-bottom)+1rem)]" />
+        </div>
+      ) : null}
+
+      {mapExpanded ? (
+        <div className="absolute inset-0 z-50 bg-ink">
+          <MapboxMap
+            className="h-full w-full"
+            experiences={[mapExperience]}
+            mapTarget={{ center: post.coordinates, zoom: 15 }}
+            selectedSlug={mapExperience.slug}
+            zoom={14.2}
+          />
+          <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-ink/52 to-transparent px-5 pb-14 pt-[calc(var(--safe-area-top)+1rem)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 rounded-[18px] bg-ink/50 px-4 py-3 text-white shadow-lift backdrop-blur">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/62">Location</p>
+                <p className="mt-1 line-clamp-2 text-sm font-black leading-tight">{post.location}</p>
+              </div>
+            </div>
+          </div>
+          <button
+            aria-label="Close expanded map"
+            className="absolute right-5 top-[calc(var(--safe-area-top)+1rem)] flex h-11 w-11 items-center justify-center rounded-full bg-ink/52 text-white shadow-lift backdrop-blur"
+            onClick={() => setMapExpanded(false)}
+            type="button"
+          >
+            <X aria-hidden="true" size={20} />
+          </button>
         </div>
       ) : null}
 

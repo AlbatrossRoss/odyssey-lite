@@ -46,7 +46,7 @@ export default function ExperienceDetailPage() {
           <div className="absolute inset-0 bg-gradient-to-b from-ink/32 via-transparent to-ink/72" />
           <Link
             aria-label="Back to Hawaii"
-            className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-ink shadow-lift backdrop-blur"
+            className="safe-top-control absolute left-4 flex h-11 w-11 items-center justify-center rounded-full bg-ink/42 text-white shadow-lift backdrop-blur"
             href="/explore"
           >
             <ArrowLeft aria-hidden="true" size={20} />

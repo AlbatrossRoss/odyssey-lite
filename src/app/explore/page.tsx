@@ -764,8 +764,10 @@ export default function ExplorePage() {
     [savingPostId, viewerId],
   );
 
+  const recommendationPosts = useMemo(() => appPosts.filter((post) => post.type !== "trip"), [appPosts]);
+
   const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
-    const sourcePosts = filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId);
+    const sourcePosts = filterPostsByExploreFilter(recommendationPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId);
     const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
     const canUseMapArea = zoom >= mapExploreZoomThreshold;
 
@@ -784,11 +786,11 @@ export default function ExplorePage() {
       setMapArea(null);
       setActiveDestination("");
     }
-  }, [activeCategoryFilters, activeFilter, appPosts, exploreSource, followingIds, profileAccountId, viewerId]);
+  }, [activeCategoryFilters, activeFilter, exploreSource, followingIds, profileAccountId, recommendationPosts, viewerId]);
 
   const filteredPosts = useMemo(
-    () => filterPostsByExploreFilter(appPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId),
-    [activeCategoryFilters, activeFilter, appPosts, followingIds, profileAccountId, viewerId],
+    () => filterPostsByExploreFilter(recommendationPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId),
+    [activeCategoryFilters, activeFilter, followingIds, profileAccountId, recommendationPosts, viewerId],
   );
   const searchText = activeDestination || searchQuery;
   const searchPosts = searchText ? filteredPosts.filter((post) => postSearchHasContent(searchText, post)) : filteredPosts;

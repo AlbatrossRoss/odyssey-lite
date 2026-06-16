@@ -167,10 +167,12 @@ export function AccountsView({ username }: AccountsViewProps) {
   }, [connectionAccounts, connectionSearch]);
   const isOwnProfile = Boolean(profile && profile.id === viewerId);
   const followingCount = viewer?.stats.following ?? 0;
+  const profileTrips = useMemo(() => profilePosts.filter((post) => post.type === "trip"), [profilePosts]);
+  const profileRecentPosts = useMemo(() => profilePosts.filter((post) => post.type !== "trip"), [profilePosts]);
   const completedLocalRecTags = useMemo(() => {
     const tags = new Set<AppPostTag>();
 
-    profilePosts.forEach((post) => {
+    profileRecentPosts.forEach((post) => {
       setupLocalRecPrompts.forEach((prompt) => {
         if (post.tags.includes(prompt.tag)) {
           tags.add(prompt.tag);
@@ -179,7 +181,7 @@ export function AccountsView({ username }: AccountsViewProps) {
     });
 
     return tags;
-  }, [profilePosts]);
+  }, [profileRecentPosts]);
   const setupProgress = useMemo(() => {
     const localRecCount = completedLocalRecTags.size;
 
@@ -619,9 +621,9 @@ export function AccountsView({ username }: AccountsViewProps) {
                       View all
                     </button>
                   </div>
-                  {profilePosts.length ? (
+                  {profileRecentPosts.length ? (
                     <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
-                      {profilePosts.slice(0, 8).map((post) => (
+                      {profileRecentPosts.slice(0, 8).map((post) => (
                         <ProfileRecentCard key={post.id} post={post} />
                       ))}
                     </div>
@@ -630,6 +632,25 @@ export function AccountsView({ username }: AccountsViewProps) {
                       <p className="text-sm font-bold leading-relaxed text-ink/52">
                         {isOwnProfile ? "Share a trip or experience to start your profile." : "No posts here yet."}
                       </p>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="mt-6">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-black text-ink">{isOwnProfile ? "My Trips" : "Trips"}</h2>
+                    </div>
+                  </div>
+                  {profileTrips.length ? (
+                    <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
+                      {profileTrips.slice(0, 6).map((trip) => (
+                        <ProfileTripCard key={trip.id} trip={trip} />
+                      ))}
+                    </div>
+                  ) : profilePostsHydrated ? (
+                    <div className="rounded-[24px] bg-white px-5 py-7 text-center shadow-lift">
+                      <p className="text-sm font-bold leading-relaxed text-ink/52">{isOwnProfile ? "Published trips will live here." : "No trips here yet."}</p>
                     </div>
                   ) : null}
                 </section>
@@ -953,10 +974,10 @@ export function AccountsView({ username }: AccountsViewProps) {
             <h2 className="text-right text-2xl font-black text-ink">{profile.username}&apos;s posts</h2>
           </header>
           <div className="no-scrollbar grid flex-1 grid-cols-2 gap-3 overflow-y-auto px-5 pb-[calc(var(--safe-area-bottom)+1rem)]">
-            {profilePosts.map((post) => (
+            {profileRecentPosts.map((post) => (
               <ProfileGridPostCard key={post.id} post={post} />
             ))}
-            {!profilePosts.length ? (
+            {!profileRecentPosts.length ? (
               <p className="col-span-2 rounded-[18px] bg-white px-5 py-8 text-center text-sm font-bold text-ink/52 shadow-sm">
                 {isOwnProfile ? "Share a recommendation to start your post grid." : "No posts here yet."}
               </p>
@@ -1248,6 +1269,42 @@ function ProfileRecentCard({ post }: { post: AppPost }) {
         )}
       </Link>
     </div>
+  );
+}
+
+function ProfileTripCard({ trip }: { trip: AppPost }) {
+  const mediaCount = trip.mediaUrls.length || (trip.imageUrl ? 1 : 0);
+
+  return (
+    <Link className="block w-[214px] shrink-0 overflow-hidden rounded-[12px] bg-white shadow-lift ring-1 ring-ink/5" href={`/trips/${trip.id}`}>
+      <span className="relative block aspect-[1.35] bg-shell">
+        {trip.imageUrl ? (
+          <>
+            <PostMediaPreview alt={trip.title} className="h-full w-full object-cover" mediaType={trip.mediaTypes[0]} src={trip.imageUrl} />
+            <span className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-ink/88 via-ink/52 to-transparent" />
+            <span className="absolute bottom-3 left-3 right-3 text-white">
+              <span className="line-clamp-2 block text-base font-black leading-tight">{trip.title}</span>
+              {trip.dateLabel ? <span className="mt-1 block text-xs font-semibold text-white/82">{trip.dateLabel}</span> : null}
+            </span>
+          </>
+        ) : (
+          <span className="flex h-full flex-col justify-end p-3">
+            <span className="line-clamp-2 text-base font-black leading-tight text-ink">{trip.title}</span>
+            {trip.dateLabel ? <span className="mt-1 text-xs font-semibold text-ink/54">{trip.dateLabel}</span> : null}
+          </span>
+        )}
+      </span>
+      <span className="block space-y-2 p-3">
+        <span className="flex items-start gap-1.5 text-xs font-semibold leading-tight text-ink/58">
+          <MapPin aria-hidden="true" className="mt-px shrink-0 text-moss" size={13} />
+          <span className="line-clamp-1">{trip.location}</span>
+        </span>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-ink/46">
+          <Camera aria-hidden="true" size={13} />
+          {mediaCount} {mediaCount === 1 ? "memory" : "memories"}
+        </span>
+      </span>
+    </Link>
   );
 }
 
