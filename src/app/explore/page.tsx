@@ -311,6 +311,7 @@ export default function ExplorePage() {
   const [actionBanner, setActionBanner] = useState<ActionBanner | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [savingPostId, setSavingPostId] = useState<string | null>(null);
+  const [savedPostIds, setSavedPostIds] = useState<Set<string>>(() => new Set());
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const exploreStateRef = useRef<StoredExploreState>({
     activeDestination: restoredExploreState?.activeDestination ?? "",
@@ -513,6 +514,31 @@ export default function ExplorePage() {
 
   useEffect(() => {
     if (!viewerId) {
+      setSavedPostIds(new Set());
+      return;
+    }
+
+    let active = true;
+
+    fetchBoardsByAccount(viewerId)
+      .then((boards) => {
+        if (active) {
+          setSavedPostIds(new Set(boards.flatMap((board) => board.postIds)));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSavedPostIds(new Set());
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [viewerId]);
+
+  useEffect(() => {
+    if (!viewerId) {
       setCommentNotifications([]);
       setUnreadCommentCount(0);
       setNotificationStatus("idle");
@@ -696,6 +722,7 @@ export default function ExplorePage() {
         }
 
         await savePostToBoard(latestBoard.id, post.id, post.imageUrl ?? undefined);
+        setSavedPostIds((current) => new Set([...current, post.id]));
 
         const banner = {
           href: `/posts/${post.id}`,
@@ -857,7 +884,7 @@ export default function ExplorePage() {
           userLocation={userLocation}
           zoom={1.35}
         />
-        <div className="absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
+        <div className="absolute inset-x-0 top-0 z-40 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
           {actionBanner ? (
             <Link
               className="mb-3 flex items-center gap-3 rounded-[24px] bg-white/96 p-2 pr-4 text-left shadow-lift backdrop-blur"
@@ -1053,6 +1080,7 @@ export default function ExplorePage() {
                     onSave={handleSaveToLatestBoard}
                     post={post}
                     saveDisabled={savingPostId === post.id}
+                    saved={savedPostIds.has(post.id)}
                   />
                 ))}
               </div>

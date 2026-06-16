@@ -11,17 +11,20 @@ type AppPostFeedCardProps = {
   onSave?: (post: AppPost) => void;
   post: AppPost;
   saveDisabled?: boolean;
+  saved?: boolean;
 };
 
 function stopSheetDrag(event: PointerEvent) {
   event.stopPropagation();
 }
 
-export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false }: AppPostFeedCardProps) {
+export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, saved = false }: AppPostFeedCardProps) {
   const saveButton = (
     <button
-      aria-label="Save post to latest board"
-      className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur transition active:scale-95 disabled:opacity-50"
+      aria-label={saved ? "Saved to board" : "Save post to latest board"}
+      className={`absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full shadow-lift backdrop-blur transition active:scale-95 disabled:opacity-50 ${
+        saved ? "bg-ink text-white" : "bg-white/90 text-ink"
+      }`}
       disabled={saveDisabled}
       onClick={(event) => {
         event.stopPropagation();
@@ -30,7 +33,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false }: 
       onPointerDown={(event) => event.stopPropagation()}
       type="button"
     >
-      <Bookmark aria-hidden="true" size={18} />
+      <Bookmark aria-hidden="true" fill={saved ? "currentColor" : "none"} size={18} />
     </button>
   );
 

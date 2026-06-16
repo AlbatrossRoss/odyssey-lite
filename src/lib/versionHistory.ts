@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 16, 2026",
+    id: "v6.8",
+    title: "Explore Save and Detail Reliability",
+    summary:
+      "Fixed expanded Explore card board saves so bookmarks highlight after saving and confirmation banners appear above the recommendations sheet, while improving post-detail media playback, full-size viewing, cached loading, and profile map polish.",
+  },
+  {
+    date: "June 16, 2026",
     id: "v6.7",
     title: "Profile Page Redesign",
     summary:

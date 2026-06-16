@@ -23,12 +23,16 @@ import { BottomNav } from "@/components/BottomNav";
 import { MapboxMap } from "@/components/MapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
-import { deleteAppPost, fetchAppPostById, type AppPost } from "@/lib/posts";
+import { deleteAppPost, fetchAppPostById, fetchAppPosts, type AppPost } from "@/lib/posts";
 import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
 import { fetchAccountById, readAccountSessionId } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
+
+const appPostsCacheKey = "odyssey-app-posts-cache-v2";
+const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
+const postDetailCachePrefix = "odyssey-post-detail-cache-v1";
 
 export default function PostDetailPage() {
   const params = useParams<{ id: string }>();
@@ -49,24 +53,48 @@ export default function PostDetailPage() {
   const [commentMessage, setCommentMessage] = useState("");
   const [viewerUsername, setViewerUsername] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
     const viewerId = readAccountSessionId();
+    const cachedPost = readCachedPost(params.id);
 
     setAccountId(viewerId);
 
-    fetchAppPostById(params.id)
+    if (cachedPost) {
+      setPost(cachedPost);
+      setLoading(false);
+    }
+
+    withTimeout(fetchAppPostById(params.id), 8000)
       .then((nextPost) => {
         if (active) {
           setPost(nextPost);
+          if (nextPost) {
+            writeCachedPost(nextPost);
+          }
           setLoading(false);
         }
       })
-      .catch(() => {
-        if (active) {
-          setLoading(false);
+      .catch(async () => {
+        try {
+          const posts = await withTimeout(fetchAppPosts(), 8000);
+          const fallbackPost = posts.find((item) => item.id === params.id) ?? null;
+
+          if (active) {
+            if (fallbackPost) {
+              setPost(fallbackPost);
+              writeCachedPost(fallbackPost);
+              writeCachedAppPosts(posts);
+            }
+            setLoading(false);
+          }
+        } catch {
+          if (active) {
+            setLoading(false);
+          }
         }
       });
 
@@ -159,6 +187,15 @@ export default function PostDetailPage() {
       userId: post.accountId,
     };
   }, [post]);
+  const postMediaUrls = useMemo(() => (post ? (post.mediaUrls.length ? post.mediaUrls : post.imageUrl ? [post.imageUrl] : []) : []), [post]);
+  const postMediaItems = useMemo(
+    () =>
+      postMediaUrls.map((url, index) => ({
+        mediaType: post?.mediaTypes[index] ?? "image",
+        url,
+      })),
+    [post?.mediaTypes, postMediaUrls],
+  );
   const commentMentionTarget = useMemo(() => {
     if (!post || !accountId) {
       return null;
@@ -177,6 +214,25 @@ export default function PostDetailPage() {
     return latestOtherComment.username;
   }, [accountId, comments, post, viewerUsername]);
   const resolvedCommentBody = commentBodyWithMention(commentDraft, commentMentionTarget);
+
+  useEffect(() => {
+    const scroller = mediaScrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    scroller.querySelectorAll<HTMLVideoElement>("video[data-post-detail-media]").forEach((video) => {
+      const mediaIndex = Number(video.dataset.mediaIndex);
+      const isActive = mediaIndex === activePhotoIndex;
+
+      video.muted = !isActive;
+
+      if (!isActive) {
+        video.pause();
+      }
+    });
+  }, [activePhotoIndex, postMediaItems]);
 
   if (loading) {
     return (
@@ -208,11 +264,6 @@ export default function PostDetailPage() {
 
   const savedBoardIds = boards.filter((board) => board.postIds.includes(post.id)).map((board) => board.id);
   const isSaved = savedBoardIds.length > 0;
-  const postMediaUrls = post.mediaUrls.length ? post.mediaUrls : post.imageUrl ? [post.imageUrl] : [];
-  const postMediaItems = postMediaUrls.map((url, index) => ({
-    mediaType: post.mediaTypes[index] ?? "image",
-    url,
-  }));
   function showPhotoAt(index: number) {
     const scroller = mediaScrollerRef.current;
 
@@ -376,18 +427,41 @@ export default function PostDetailPage() {
                 ref={mediaScrollerRef}
               >
                 {postMediaItems.map((item, index) => (
-                  <PostMediaPreview
-                    alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
-                    className="h-full w-full shrink-0 snap-center object-cover"
-                    controls={item.mediaType === "video"}
-                    key={`${item.url}-${index}`}
-                    mediaType={item.mediaType}
-                    muted={item.mediaType !== "video"}
-                    src={item.url}
-                  />
+                  item.mediaType === "video" ? (
+                    <video
+                      aria-label={index === 0 ? post.title : `${post.title} media ${index + 1}`}
+                      autoPlay={activePhotoIndex === index}
+                      className="h-full w-full shrink-0 snap-center object-cover"
+                      controls
+                      data-media-index={index}
+                      data-post-detail-media
+                      key={`${item.url}-${index}`}
+                      loop
+                      muted={activePhotoIndex !== index}
+                      playsInline
+                      preload="metadata"
+                      src={item.url}
+                    />
+                  ) : (
+                    <PostMediaPreview
+                      alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
+                      className="h-full w-full shrink-0 snap-center object-cover"
+                      key={`${item.url}-${index}`}
+                      mediaType={item.mediaType}
+                      src={item.url}
+                    />
+                  )
                 ))}
               </div>
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/42" />
+              <button
+                aria-label="View media full size"
+                className="absolute bottom-6 left-5 flex h-10 w-10 items-center justify-center rounded-full bg-ink/36 text-white shadow-lift backdrop-blur"
+                onClick={() => setExpandedMediaIndex(activePhotoIndex)}
+                type="button"
+              >
+                <Expand aria-hidden="true" size={17} />
+              </button>
             </>
           ) : (
             <div className="h-full bg-white" />
@@ -401,7 +475,7 @@ export default function PostDetailPage() {
             <ArrowLeft aria-hidden="true" size={20} />
           </button>
           {postMediaUrls.length > 1 ? (
-            <div className="absolute bottom-6 right-5 rounded-full bg-white/88 px-4 py-2 text-xs font-black text-ink shadow-lift backdrop-blur">
+            <div className="absolute bottom-6 right-5 rounded-full bg-ink/36 px-4 py-2 text-xs font-black text-white shadow-lift backdrop-blur">
               {activePhotoIndex + 1} / {postMediaUrls.length}
             </div>
           ) : null}
@@ -578,6 +652,41 @@ export default function PostDetailPage() {
         </div>
       </article>
 
+      {expandedMediaIndex !== null && postMediaItems[expandedMediaIndex] ? (
+        <div className="absolute inset-0 z-50 flex flex-col bg-ink">
+          <div className="safe-top-bar flex items-center justify-between px-5 pb-3">
+            <button
+              aria-label="Close full size media"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 text-white backdrop-blur"
+              onClick={() => setExpandedMediaIndex(null)}
+              type="button"
+            >
+              <X aria-hidden="true" size={20} />
+            </button>
+            {postMediaItems.length > 1 ? (
+              <span className="rounded-full bg-white/12 px-3 py-1.5 text-xs font-black text-white backdrop-blur">
+                {expandedMediaIndex + 1} / {postMediaItems.length}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            {postMediaItems[expandedMediaIndex].mediaType === "video" ? (
+              <video
+                aria-label={`${post.title} full size media`}
+                className="max-h-full max-w-full object-contain"
+                controls
+                playsInline
+                preload="metadata"
+                src={postMediaItems[expandedMediaIndex].url}
+              />
+            ) : (
+              <img alt={`${post.title} full size media`} className="max-h-full max-w-full object-contain" src={postMediaItems[expandedMediaIndex].url} />
+            )}
+          </div>
+          <div className="h-[calc(var(--safe-area-bottom)+1rem)]" />
+        </div>
+      ) : null}
+
       <div className="absolute inset-x-5 bottom-[calc(var(--safe-area-bottom)+1.1rem)] z-40 flex h-16 items-center overflow-hidden rounded-[9px] bg-moss text-white shadow-lift">
         <button className="flex h-full w-full items-center justify-center gap-2 text-sm font-black" onClick={() => setSaveOpen(true)} type="button">
           <Bookmark aria-hidden="true" fill={isSaved ? "currentColor" : "none"} size={18} />
@@ -685,6 +794,17 @@ function formatError(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error("Request timed out.")), timeoutMs);
+
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => window.clearTimeout(timeoutId));
+  });
+}
+
 function commentBodyWithMention(body: string, username: string | null) {
   const trimmedBody = body.trim();
 
@@ -733,4 +853,73 @@ function formatCommentTime(value: string) {
   }
 
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function readCachedPost(postId: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const detailPost = readCachedPostFromKey(`${postDetailCachePrefix}-${postId}`, postId);
+
+  if (detailPost) {
+    return detailPost;
+  }
+
+  const explorePost = readCachedPostFromKey(appPostsCacheKey, postId);
+
+  if (explorePost) {
+    return explorePost;
+  }
+
+  try {
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index);
+
+      if (key?.startsWith(profilePostsCachePrefix)) {
+        const cachedPost = readCachedPostFromKey(key, postId);
+
+        if (cachedPost) {
+          return cachedPost;
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function readCachedPostFromKey(key: string, postId: string) {
+  try {
+    const cached = window.sessionStorage.getItem(key);
+
+    if (!cached) {
+      return null;
+    }
+
+    const parsed = JSON.parse(cached) as AppPost | AppPost[];
+    const post = Array.isArray(parsed) ? parsed.find((item) => item.id === postId) : parsed.id === postId ? parsed : null;
+
+    return post ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedPost(post: AppPost) {
+  try {
+    window.sessionStorage.setItem(`${postDetailCachePrefix}-${post.id}`, JSON.stringify(post));
+  } catch {
+    // Detail pages still load directly if session storage is unavailable.
+  }
+}
+
+function writeCachedAppPosts(posts: AppPost[]) {
+  try {
+    window.sessionStorage.setItem(appPostsCacheKey, JSON.stringify(posts));
+  } catch {
+    // Explore can still refresh from Supabase if session storage is unavailable.
+  }
 }

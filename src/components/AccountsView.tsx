@@ -1108,7 +1108,7 @@ function writeProfileExploreState(posts: AppPost[], isOwnProfile: boolean, profi
 
 function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolean; posts: AppPost[]; profile: AccountWithStats }) {
   const mapCenter = profile.currentCityCoordinates ?? posts[0]?.coordinates ?? ([-98.5795, 39.8283] as [number, number]);
-  const mapZoom = posts.length || profile.currentCityCoordinates ? 3.9 : 2.45;
+  const mapZoom = posts.length || profile.currentCityCoordinates ? 2.15 : 1.75;
 
   return (
     <div className="relative -mx-4 h-[207px] overflow-hidden bg-[#b9ddec]">
@@ -1128,11 +1128,6 @@ function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolea
         href="/explore"
         onClick={() => writeProfileExploreState(posts, isOwnProfile, profile)}
       />
-      <div className="pointer-events-none absolute left-5 top-[calc(var(--safe-area-top)+0.65rem)] z-20 text-sm font-black text-white drop-shadow">9:41</div>
-      <div className="pointer-events-none absolute right-5 top-[calc(var(--safe-area-top)+0.65rem)] z-20 flex gap-1.5 text-white drop-shadow">
-        <span className="h-3 w-4 rounded-sm border-2 border-current" />
-        <span className="h-3 w-3 rounded-full border-2 border-current" />
-      </div>
       <div className="pointer-events-none absolute left-[39%] top-[34%] z-20 flex h-12 w-12 items-center justify-center rounded-full bg-moss text-lg font-black text-white shadow-lift">
         {Math.max(posts.length, profile.stats.posts)}
       </div>
