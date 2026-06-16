@@ -1,14 +1,12 @@
 "use client";
 
-import { Calendar, Check, ImagePlus, MapPin, Share2, X } from "lucide-react";
+import { Calendar, Check, ImagePlus, MapPin, Send, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BottomNav } from "@/components/BottomNav";
 import { MobileFrame } from "@/components/MobileFrame";
 import { readAccountSessionId } from "@/lib/accounts";
-import { writeActionBanner } from "@/lib/actionBanner";
 import { uploadPostMedia } from "@/lib/media";
-import { createAppPost } from "@/lib/posts";
+import { createAppPost, type AppPost } from "@/lib/posts";
 import { postTagOptions, type AppPostTag } from "@/lib/postTags";
 import type { SearchSuggestion } from "@/components/SearchBar";
 
@@ -26,6 +24,19 @@ type SelectedUpload = {
   url: string;
 };
 
+type PostedSuccess = {
+  dateLabel: string;
+  description: string;
+  href?: string;
+  imageUrl: string | null;
+  location: string;
+  mediaType?: "image" | "video";
+  profilePhotoUrl: string | null;
+  tags: AppPostTag[];
+  title: string;
+  username: string;
+};
+
 const maxVideoDurationSeconds = 60;
 const videoFileExtensions = /\.(avi|m4v|mov|mp4|webm)$/i;
 
@@ -34,7 +45,9 @@ export default function CreatePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentCoordinatesRef = useRef<[number, number] | undefined>(undefined);
   const currentLocationRef = useRef("");
+  const selectedMediaRef = useRef<SelectedUpload[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
+  const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [recommendation, setRecommendation] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTags, setSelectedTags] = useState<AppPostTag[]>([]);
@@ -43,19 +56,21 @@ export default function CreatePage() {
   const [coordinates, setCoordinates] = useState<[number, number] | undefined>();
   const [locationFocused, setLocationFocused] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<SearchSuggestion[]>([]);
-  const [metadataNote, setMetadataNote] = useState("Choose photos or videos to read date and location metadata.");
   const [status, setStatus] = useState<"idle" | "reading" | "sharing" | "published">("idle");
   const [message, setMessage] = useState("");
-  const showMetadataFields = selectedMedia.length > 0 || recommendation.trim().length > 0;
-  const showDateField = selectedMedia.length > 0;
+  const [postedSuccess, setPostedSuccess] = useState<PostedSuccess | null>(null);
   const canShare =
     recommendation.trim().length > 0 && description.trim().length > 0 && location.trim().length > 0 && status !== "sharing" && status !== "reading";
 
   useEffect(() => {
-    return () => {
-      selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
-    };
+    selectedMediaRef.current = selectedMedia;
   }, [selectedMedia]);
+
+  useEffect(() => {
+    return () => {
+      selectedMediaRef.current.forEach((item) => URL.revokeObjectURL(item.url));
+    };
+  }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -186,22 +201,12 @@ export default function CreatePage() {
       })),
     );
 
-    selectedMedia.forEach((item) => URL.revokeObjectURL(item.url));
-    setSelectedMedia(nextMedia);
+    setSelectedMedia((current) => [...current, ...nextMedia]);
     if (nextCoordinates) {
       setCoordinates(nextCoordinates);
     }
     setDate(nextDate);
     setLocation((current) => nextLocation ?? current);
-    setMetadataNote(
-      nextCoordinates && nextDate
-        ? "Using date and location metadata from the first selected item."
-        : nextCoordinates
-          ? "Using location metadata from the first selected item. Date metadata was not available, so file date is shown."
-          : nextDate
-            ? "Using file date. Location metadata was not available."
-            : "No embedded date or location metadata was available. Add the details below.",
-    );
     setStatus("idle");
   }
 
@@ -252,16 +257,8 @@ export default function CreatePage() {
         visibility: "Public",
       });
 
-      writeActionBanner({
-        href: `/posts/${createdPost.id}`,
-        imageUrl: createdPost.imageUrl,
-        mediaType: createdPost.mediaTypes[0],
-        message: "Posted to Explore",
-        title: createdPost.title,
-        type: "post-created",
-      });
+      setPostedSuccess(successFromPost(createdPost));
       setStatus("published");
-      router.push("/explore");
     } catch (error) {
       setStatus("idle");
       setMessage(formatPublishError(error));
@@ -280,32 +277,92 @@ export default function CreatePage() {
     setLocationSuggestions([]);
     setDate("");
     setCoordinates(currentCoordinatesRef.current);
-    setMetadataNote("Choose photos or videos to read date and location metadata.");
     setStatus("idle");
     setMessage("");
+    setPostedSuccess(null);
   }
 
   function toggleTag(tag: AppPostTag) {
     setSelectedTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
   }
 
+  function reorderMedia(sourceId: string, targetId: string) {
+    if (sourceId === targetId) {
+      return;
+    }
+
+    setSelectedMedia((current) => {
+      const sourceIndex = current.findIndex((item) => item.id === sourceId);
+      const targetIndex = current.findIndex((item) => item.id === targetId);
+
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return current;
+      }
+
+      const next = [...current];
+      const [movedItem] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, movedItem);
+      return next;
+    });
+  }
+
+  function handleMediaPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!draggedMediaId) {
+      return;
+    }
+
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-media-id]");
+    const targetId = target?.dataset.mediaId;
+
+    if (targetId) {
+      reorderMedia(draggedMediaId, targetId);
+    }
+  }
+
+  function finishMediaDrag() {
+    setDraggedMediaId(null);
+  }
+
+  if (postedSuccess) {
+    return (
+      <PostedSuccessPage
+        onDone={() => {
+          resetPost();
+          router.push("/explore");
+        }}
+        onShare={() => void sharePostedSuccess(postedSuccess).catch(() => undefined)}
+        onView={() => {
+          if (postedSuccess.href) {
+            router.push(postedSuccess.href);
+            return;
+          }
+
+          setPostedSuccess(null);
+        }}
+        post={postedSuccess}
+      />
+    );
+  }
+
   return (
     <MobileFrame>
-      <section className="relative h-full overflow-hidden bg-white pb-24 text-ink">
-        <header className="safe-top-bar flex items-center justify-between border-b border-ink/8 bg-white px-5 pb-3">
-          <button
-            aria-label="Back to Explore"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
-            onClick={() => router.push("/explore")}
-            type="button"
-          >
-            <X aria-hidden="true" size={21} />
-          </button>
-          <h1 className="text-lg font-black text-ink">Recommendation</h1>
-          <span className="h-10 w-10" />
+      <section className="relative h-full overflow-hidden bg-white text-ink">
+        <header className="safe-top-bar bg-white px-5 pb-4">
+          <div className="flex items-center justify-between">
+            <button
+              aria-label="Back to Explore"
+              className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-ink"
+              onClick={() => router.push("/explore")}
+              type="button"
+            >
+              <X aria-hidden="true" size={22} />
+            </button>
+            <h1 className="text-base font-black text-ink">Add Rec</h1>
+            <span className="h-10 w-10" />
+          </div>
         </header>
 
-        <div className="app-scroll h-[calc(100%-168px)] overflow-y-auto pb-36">
+        <div className="app-scroll h-[calc(100%-128px)] overflow-y-auto px-3 pb-32">
           <input
             accept="image/*,video/*"
             className="hidden"
@@ -315,184 +372,323 @@ export default function CreatePage() {
             type="file"
           />
 
-            <section className="space-y-3 px-4 py-3">
-              <div className="no-scrollbar flex gap-2 overflow-x-auto">
+          <button
+            aria-label="Choose recommendation media"
+            className="relative mt-3 block h-[246px] w-full overflow-hidden rounded-[10px] bg-shell text-ink/46 shadow-[0_10px_24px_rgba(24,35,31,0.08)]"
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            {selectedMedia[0] ? (
+              <MediaPreview className="h-full w-full object-cover" item={selectedMedia[0]} />
+            ) : (
+              <span className="grid h-full place-items-center">
+                <ImagePlus aria-hidden="true" size={34} />
+              </span>
+            )}
+            {!selectedMedia[0] ? (
+              <span className="absolute bottom-4 right-4 grid h-11 w-11 place-items-center rounded-full bg-ink/70 text-white backdrop-blur">
+                <ImagePlus aria-hidden="true" size={18} />
+              </span>
+            ) : null}
+            {selectedMedia.length > 1 ? (
+              <span className="absolute right-4 top-4 rounded-full bg-ink/58 px-2.5 py-1 text-xs font-black text-white">
+                {selectedMedia.length}
+              </span>
+            ) : null}
+          </button>
+
+          {selectedMedia.length ? (
+            <section className="mt-3">
+              <p className="px-1 text-xs font-semibold text-ink/46">Drag to rearrange</p>
+              <div className="no-scrollbar -mx-1 mt-1 flex gap-2 overflow-x-auto px-1 py-1.5">
                 {selectedMedia.map((item, index) => (
-                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[16px] bg-shell shadow-soft" key={item.id}>
+                  <button
+                    aria-label={index === 0 ? "Cover media" : `Media ${index + 1}`}
+                    className={`relative h-16 w-16 shrink-0 touch-none overflow-hidden rounded-[10px] bg-shell ring-1 transition ${
+                      index === 0 ? "ring-2 ring-moss" : "ring-ink/8"
+                    } ${draggedMediaId === item.id ? "scale-95 opacity-75" : ""}`}
+                    data-media-id={item.id}
+                    draggable={selectedMedia.length > 1}
+                    key={item.id}
+                    onDragEnd={finishMediaDrag}
+                    onDragEnter={() => {
+                      if (draggedMediaId) {
+                        reorderMedia(draggedMediaId, item.id);
+                      }
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", item.id);
+                      setDraggedMediaId(item.id);
+                    }}
+                    onDrop={finishMediaDrag}
+                    onPointerCancel={finishMediaDrag}
+                    onPointerDown={(event) => {
+                      if (selectedMedia.length > 1) {
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        setDraggedMediaId(item.id);
+                      }
+                    }}
+                    onPointerMove={handleMediaPointerMove}
+                    onPointerUp={finishMediaDrag}
+                    type="button"
+                  >
                     <MediaPreview className="h-full w-full object-cover" item={item} />
-                    <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-coral text-[10px] font-black text-white">
-                      {index + 1}
-                    </span>
-                  </div>
+                    {index === 0 ? (
+                      <span className="absolute inset-x-1 bottom-1 rounded-full bg-moss px-1.5 py-0.5 text-[10px] font-black text-white">Cover</span>
+                    ) : (
+                      <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink/60 px-1 text-[10px] font-black text-white">
+                        {index + 1}
+                      </span>
+                    )}
+                  </button>
                 ))}
                 <button
-                  className="grid h-16 w-16 shrink-0 place-items-center rounded-[16px] bg-shell text-ink/54"
+                  aria-label="Add more media"
+                  className="grid h-16 w-16 shrink-0 place-items-center rounded-[10px] bg-[#f1efeb] text-ink/56 ring-1 ring-ink/6"
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
                 >
                   <ImagePlus aria-hidden="true" size={22} />
                 </button>
               </div>
+            </section>
+          ) : null}
 
-              {selectedMedia.length || status === "reading" ? (
-                <p className="rounded-[18px] bg-shell px-4 py-2 text-xs font-semibold leading-snug text-ink/56">
-                  {status === "reading" ? "Reading metadata..." : metadataNote}
-                </p>
-              ) : null}
+          <section className="mt-5 space-y-5">
+            <label className="block">
+              <span className="mb-2 block text-sm font-black text-ink">Recommendation</span>
+              <span className="block rounded-[9px] border border-ink/12 bg-white px-4 py-3 shadow-sm">
+                <input
+                  className="w-full bg-transparent text-base font-semibold text-ink outline-none placeholder:text-ink/34"
+                  maxLength={80}
+                  onChange={(event) => setRecommendation(event.target.value)}
+                  placeholder="Sunrise from Areopagus Hill"
+                  value={recommendation}
+                />
+              </span>
+              <span className="mt-1 block text-right text-xs font-bold text-ink/46">{recommendation.length}/80</span>
+            </label>
 
-              <section className="overflow-hidden rounded-[28px] bg-white shadow-soft ring-1 ring-ink/8">
-                <ReviewField label="Recommendation">
+            <label className="block">
+              <span className="mb-2 block text-sm font-black text-ink">Description</span>
+              <span className="block rounded-[9px] border border-ink/12 bg-white px-4 py-3 shadow-sm">
+                <textarea
+                  className="min-h-[132px] w-full resize-none bg-transparent text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/34"
+                  maxLength={1000}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="What should friends know before they go?"
+                  value={description}
+                />
+              </span>
+              <span className="mt-1 block text-right text-xs font-bold text-ink/46">{description.length}/1000</span>
+            </label>
+
+            <section>
+              <h2 className="mb-3 text-sm font-black text-ink">Add tags</h2>
+              <div className="flex flex-wrap gap-2">
+                {postTagOptions.map((tag) => {
+                  const isSelected = selectedTags.includes(tag);
+
+                  return (
+                    <button
+                      className={`flex h-8 items-center rounded-full px-3 text-xs font-normal ring-1 transition ${
+                        isSelected ? "bg-moss text-white ring-moss" : "bg-[#f1efeb] text-ink/72 ring-ink/5"
+                      }`}
+                      key={tag}
+                      onClick={() => toggleTag(tag)}
+                      type="button"
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </section>
+
+          <div className="mt-6 divide-y divide-ink/8 border-y border-ink/8">
+            <ReviewSection action="Edit" label="Location">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-normal text-ink">
+                  <MapPin aria-hidden="true" size={15} />
                   <input
-                    className="h-10 w-full bg-transparent text-base font-bold text-ink outline-none placeholder:text-ink/28"
-                    onChange={(event) => setRecommendation(event.target.value)}
-                    placeholder="What are you recommending?"
-                    value={recommendation}
+                    className="min-w-0 flex-1 bg-transparent font-normal outline-none placeholder:text-ink/34"
+                    onBlur={() => window.setTimeout(() => setLocationFocused(false), 140)}
+                    onChange={(event) => {
+                      setLocation(event.target.value);
+                      setCoordinates(undefined);
+                    }}
+                    onFocus={() => setLocationFocused(true)}
+                    placeholder="Add a location"
+                    value={location}
                   />
-                </ReviewField>
-                <ReviewField label="Description">
-                  <textarea
-                    className="min-h-16 w-full resize-none bg-transparent text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/28"
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Add helpful details, tips, or context"
-                    value={description}
-                  />
-                </ReviewField>
-                {selectedTags.length ? (
-                  <ReviewField label="Selected tags">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedTags.map((tag) => (
-                        <button
-                            className="flex min-h-11 items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-black text-white"
-                          key={tag}
-                          onClick={() => toggleTag(tag)}
-                          type="button"
-                        >
-                          {tag}
-                          <X aria-hidden="true" size={13} />
-                        </button>
-                      ))}
-                    </div>
-                  </ReviewField>
-                ) : null}
-                {showMetadataFields ? (
-                  <ReviewField label="Location">
-                    <div className="flex items-center gap-2">
-                      <MapPin aria-hidden="true" className="text-coral" size={17} />
-                      <div className="min-w-0 flex-1">
-                        <input
-                          className="w-full bg-transparent text-sm font-bold text-ink outline-none placeholder:text-ink/28"
-                          onBlur={() => window.setTimeout(() => setLocationFocused(false), 140)}
-                          onChange={(event) => {
-                            setLocation(event.target.value);
-                            setCoordinates(undefined);
-                          }}
-                          onFocus={() => setLocationFocused(true)}
-                          placeholder="Add a location"
-                          value={location}
-                        />
-                      </div>
-                    </div>
-                    {locationSuggestions.length ? (
-                      <div className="mt-3 overflow-hidden rounded-[22px] border border-ink/8 bg-white py-1 shadow-soft">
-                        {locationSuggestions.map((suggestion) => (
-                          <button
-                            className="flex min-h-14 w-full flex-col justify-center px-4 py-3 text-left transition hover:bg-shell"
-                            key={`${suggestion.label}-${suggestion.description ?? ""}`}
-                            onClick={() => {
-                              setLocation(suggestion.query ?? suggestion.label);
-                              setCoordinates(suggestion.center);
-                              setLocationFocused(false);
-                              setLocationSuggestions([]);
-                            }}
-                            type="button"
-                          >
-                            <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
-                            {suggestion.description ? (
-                              <span className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink/54">{suggestion.description}</span>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </ReviewField>
-                ) : null}
-                {showDateField ? (
-                  <ReviewField label="Date">
-                    <div className="flex items-center gap-2">
-                      <Calendar aria-hidden="true" className="text-coral" size={17} />
-                      <input
-                        className="w-full bg-transparent text-sm font-bold text-ink outline-none"
-                        onChange={(event) => setDate(event.target.value)}
-                        type="date"
-                        value={date}
-                      />
-                    </div>
-                  </ReviewField>
-                ) : null}
-              </section>
-
-              <section className="rounded-[24px] bg-shell p-4">
-                <h2 className="text-xs font-black uppercase tracking-[0.14em] text-ink/42">Tags</h2>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {postTagOptions
-                    .filter((tag) => !selectedTags.includes(tag))
-                    .map((tag) => (
+                </label>
+                {locationSuggestions.length ? (
+                  <div className="overflow-hidden rounded-[16px] border border-ink/8 bg-white py-1 shadow-soft">
+                    {locationSuggestions.map((suggestion) => (
                       <button
-                        className="min-h-11 rounded-full bg-white px-4 py-2 text-sm font-black text-ink/56 shadow-sm"
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
+                        className="flex min-h-12 w-full flex-col justify-center px-4 py-2 text-left transition hover:bg-shell"
+                        key={`${suggestion.label}-${suggestion.description ?? ""}`}
+                        onClick={() => {
+                          setLocation(suggestion.query ?? suggestion.label);
+                          setCoordinates(suggestion.center);
+                          setLocationFocused(false);
+                          setLocationSuggestions([]);
+                        }}
                         type="button"
                       >
-                        {tag}
+                        <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
+                        {suggestion.description ? <span className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink/54">{suggestion.description}</span> : null}
                       </button>
                     ))}
-                </div>
-              </section>
-            </section>
-
-            {status === "published" ? (
-              <div className="mx-5 mt-5 rounded-[26px] bg-ink p-5 text-white shadow-soft">
-                <div className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-white text-ink">
-                  <Check aria-hidden="true" size={22} />
-                </div>
-                <h2 className="text-2xl font-black">Posted</h2>
-                <p className="mt-1 text-sm font-semibold leading-relaxed text-white/70">
-                  Your rec is now available anywhere shared posts are loaded.
-                </p>
-                <button className="mt-4 rounded-full bg-white px-4 py-3 text-sm font-black text-ink" onClick={resetPost} type="button">
-                  Post another rec
-                </button>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            </ReviewSection>
 
-          {message ? <p className="mx-5 mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
+            <ReviewSection action="Edit" label="Date">
+              <label className="flex items-center gap-2 text-sm font-normal text-ink">
+                <Calendar aria-hidden="true" size={15} />
+                <input
+                  className="min-w-0 flex-1 bg-transparent font-normal outline-none"
+                  onChange={(event) => setDate(event.target.value)}
+                  type="date"
+                  value={date}
+                />
+              </label>
+            </ReviewSection>
+          </div>
+
+          {message ? <p className="mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
+
+          {status === "published" ? (
+            <div className="mt-5 rounded-[26px] bg-ink p-5 text-white shadow-soft">
+              <div className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-white text-ink">
+                <Check aria-hidden="true" size={22} />
+              </div>
+              <h2 className="text-2xl font-black">Posted</h2>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-white/70">Your rec is now available anywhere shared posts are loaded.</p>
+              <button className="mt-4 rounded-full bg-white px-4 py-3 text-sm font-black text-ink" onClick={resetPost} type="button">
+                Post another rec
+              </button>
+            </div>
+          ) : null}
         </div>
 
-          <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-5 py-3 shadow-[0_-12px_30px_rgba(24,35,31,0.08)]">
-            <button
-              className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-base font-black text-white shadow-lift disabled:opacity-40"
-              disabled={!canShare}
-              onClick={shareRecommendation}
-              type="button"
-            >
-              <Share2 aria-hidden="true" size={19} />
-              {status === "sharing" ? "Sharing..." : "Share"}
-            </button>
-          </footer>
-
-        <BottomNav activeTab="Create" />
+        <footer className="create-share-bar absolute inset-x-0 z-50 bg-white px-3 py-3">
+          <button
+            className="flex h-16 w-full items-center justify-center gap-3 rounded-[9px] bg-moss px-5 text-base font-black text-white shadow-lift disabled:opacity-40"
+            disabled={!canShare}
+            onClick={shareRecommendation}
+            type="button"
+          >
+            <Send aria-hidden="true" size={19} />
+            {status === "sharing" ? "Posting..." : "Post Recommendation"}
+          </button>
+        </footer>
       </section>
     </MobileFrame>
   );
 }
 
-function ReviewField({ children, label }: { children: React.ReactNode; label: string }) {
+function ReviewSection({ action, children, label }: { action?: string; children: React.ReactNode; label: string }) {
   return (
-    <label className="block border-b border-ink/8 px-4 py-3 last:border-b-0">
-      <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-ink/38">{label}</span>
+    <section className="py-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-black text-ink">{label}</h2>
+        {action ? <span className="text-sm font-semibold text-ink/64">{action}</span> : null}
+      </div>
       {children}
-    </label>
+    </section>
   );
+}
+
+function PostedSuccessPage({
+  onDone,
+  onShare,
+  onView,
+  post,
+}: {
+  onDone: () => void;
+  onShare: () => void;
+  onView: () => void;
+  post: PostedSuccess;
+}) {
+  return (
+    <MobileFrame>
+      <section className="safe-top-bar flex h-full flex-col bg-white px-3 pb-5 text-ink">
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <div className="mb-4 text-center">
+            <p className="text-sm font-black">Posted!</p>
+            <div className="relative mx-auto mt-4 grid h-16 w-16 place-items-center rounded-full bg-[#9bc58f] text-white shadow-[0_12px_30px_rgba(77,111,65,0.22)]">
+              <Check aria-hidden="true" size={30} strokeWidth={2.8} />
+            </div>
+            <p className="mx-auto mt-4 max-w-[230px] text-sm font-semibold leading-tight text-ink/78">Your recommendation is live and ready to inspire others.</p>
+          </div>
+
+          <article className="w-full overflow-hidden rounded-[10px] bg-white shadow-soft">
+            <SuccessMedia imageUrl={post.imageUrl} mediaType={post.mediaType} />
+            <div className="relative px-3 pb-4 pt-3">
+              <div className="-mt-10 mb-3 flex items-end gap-2">
+                <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-shell shadow-sm">
+                  {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <span className="text-sm font-black">Y</span>}
+                </div>
+                <div className="min-w-[64px] rounded-full bg-white/95 px-3 py-1.5 shadow-sm">
+                  <p className="whitespace-nowrap text-[11px] font-black leading-none">{post.username}</p>
+                  <p className="mt-1 whitespace-nowrap text-[9px] font-semibold leading-none text-ink/54">just now</p>
+                </div>
+              </div>
+              <h2 className="text-xl font-black leading-tight">{post.title}</h2>
+              <p className="mt-2 text-xs font-semibold leading-snug text-ink/56">{post.location}</p>
+              <p className="mt-1 text-xs font-semibold text-ink/46">{post.dateLabel}</p>
+              <p className="mt-3 line-clamp-3 text-xs font-semibold leading-relaxed text-ink/70">{post.description}</p>
+              {post.tags.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {post.tags.map((tag) => (
+                    <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[10px] font-normal text-ink/72" key={tag}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </article>
+        </div>
+
+        <div className="space-y-3">
+          <button className="flex h-14 w-full items-center justify-center gap-2 rounded-[9px] bg-moss text-base font-black text-white shadow-lift" onClick={onView} type="button">
+            <Send aria-hidden="true" size={17} />
+            View Trip
+          </button>
+          <button className="flex h-14 w-full items-center justify-center gap-2 rounded-[9px] bg-[#f5f2ed] text-base font-black text-ink" onClick={onShare} type="button">
+            <Share2 aria-hidden="true" size={17} />
+            Share Trip
+          </button>
+          <button className="mx-auto block h-10 px-6 text-sm font-black text-moss" onClick={onDone} type="button">
+            Done
+          </button>
+        </div>
+      </section>
+    </MobileFrame>
+  );
+}
+
+function SuccessMedia({ imageUrl, mediaType }: { imageUrl: string | null; mediaType?: "image" | "video" }) {
+  if (!imageUrl) {
+    return (
+      <div className="grid aspect-[1.55] w-full place-items-center bg-shell text-ink/36">
+        <ImagePlus aria-hidden="true" size={34} />
+      </div>
+    );
+  }
+
+  if (mediaType === "video") {
+    return <video aria-label="Posted trip preview" autoPlay className="aspect-[1.55] w-full object-cover" loop muted playsInline src={imageUrl} />;
+  }
+
+  return <img alt="" className="aspect-[1.55] w-full object-cover" src={imageUrl} />;
 }
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {
@@ -697,6 +893,36 @@ function fallbackDateFromFile(file: File) {
   return new Date(file.lastModified).toISOString().slice(0, 10);
 }
 
+function successFromPost(post: AppPost): PostedSuccess {
+  return {
+    dateLabel: post.dateLabel,
+    description: post.caption,
+    href: `/posts/${post.id}`,
+    imageUrl: post.imageUrl,
+    location: post.location,
+    mediaType: post.mediaTypes[0],
+    profilePhotoUrl: post.profilePhotoUrl,
+    tags: post.tags,
+    title: post.title,
+    username: post.username === "traveler" ? "You" : post.username,
+  };
+}
+
+async function sharePostedSuccess(post: PostedSuccess) {
+  const url = post.href ? `${window.location.origin}${post.href}` : window.location.href;
+
+  if (navigator.share) {
+    await navigator.share({
+      text: post.location,
+      title: post.title,
+      url,
+    });
+    return;
+  }
+
+  await navigator.clipboard?.writeText(url);
+}
+
 function formatCoordinates([longitude, latitude]: [number, number]) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
@@ -712,7 +938,7 @@ async function reverseGeocodeCoordinates([longitude, latitude]: [number, number]
     access_token: token,
     language: "en",
     limit: "1",
-    types: "poi,address,neighborhood,locality,place,region,country",
+    types: "locality,place,region,country",
   });
 
   try {

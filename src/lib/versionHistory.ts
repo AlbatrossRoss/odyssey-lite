@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 16, 2026",
+    id: "v7.0",
+    title: "Create Post Flow Refresh",
+    summary:
+      "Redesigned Create with a cleaner recommendation form, draggable media thumbnails with cover ordering, generic location autofill, and a full posted confirmation page with detail and share actions.",
+  },
+  {
+    date: "June 16, 2026",
     id: "v6.9",
     title: "Profile Setup Loading Guard",
     summary:

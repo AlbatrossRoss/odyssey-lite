@@ -249,7 +249,8 @@ body > * {
 }
 
 .create-share-bar {
-  bottom: var(--bottom-nav-clearance);
+  bottom: 0;
+  padding-bottom: max(0.75rem, var(--safe-area-bottom));
 }
 
 .nav-cleared-bottom {

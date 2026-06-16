@@ -251,14 +251,6 @@ export function AccountsView({ username }: AccountsViewProps) {
   }, [profile]);
 
   useEffect(() => {
-    if (setupOpen) {
-      setSetupStep(nextSetupStep());
-      setCityInput(viewer?.currentCity ?? "");
-      setCityCoordinates(viewer?.currentCityCoordinates ?? undefined);
-    }
-  }, [setupOpen, viewer?.currentCity, viewer?.currentCityCoordinates, viewer?.profilePhotoUrl, followingCount, completedLocalRecTags]);
-
-  useEffect(() => {
     const query = cityInput.trim();
 
     if (!setupOpen || setupStep !== "city" || !cityFocused || query.length < 2) {
@@ -269,7 +261,13 @@ export function AccountsView({ username }: AccountsViewProps) {
     return fetchPlaceSuggestions(query, setCitySuggestions, { types: "place,locality,neighborhood,region,address" });
   }, [cityFocused, cityInput, setupOpen, setupStep]);
 
-  function nextSetupStep(): SetupStep {
+  const resetLocalRecDraft = useCallback(() => {
+    setLocalRecPlace("");
+    setLocalRecReason("");
+    setLocalRecPhoto(null);
+  }, []);
+
+  const nextSetupStep = useCallback((): SetupStep => {
     if (!viewer?.profilePhotoUrl) {
       return "photo";
     }
@@ -290,7 +288,15 @@ export function AccountsView({ username }: AccountsViewProps) {
     }
 
     return "done";
-  }
+  }, [completedLocalRecTags, followingCount, resetLocalRecDraft, viewer?.currentCity, viewer?.profilePhotoUrl]);
+
+  useEffect(() => {
+    if (setupOpen) {
+      setSetupStep(nextSetupStep());
+      setCityInput(viewer?.currentCity ?? "");
+      setCityCoordinates(viewer?.currentCityCoordinates ?? undefined);
+    }
+  }, [nextSetupStep, setupOpen, viewer?.currentCity, viewer?.currentCityCoordinates]);
 
   async function toggleFollow(account: AccountWithStats) {
     if (!viewerId || account.id === viewerId) {
@@ -400,12 +406,6 @@ export function AccountsView({ username }: AccountsViewProps) {
       setSetupMessage(error instanceof Error ? error.message : "Unable to update follow.");
       setStatus("ready");
     }
-  }
-
-  function resetLocalRecDraft() {
-    setLocalRecPlace("");
-    setLocalRecReason("");
-    setLocalRecPhoto(null);
   }
 
   function skipSetupStep() {
