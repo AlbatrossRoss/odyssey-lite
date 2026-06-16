@@ -77,6 +77,8 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [profilePosts, setProfilePosts] = useState<AppPost[]>([]);
   const [profileBoards, setProfileBoards] = useState<AppBoard[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
+  const [accountsHydrated, setAccountsHydrated] = useState(false);
+  const [profilePostsHydrated, setProfilePostsHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
   const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
@@ -99,6 +101,7 @@ export function AccountsView({ username }: AccountsViewProps) {
       return;
     }
 
+    setAccountsHydrated(false);
     const cachedAccounts = readCachedAccounts(sessionId);
 
     if (cachedAccounts.length) {
@@ -112,9 +115,11 @@ export function AccountsView({ username }: AccountsViewProps) {
       const nextAccounts = await fetchAccountsWithStats(sessionId);
       writeCachedAccounts(sessionId, nextAccounts);
       setAccounts(nextAccounts);
+      setAccountsHydrated(true);
       setStatus("ready");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
+      setAccountsHydrated(true);
       setStatus("ready");
     }
   }, [viewerId]);
@@ -124,6 +129,7 @@ export function AccountsView({ username }: AccountsViewProps) {
     setViewerId(sessionId);
 
     if (!sessionId) {
+      setAccountsHydrated(true);
       setStatus("ready");
       return;
     }
@@ -169,13 +175,16 @@ export function AccountsView({ username }: AccountsViewProps) {
   }, [completedLocalRecTags.size, followingCount, viewer?.currentCity, viewer?.profilePhotoUrl]);
   const setupTotal = 5;
   const setupPercent = Math.round((setupProgress / setupTotal) * 100);
+  const showProfileSetup = isOwnProfile && status === "ready" && accountsHydrated && profilePostsHydrated && setupProgress < setupTotal;
 
   useEffect(() => {
     let active = true;
+    setProfilePostsHydrated(false);
 
     if (!profile) {
       setProfilePosts([]);
       setProfileBoards([]);
+      setProfilePostsHydrated(true);
       return;
     }
 
@@ -190,11 +199,13 @@ export function AccountsView({ username }: AccountsViewProps) {
         if (active) {
           writeCachedProfilePosts(profile.id, posts);
           setProfilePosts(posts);
+          setProfilePostsHydrated(true);
         }
       })
       .catch(() => {
         if (active) {
           setProfilePosts([]);
+          setProfilePostsHydrated(true);
         }
       });
 
@@ -548,7 +559,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                 </button>
               ) : null}
 
-              {isOwnProfile && setupProgress < setupTotal ? (
+              {showProfileSetup ? (
                 <button
                   className="mx-3 mt-6 w-[calc(100%-1.5rem)] rounded-[24px] bg-white p-4 text-left shadow-lift"
                   onClick={() => setSetupOpen(true)}

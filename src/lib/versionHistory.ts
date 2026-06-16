@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 16, 2026",
+    id: "v6.9",
+    title: "Profile Setup Loading Guard",
+    summary:
+      "Prevented the Profile Setup checklist from flashing during profile loads by waiting for fresh account and profile-post hydration before deciding whether setup is still needed.",
+  },
+  {
+    date: "June 16, 2026",
     id: "v6.8",
     title: "Explore Save and Detail Reliability",
     summary:
