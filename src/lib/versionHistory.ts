@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 16, 2026",
+    id: "v7.2",
+    title: "Trip Posting Paused",
+    summary:
+      "Temporarily hid Trip posting from the visible app while keeping the code in place, removed the profile Trips section, and cleaned up published trip and trip-stop records while recommendation posting stays active.",
+  },
+  {
+    date: "June 16, 2026",
     id: "v7.1",
     title: "Trip Publishing",
     summary:

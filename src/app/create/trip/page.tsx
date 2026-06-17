@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { MobileFrame } from "@/components/MobileFrame";
 import { readAccountSessionId } from "@/lib/accounts";
 import { uploadPostMedia } from "@/lib/media";
-import { createAppPost, type AppPostMediaType } from "@/lib/posts";
+import { createAppPost, type AppPost, type AppPostMediaType } from "@/lib/posts";
 import { postTagOptions, type AppPostTag } from "@/lib/postTags";
 
 type MediaMetadata = {
@@ -242,13 +242,13 @@ export default function CreateTripPage() {
     try {
       const uploadedMedia = new Map<string, PublishedTripMedia>();
 
-      for (const memory of memories) {
+      await Promise.all(memories.map(async (memory) => {
         const url = await uploadPostMedia(memory.file, accountId);
         uploadedMedia.set(memory.id, {
           type: memory.kind,
           url,
         });
-      }
+      }));
 
       const allMedia = memories.map((memory) => uploadedMedia.get(memory.id)).filter((media): media is PublishedTripMedia => Boolean(media));
       const coverMedia = uploadedMedia.get(coverMemoryId) ?? allMedia[0] ?? null;
@@ -274,12 +274,11 @@ export default function CreateTripPage() {
         visibility: "Public",
       });
 
-      for (const stop of stopDraft.stops) {
+      const tripChildPostPromises = stopDraft.stops.flatMap((stop) => {
         const stopMedia = stop.memories.map((memory) => uploadedMedia.get(memory.id)).filter((media): media is PublishedTripMedia => Boolean(media));
         const stopCoordinates = averageCoordinates(stop.memories.map((memory) => memory.metadata.coordinates)) ?? fallbackCoordinates;
         const stopDateLabel = formatDateRangeWithYear(stop.startDate, stop.endDate) || stop.dateLabel || dateLabel;
-
-        await createAppPost({
+        const stopPostPromise = createAppPost({
           accountId,
           caption: `Trip stop from ${cleanedTitle}.`,
           coordinates: stopCoordinates,
@@ -293,41 +292,44 @@ export default function CreateTripPage() {
           type: "experience",
           visibility: "Public",
         });
+        const recommendationPostPromises = (recommendationsByStop[stop.id] ?? [])
+          .map((recommendation) => {
+            const recommendationTitle = recommendation.title.trim();
 
-        const stopRecommendations = recommendationsByStop[stop.id] ?? [];
+            if (!recommendationTitle) {
+              return null;
+            }
 
-        for (const recommendation of stopRecommendations) {
-          const recommendationTitle = recommendation.title.trim();
+            const recommendationMedia = recommendation.mediaIds
+              .map((mediaId) => uploadedMedia.get(mediaId))
+              .filter((media): media is PublishedTripMedia => Boolean(media));
+            const recommendationMemories = recommendation.mediaIds
+              .map((mediaId) => memories.find((memory) => memory.id === mediaId))
+              .filter((memory): memory is TripMemory => Boolean(memory));
+            const recommendationCoordinates = averageCoordinates(recommendationMemories.map((memory) => memory.metadata.coordinates)) ?? stopCoordinates;
+            const recommendationDate = recommendationMemories.find((memory) => memory.metadata.date)?.metadata.date;
 
-          if (!recommendationTitle) {
-            continue;
-          }
+            return createAppPost({
+              accountId,
+              caption: recommendation.description.trim() || `A recommendation from ${stop.title}.`,
+              coordinates: recommendationCoordinates,
+              dateLabel: formatDateRangeWithYear(recommendationDate, recommendationDate) || stopDateLabel,
+              imageUrl: recommendationMedia[0]?.url ?? stopMedia[0]?.url ?? coverMedia?.url ?? null,
+              location: stop.title,
+              mediaTypes: recommendationMedia.map((media) => media.type),
+              mediaUrls: recommendationMedia.map((media) => media.url),
+              tags: recommendation.tags.length ? recommendation.tags : ["Experience"],
+              title: recommendationTitle,
+              type: "experience",
+              visibility: "Public",
+            });
+          })
+          .filter((promise): promise is Promise<AppPost> => Boolean(promise));
 
-          const recommendationMedia = recommendation.mediaIds
-            .map((mediaId) => uploadedMedia.get(mediaId))
-            .filter((media): media is PublishedTripMedia => Boolean(media));
-          const recommendationMemories = recommendation.mediaIds
-            .map((mediaId) => memories.find((memory) => memory.id === mediaId))
-            .filter((memory): memory is TripMemory => Boolean(memory));
-          const recommendationCoordinates = averageCoordinates(recommendationMemories.map((memory) => memory.metadata.coordinates)) ?? stopCoordinates;
-          const recommendationDate = recommendationMemories.find((memory) => memory.metadata.date)?.metadata.date;
+        return [stopPostPromise, ...recommendationPostPromises];
+      });
 
-          await createAppPost({
-            accountId,
-            caption: recommendation.description.trim() || `A recommendation from ${stop.title}.`,
-            coordinates: recommendationCoordinates,
-            dateLabel: formatDateRangeWithYear(recommendationDate, recommendationDate) || stopDateLabel,
-            imageUrl: recommendationMedia[0]?.url ?? stopMedia[0]?.url ?? coverMedia?.url ?? null,
-            location: stop.title,
-            mediaTypes: recommendationMedia.map((media) => media.type),
-            mediaUrls: recommendationMedia.map((media) => media.url),
-            tags: recommendation.tags.length ? recommendation.tags : ["Experience"],
-            title: recommendationTitle,
-            type: "experience",
-            visibility: "Public",
-          });
-        }
-      }
+      await Promise.all(tripChildPostPromises);
 
       clearTripPostCaches(accountId);
       router.push(`/trips/${tripPost.id}`);

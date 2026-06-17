@@ -62,6 +62,18 @@ body > * {
   }
 }
 
+@keyframes create-share-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(1.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .mobile-frame {
   background: #fff8ef;
   color: #18231f;
@@ -251,6 +263,10 @@ body > * {
 .create-share-bar {
   bottom: 0;
   padding-bottom: max(0.75rem, var(--safe-area-bottom));
+}
+
+.create-share-sheet-panel {
+  animation: create-share-sheet-up 180ms ease-out;
 }
 
 .nav-cleared-bottom {

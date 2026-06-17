@@ -33,6 +33,7 @@ const accountsCachePrefix = "odyssey-accounts-cache-v1";
 const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const profileHydrationTimeoutMs = 4500;
+const tripPostingEnabled = false;
 
 type SetupStep = "photo" | "city" | "follow" | "local-recs" | "done";
 type PlaceSuggestion = {
@@ -630,13 +631,13 @@ export function AccountsView({ username }: AccountsViewProps) {
                   ) : profilePostsHydrated ? (
                     <div className="rounded-[24px] bg-white px-5 py-8 text-center shadow-lift">
                       <p className="text-sm font-bold leading-relaxed text-ink/52">
-                        {isOwnProfile ? "Share a trip or experience to start your profile." : "No posts here yet."}
+                        {isOwnProfile ? "Share a recommendation to start your profile." : "No posts here yet."}
                       </p>
                     </div>
                   ) : null}
                 </section>
 
-                <section className="mt-6">
+                {tripPostingEnabled ? <section className="mt-6">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <h2 className="text-lg font-black text-ink">{isOwnProfile ? "My Trips" : "Trips"}</h2>
@@ -653,7 +654,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                       <p className="text-sm font-bold leading-relaxed text-ink/52">{isOwnProfile ? "Published trips will live here." : "No trips here yet."}</p>
                     </div>
                   ) : null}
-                </section>
+                </section> : null}
 
                 <section className="mt-6">
                   <div className="mb-3 flex items-center justify-between">

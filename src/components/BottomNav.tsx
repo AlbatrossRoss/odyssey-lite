@@ -22,6 +22,7 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
   const pathname = usePathname();
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const tripPostingEnabled = false;
 
   useEffect(() => {
     let active = true;
@@ -67,7 +68,7 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
 
   return (
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 border-t border-transparent bg-transparent px-5 pt-3 sm:absolute">
-      {createMenuOpen ? <CreateShareSheet onClose={() => setCreateMenuOpen(false)} /> : null}
+      {tripPostingEnabled && createMenuOpen ? <CreateShareSheet onClose={() => setCreateMenuOpen(false)} /> : null}
       <div className="bottom-nav-surface" />
       <div className="bottom-nav-content relative z-10 mx-auto grid max-w-[22rem] grid-cols-4 items-end gap-2">
         {navItems.map((item) => {
@@ -79,6 +80,22 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
           const isAccounts = item.activeKey === "Accounts";
 
           if (isCreate) {
+            if (!tripPostingEnabled) {
+              return (
+                <Link
+                  aria-label="Post"
+                  className="pointer-events-auto relative mx-auto flex h-[54px] min-w-0 flex-col items-center justify-end gap-1 text-center transition"
+                  href="/create"
+                  key={item.label}
+                >
+                  <span className={`flex h-11 w-11 min-w-11 items-center justify-center rounded-full shadow-lift transition ${active ? "bg-coral text-white" : "bg-ink text-white hover:bg-ink/88"}`}>
+                    <Icon aria-hidden="true" size={22} strokeWidth={2.8} />
+                  </span>
+                  <span className={`max-w-full truncate text-[10px] font-medium leading-none ${active ? "text-ink" : "text-ink/58"}`}>{item.label}</span>
+                </Link>
+              );
+            }
+
             return (
               <div className="pointer-events-auto relative mx-auto flex h-[54px] min-w-0 flex-col items-center justify-end gap-1 text-center" key={item.label}>
                 <button
@@ -135,9 +152,9 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
 
 function CreateShareSheet({ onClose }: { onClose: () => void }) {
   return (
-    <section className="pointer-events-auto fixed inset-0 z-50 flex items-end bg-ink/48 sm:absolute">
+    <section className="pointer-events-auto fixed inset-x-0 top-0 z-30 flex items-end bg-ink/42 sm:absolute" style={{ bottom: "var(--bottom-nav-clearance)" }}>
       <button aria-label="Close post options" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
-      <div className="relative w-full rounded-t-[24px] bg-white px-5 pb-[calc(var(--safe-area-bottom)+1.1rem)] pt-3 shadow-[0_-18px_54px_rgba(24,35,31,0.24)]">
+      <div className="create-share-sheet-panel relative w-full rounded-t-[24px] bg-white px-5 pb-5 pt-3 shadow-[0_-18px_54px_rgba(24,35,31,0.24)]">
         <div className="mx-auto mb-6 h-1 w-10 rounded-full bg-ink/18" />
         <button aria-label="Close post options" className="absolute right-5 top-4 grid h-9 w-9 place-items-center rounded-full text-ink" onClick={onClose} type="button">
           <X aria-hidden="true" size={22} />
