@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bookmark, Camera, Check, History, ImagePlus, LogOut, MapPin, Search, UserPlus, UserRound, X } from "lucide-react";
-import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   type AppAccount,
   AccountWithStats,
@@ -34,6 +33,7 @@ const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const profileHydrationTimeoutMs = 4500;
 const tripPostingEnabled = false;
+const startupReadyEvent = "odyssey:startup-profile-ready";
 
 type SetupStep = "photo" | "city" | "follow" | "local-recs" | "done";
 type PlaceSuggestion = {
@@ -287,6 +287,14 @@ export function AccountsView({ username }: AccountsViewProps) {
   }, [isProfileDataLoading, profile, profileMapReady]);
 
   useEffect(() => {
+    if (!profile || isProfileDataLoading || !profileMapReady) {
+      return;
+    }
+
+    window.dispatchEvent(new Event(startupReadyEvent));
+  }, [isProfileDataLoading, profile, profileMapReady]);
+
+  useEffect(() => {
     const query = cityInput.trim();
 
     if (!setupOpen || setupStep !== "city" || !cityFocused || query.length < 2) {
@@ -509,12 +517,8 @@ export function AccountsView({ username }: AccountsViewProps) {
     window.location.assign("/");
   }
 
-  if (isProfileDataLoading) {
-    return <LoadingScreen />;
-  }
-
   return (
-    <MobileFrame className="relative">
+    <MobileFrame>
       <section className="safe-page-bottom h-full overflow-y-auto bg-[#fbfaf7]">
         <header className="hidden">
           <span className="h-11 w-11" />
@@ -717,8 +721,10 @@ export function AccountsView({ username }: AccountsViewProps) {
           ) : (
             <section className="mt-8 rounded-[28px] bg-white p-5 text-center shadow-lift">
               <UserRound aria-hidden="true" className="mx-auto text-ink/40" size={42} />
-              <h1 className="mt-3 text-2xl font-black text-ink">Account not found</h1>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/56">This profile may not exist yet.</p>
+              <h1 className="mt-3 text-2xl font-black text-ink">{accountsHydrated ? "Account not found" : "Loading profile..."}</h1>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/56">
+                {accountsHydrated ? "This profile may not exist yet." : "Your profile will appear here in a moment."}
+              </p>
             </section>
           )}
 
@@ -1097,7 +1103,6 @@ export function AccountsView({ username }: AccountsViewProps) {
         </div>
       ) : null}
       <BottomNav activeTab="Accounts" />
-      {profile && !profileMapReady ? <LoadingScreen className="absolute inset-0 z-50" framed /> : null}
     </MobileFrame>
   );
 }

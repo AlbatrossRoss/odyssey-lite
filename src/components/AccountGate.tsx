@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ImagePlus, LogIn } from "lucide-react";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -20,10 +21,20 @@ type AccountGateProps = {
 };
 
 type Mode = "create" | "login";
+const startupReadyEvent = "odyssey:startup-profile-ready";
+const startupLoadingCompleteKey = "odyssey-startup-loading-complete-v1";
 
 export function AccountGate({ children }: AccountGateProps) {
+  const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hasStoredSession, setHasStoredSession] = useState(() => Boolean(readAccountSessionId()));
+  const [startupLoading, setStartupLoading] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return Boolean(readAccountSessionId()) && window.sessionStorage.getItem(startupLoadingCompleteKey) !== "true";
+  });
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [mode, setMode] = useState<Mode>("create");
   const [username, setUsername] = useState("");
@@ -87,6 +98,26 @@ export function AccountGate({ children }: AccountGateProps) {
     return () => window.clearTimeout(timeoutId);
   }, [restoreStatus]);
 
+  useEffect(() => {
+    if (!startupLoading || !hasStoredSession) {
+      return;
+    }
+
+    function finishStartupLoading() {
+      window.sessionStorage.setItem(startupLoadingCompleteKey, "true");
+      setStartupLoading(false);
+    }
+
+    window.addEventListener(startupReadyEvent, finishStartupLoading);
+
+    const timeoutId = window.setTimeout(finishStartupLoading, pathname?.startsWith("/accounts") ? 8500 : 2600);
+
+    return () => {
+      window.removeEventListener(startupReadyEvent, finishStartupLoading);
+      window.clearTimeout(timeoutId);
+    };
+  }, [hasStoredSession, pathname, startupLoading]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -111,8 +142,10 @@ export function AccountGate({ children }: AccountGateProps) {
       }
 
       writeAccountSessionId(nextAccount.id);
+      window.sessionStorage.removeItem(startupLoadingCompleteKey);
       setHasStoredSession(true);
       setAccount(nextAccount);
+      setStartupLoading(true);
       setStatus("ready");
     } catch (error) {
       const errorMessage = formatError(error);
@@ -130,10 +163,15 @@ export function AccountGate({ children }: AccountGateProps) {
   }
 
   if (account || hasStoredSession) {
-    return children;
+    return (
+      <>
+        {children}
+        {startupLoading ? <LoadingScreen className="fixed inset-0 z-[9999]" framed /> : null}
+      </>
+    );
   }
 
-  if (restoreStatus === "checking") {
+  if (restoreStatus === "checking" && hasStoredSession) {
     return <LoadingScreen />;
   }
 

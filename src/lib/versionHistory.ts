@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 17, 2026",
+    id: "v7.6",
+    title: "Startup Loading Flow",
+    summary:
+      "Adjusted the Odyssey loading screen so it appears only during saved-session restore or immediately after login, waits for the profile map when opening into Profile, and no longer appears during normal in-app profile navigation.",
+  },
+  {
+    date: "June 17, 2026",
     id: "v7.5",
     title: "Map Stability and Profile Loading",
     summary:
