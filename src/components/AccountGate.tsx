@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ImagePlus, LogIn } from "lucide-react";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -10,10 +10,13 @@ import {
   clearAccountSessionId,
   createAccount,
   fetchAccountById,
+  fetchAccountsWithStats,
   loginAccount,
   readAccountSessionId,
   writeAccountSessionId,
 } from "@/lib/accounts";
+import { fetchBoardsByAccount } from "@/lib/boards";
+import { fetchAppPosts, fetchAppPostsByAccount } from "@/lib/posts";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 type AccountGateProps = {
@@ -21,20 +24,18 @@ type AccountGateProps = {
 };
 
 type Mode = "create" | "login";
-const startupReadyEvent = "odyssey:startup-profile-ready";
+const accountsCachePrefix = "odyssey-accounts-cache-v1";
+const appPostsCacheKey = "odyssey-app-posts-cache-v2";
+const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const startupLoadingCompleteKey = "odyssey-startup-loading-complete-v1";
+const startupPreloadTimeoutMs = 8500;
 
 export function AccountGate({ children }: AccountGateProps) {
-  const pathname = usePathname();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [hasStoredSession, setHasStoredSession] = useState(() => Boolean(readAccountSessionId()));
-  const [startupLoading, setStartupLoading] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return Boolean(readAccountSessionId()) && window.sessionStorage.getItem(startupLoadingCompleteKey) !== "true";
-  });
+  const [sessionCandidateId, setSessionCandidateId] = useState<string | null>(() => readAccountSessionId());
+  const [hasStoredSession, setHasStoredSession] = useState(false);
+  const [startupLoading, setStartupLoading] = useState(false);
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [mode, setMode] = useState<Mode>("create");
   const [username, setUsername] = useState("");
@@ -65,13 +66,19 @@ export function AccountGate({ children }: AccountGateProps) {
           if (restored) {
             setHasStoredSession(true);
             setAccount(restored);
+            setStartupLoading(window.sessionStorage.getItem(startupLoadingCompleteKey) !== "true");
           } else {
             clearAccountSessionId();
+            setSessionCandidateId(null);
             setHasStoredSession(false);
+            window.sessionStorage.removeItem(startupLoadingCompleteKey);
           }
         }
       } catch {
-        // Keep the saved device session when restore is slow or temporarily unavailable.
+        if (active) {
+          setHasStoredSession(true);
+          setStartupLoading(window.sessionStorage.getItem(startupLoadingCompleteKey) !== "true");
+        }
       } finally {
         if (active) {
           setRestoreStatus("ready");
@@ -99,7 +106,9 @@ export function AccountGate({ children }: AccountGateProps) {
   }, [restoreStatus]);
 
   useEffect(() => {
-    if (!startupLoading || !hasStoredSession) {
+    const accountId = account?.id ?? readAccountSessionId();
+
+    if (!startupLoading || !hasStoredSession || !accountId) {
       return;
     }
 
@@ -108,15 +117,14 @@ export function AccountGate({ children }: AccountGateProps) {
       setStartupLoading(false);
     }
 
-    window.addEventListener(startupReadyEvent, finishStartupLoading);
+    void preloadStartup(accountId, router).finally(finishStartupLoading);
 
-    const timeoutId = window.setTimeout(finishStartupLoading, pathname?.startsWith("/accounts") ? 8500 : 2600);
+    const timeoutId = window.setTimeout(finishStartupLoading, startupPreloadTimeoutMs);
 
     return () => {
-      window.removeEventListener(startupReadyEvent, finishStartupLoading);
       window.clearTimeout(timeoutId);
     };
-  }, [hasStoredSession, pathname, startupLoading]);
+  }, [account?.id, hasStoredSession, router, startupLoading]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -171,7 +179,7 @@ export function AccountGate({ children }: AccountGateProps) {
     );
   }
 
-  if (restoreStatus === "checking" && hasStoredSession) {
+  if (restoreStatus === "checking" && sessionCandidateId) {
     return <LoadingScreen />;
   }
 
@@ -297,6 +305,42 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
       window.setTimeout(() => resolve(null), timeoutMs);
     }),
   ]);
+}
+
+async function preloadStartup(accountId: string, router: ReturnType<typeof useRouter>) {
+  router.prefetch("/explore");
+  router.prefetch("/accounts");
+
+  const [posts, accounts, profilePosts, boards] = await Promise.allSettled([
+    withTimeout(fetchAppPosts(), startupPreloadTimeoutMs),
+    withTimeout(fetchAccountsWithStats(accountId), startupPreloadTimeoutMs),
+    withTimeout(fetchAppPostsByAccount(accountId), startupPreloadTimeoutMs),
+    withTimeout(fetchBoardsByAccount(accountId), startupPreloadTimeoutMs),
+  ]);
+
+  if (posts.status === "fulfilled" && posts.value) {
+    writeSessionCache(appPostsCacheKey, posts.value);
+  }
+
+  if (accounts.status === "fulfilled" && accounts.value) {
+    writeSessionCache(`${accountsCachePrefix}-${accountId}`, accounts.value);
+  }
+
+  if (profilePosts.status === "fulfilled" && profilePosts.value) {
+    writeSessionCache(`${profilePostsCachePrefix}-${accountId}`, profilePosts.value);
+  }
+
+  if (boards.status === "fulfilled" && boards.value) {
+    writeSessionCache(`odyssey-profile-boards-cache-v1-${accountId}`, boards.value);
+  }
+}
+
+function writeSessionCache(key: string, value: unknown) {
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Startup still completes if browser storage is unavailable.
+  }
 }
 
 function formatError(error: unknown) {

@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 17, 2026",
+    id: "v7.7",
+    title: "Explore and Profile Startup Preload",
+    summary:
+      "Refined startup loading so logged-out users go straight to login, saved sessions and fresh logins preload Explore and Profile data before entering the app, and the backup profile loading state is centered for normal in-app navigation.",
+  },
+  {
+    date: "June 17, 2026",
     id: "v7.6",
     title: "Startup Loading Flow",
     summary:

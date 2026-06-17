@@ -29,6 +29,7 @@ type AccountsViewProps = {
 };
 
 const accountsCachePrefix = "odyssey-accounts-cache-v1";
+const profileBoardsCachePrefix = "odyssey-profile-boards-cache-v1";
 const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const profileHydrationTimeoutMs = 4500;
@@ -230,7 +231,12 @@ export function AccountsView({ username }: AccountsViewProps) {
       return;
     }
 
+    const cachedBoards = readCachedProfileBoards(profile.id);
     const cachedPosts = readCachedProfilePosts(profile.id);
+
+    if (cachedBoards.length) {
+      setProfileBoards(cachedBoards);
+    }
 
     if (cachedPosts.length) {
       setProfilePosts(cachedPosts);
@@ -257,6 +263,7 @@ export function AccountsView({ username }: AccountsViewProps) {
       .then((boards) => {
         if (active) {
           if (boards) {
+            writeCachedProfileBoards(profile.id, boards);
             setProfileBoards(boards);
           }
           setProfileBoardsHydrated(true);
@@ -719,12 +726,14 @@ export function AccountsView({ username }: AccountsViewProps) {
               </section>
             </section>
           ) : (
-            <section className="mt-8 rounded-[28px] bg-white p-5 text-center shadow-lift">
-              <UserRound aria-hidden="true" className="mx-auto text-ink/40" size={42} />
-              <h1 className="mt-3 text-2xl font-black text-ink">{accountsHydrated ? "Account not found" : "Loading profile..."}</h1>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/56">
-                {accountsHydrated ? "This profile may not exist yet." : "Your profile will appear here in a moment."}
-              </p>
+            <section className="flex min-h-[calc(100dvh-9rem)] items-center justify-center">
+              <div className="w-full rounded-[28px] bg-white p-5 text-center shadow-lift">
+                <UserRound aria-hidden="true" className="mx-auto text-ink/40" size={42} />
+                <h1 className="mt-3 text-2xl font-black text-ink">{accountsHydrated ? "Account not found" : "Loading profile..."}</h1>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-ink/56">
+                  {accountsHydrated ? "This profile may not exist yet." : "Your profile will appear here in a moment."}
+                </p>
+              </div>
             </section>
           )}
 
@@ -1121,6 +1130,23 @@ function writeCachedAccounts(viewerId: string, accounts: AccountWithStats[]) {
     window.sessionStorage.setItem(`${accountsCachePrefix}-${viewerId}`, JSON.stringify(accounts));
   } catch {
     // Account data still refreshes from Supabase if session storage is unavailable.
+  }
+}
+
+function readCachedProfileBoards(accountId: string) {
+  try {
+    const cached = window.sessionStorage.getItem(`${profileBoardsCachePrefix}-${accountId}`);
+    return cached ? (JSON.parse(cached) as AppBoard[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedProfileBoards(accountId: string, boards: AppBoard[]) {
+  try {
+    window.sessionStorage.setItem(`${profileBoardsCachePrefix}-${accountId}`, JSON.stringify(boards));
+  } catch {
+    // Profile boards still refresh from Supabase if session storage is unavailable.
   }
 }
 
