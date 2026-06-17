@@ -22,7 +22,6 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { fetchBoardsByAccount, type AppBoard } from "@/lib/boards";
 import { createAppPost, fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
-import { writePostNavigationContext } from "@/lib/postNavigationContext";
 import { uploadPostMedia } from "@/lib/media";
 import type { AppPostTag } from "@/lib/postTags";
 
@@ -83,6 +82,8 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [accountsHydrated, setAccountsHydrated] = useState(false);
   const [profilePostsHydrated, setProfilePostsHydrated] = useState(false);
+  const [profileBoardsHydrated, setProfileBoardsHydrated] = useState(false);
+  const [profileMapReady, setProfileMapReady] = useState(false);
   const [message, setMessage] = useState("");
   const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
   const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
@@ -198,16 +199,34 @@ export function AccountsView({ username }: AccountsViewProps) {
   const setupTotal = 5;
   const setupPercent = Math.round((setupProgress / setupTotal) * 100);
   const showProfileSetup = isOwnProfile && status === "ready" && accountsHydrated && profilePostsHydrated && setupProgress < setupTotal;
-  const isProfileLoading = status === "loading" && !accounts.length;
+  const isProfileDataLoading = status === "loading" || !accountsHydrated || !profilePostsHydrated || !profileBoardsHydrated;
+
+  useEffect(() => {
+    if (!isProfileDataLoading) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setAccountsHydrated(true);
+      setProfilePostsHydrated(true);
+      setProfileBoardsHydrated(true);
+      setStatus("ready");
+    }, 6000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isProfileDataLoading]);
 
   useEffect(() => {
     let active = true;
     setProfilePostsHydrated(false);
+    setProfileBoardsHydrated(false);
+    setProfileMapReady(false);
 
     if (!profile) {
       setProfilePosts([]);
       setProfileBoards([]);
       setProfilePostsHydrated(true);
+      setProfileBoardsHydrated(true);
       return;
     }
 
@@ -215,7 +234,6 @@ export function AccountsView({ username }: AccountsViewProps) {
 
     if (cachedPosts.length) {
       setProfilePosts(cachedPosts);
-      setProfilePostsHydrated(true);
     }
 
     withTimeout(fetchAppPostsByAccount(profile.id), profileHydrationTimeoutMs)
@@ -241,11 +259,13 @@ export function AccountsView({ username }: AccountsViewProps) {
           if (boards) {
             setProfileBoards(boards);
           }
+          setProfileBoardsHydrated(true);
         }
       })
       .catch(() => {
         if (active) {
           setProfileBoards([]);
+          setProfileBoardsHydrated(true);
         }
       });
 
@@ -253,6 +273,18 @@ export function AccountsView({ username }: AccountsViewProps) {
       active = false;
     };
   }, [profile]);
+
+  useEffect(() => {
+    if (!profile || isProfileDataLoading || profileMapReady) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setProfileMapReady(true);
+    }, 2800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isProfileDataLoading, profile, profileMapReady]);
 
   useEffect(() => {
     const query = cityInput.trim();
@@ -477,12 +509,12 @@ export function AccountsView({ username }: AccountsViewProps) {
     window.location.assign("/");
   }
 
-  if (isProfileLoading) {
+  if (isProfileDataLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <MobileFrame>
+    <MobileFrame className="relative">
       <section className="safe-page-bottom h-full overflow-y-auto bg-[#fbfaf7]">
         <header className="hidden">
           <span className="h-11 w-11" />
@@ -512,7 +544,7 @@ export function AccountsView({ username }: AccountsViewProps) {
         <div className="px-4">
           {profile ? (
             <section className="pt-2">
-              <ProfileMapHero isOwnProfile={isOwnProfile} posts={profilePosts} profile={profile} />
+              <ProfileMapHero isOwnProfile={isOwnProfile} onMapReady={() => setProfileMapReady(true)} posts={profilePosts} profile={profile} />
 
               <section className="-mt-24 relative z-10 bg-transparent px-1 pb-2 pt-0">
                 <div className="px-3">
@@ -626,7 +658,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                   {profileRecentPosts.length ? (
                     <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
                       {profileRecentPosts.slice(0, 8).map((post) => (
-                        <ProfileRecentCard key={post.id} navigationIds={profileRecentPosts.map((item) => item.id)} post={post} />
+                        <ProfileRecentCard key={post.id} post={post} />
                       ))}
                     </div>
                   ) : profilePostsHydrated ? (
@@ -977,7 +1009,7 @@ export function AccountsView({ username }: AccountsViewProps) {
           </header>
           <div className="no-scrollbar grid flex-1 grid-cols-2 gap-3 overflow-y-auto px-5 pb-[calc(var(--safe-area-bottom)+1rem)]">
             {profileRecentPosts.map((post) => (
-              <ProfileGridPostCard key={post.id} navigationIds={profileRecentPosts.map((item) => item.id)} post={post} />
+              <ProfileGridPostCard key={post.id} post={post} />
             ))}
             {!profileRecentPosts.length ? (
               <p className="col-span-2 rounded-[18px] bg-white px-5 py-8 text-center text-sm font-bold text-ink/52 shadow-sm">
@@ -1065,6 +1097,7 @@ export function AccountsView({ username }: AccountsViewProps) {
         </div>
       ) : null}
       <BottomNav activeTab="Accounts" />
+      {profile && !profileMapReady ? <LoadingScreen className="absolute inset-0 z-50" framed /> : null}
     </MobileFrame>
   );
 }
@@ -1200,7 +1233,7 @@ function writeProfileExploreState(posts: AppPost[], isOwnProfile: boolean, profi
   }
 }
 
-function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolean; posts: AppPost[]; profile: AccountWithStats }) {
+function ProfileMapHero({ isOwnProfile, onMapReady, posts, profile }: { isOwnProfile: boolean; onMapReady: () => void; posts: AppPost[]; profile: AccountWithStats }) {
   const mapCenter = profile.currentCityCoordinates ?? posts[0]?.coordinates ?? ([-98.5795, 39.8283] as [number, number]);
   const mapZoom = posts.length || profile.currentCityCoordinates ? 2.15 : 1.75;
 
@@ -1212,6 +1245,7 @@ function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolea
         experiences={[]}
         interactive={false}
         mapTarget={{ center: mapCenter, zoom: mapZoom }}
+        onReady={onMapReady}
         zoom={mapZoom}
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-white/0 via-56% to-[#fbfaf7]/72" />
@@ -1238,13 +1272,12 @@ function ProfileStat({ label, onClick, value }: { label: string; onClick: () => 
   );
 }
 
-function ProfileRecentCard({ navigationIds, post }: { navigationIds: string[]; post: AppPost }) {
+function ProfileRecentCard({ post }: { post: AppPost }) {
   return (
     <div className="relative shrink-0">
       <Link
         className="relative block h-[158px] w-[116px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-ink/5"
         href={`/posts/${post.id}`}
-        onClick={() => writePostNavigationContext(navigationIds, "profile")}
       >
         {post.imageUrl ? (
           <>
@@ -1314,12 +1347,11 @@ function ProfileTripCard({ trip }: { trip: AppPost }) {
   );
 }
 
-function ProfileGridPostCard({ navigationIds, post }: { navigationIds: string[]; post: AppPost }) {
+function ProfileGridPostCard({ post }: { post: AppPost }) {
   return (
     <Link
       className="relative block h-[226px] min-h-0 overflow-hidden rounded-[10px] bg-white shadow-sm ring-1 ring-ink/5"
       href={`/posts/${post.id}`}
-      onClick={() => writePostNavigationContext(navigationIds, "profile")}
     >
       {post.imageUrl ? (
         <>

@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 
-export function LoadingScreen() {
+export function LoadingScreen({ className = "", framed = false }: { className?: string; framed?: boolean }) {
+  const minHeightClass = framed ? "min-h-full" : "min-h-[100dvh]";
+
   return (
-    <main className="relative min-h-[100dvh] overflow-hidden bg-[#fbf7ef] text-ink">
+    <main className={`relative ${minHeightClass} overflow-hidden bg-[#fbf7ef] text-ink ${className}`}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_55%,rgba(245,214,157,0.34),transparent_34%),linear-gradient(155deg,#fffdfa_0%,#f9f3e9_48%,#eef1ef_100%)]" />
-      <section className="relative z-10 flex min-h-[100dvh] flex-col items-center px-8 pt-[32vh] text-center">
+      <section className={`relative z-10 flex ${minHeightClass} flex-col items-center px-8 pt-[32vh] text-center`}>
         <div className="flex flex-col items-center">
           <Image alt="Odyssey" className="h-[158px] w-[158px] rounded-[36px] shadow-lift" height={158} src="/icon-512.png" width={158} priority />
           <p className="mt-3 font-serif text-[38px] font-bold tracking-[0.22em] text-[#15345d]">ODYSSEY</p>

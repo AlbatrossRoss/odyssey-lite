@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { FormEvent, TouchEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bookmark,
@@ -28,7 +28,6 @@ import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
 import { fetchFollowingIds, readAccountSessionId, setAccountFollow } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
-import { readPostNavigationContext } from "@/lib/postNavigationContext";
 
 const appPostsCacheKey = "odyssey-app-posts-cache-v2";
 const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
@@ -59,7 +58,6 @@ export default function PostDetailPage() {
   const [followStatus, setFollowStatus] = useState<"ready" | "saving">("ready");
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
   const expandedMediaScrollerRef = useRef<HTMLDivElement | null>(null);
-  const postSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -340,63 +338,6 @@ export default function PostDetailPage() {
     router.push("/explore");
   }
 
-  function navigatePostContext(direction: "next" | "previous") {
-    const context = readPostNavigationContext();
-
-    if (!context?.ids.length) {
-      return;
-    }
-
-    const currentIndex = context.ids.indexOf(params.id);
-
-    if (currentIndex < 0) {
-      return;
-    }
-
-    const nextIndex = direction === "next" ? currentIndex + 1 : currentIndex - 1;
-    const nextPostId = context.ids[nextIndex];
-
-    if (!nextPostId) {
-      return;
-    }
-
-    router.push(`/posts/${nextPostId}`);
-  }
-
-  function handlePostTouchStart(event: TouchEvent<HTMLElement>) {
-    if ((event.target as HTMLElement).closest("[data-post-media-carousel]")) {
-      postSwipeStartRef.current = null;
-      return;
-    }
-
-    const touch = event.touches[0];
-    postSwipeStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
-  }
-
-  function handlePostTouchEnd(event: TouchEvent<HTMLElement>) {
-    const start = postSwipeStartRef.current;
-    postSwipeStartRef.current = null;
-
-    if (!start || (event.target as HTMLElement).closest("[data-post-media-carousel]")) {
-      return;
-    }
-
-    const touch = event.changedTouches[0];
-
-    if (!touch) {
-      return;
-    }
-
-    const deltaX = touch.clientX - start.x;
-    const deltaY = touch.clientY - start.y;
-
-    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) {
-      return;
-    }
-
-    navigatePostContext(deltaX < 0 ? "next" : "previous");
-  }
-
   async function handleSaveToBoard(board: AppBoard) {
     if (!post) {
       return;
@@ -598,7 +539,7 @@ export default function PostDetailPage() {
 
   return (
     <MobileFrame>
-      <article className="h-full overflow-y-auto bg-[#f8f5ef] pb-[6.25rem]" onTouchEnd={handlePostTouchEnd} onTouchStart={handlePostTouchStart}>
+      <article className="h-full overflow-y-auto bg-[#f8f5ef] pb-[6.25rem]">
         <section className={`relative overflow-hidden ${postMediaItems.length ? "h-[338px] bg-ink" : "h-[72px] bg-white"}`}>
           {postMediaItems.length ? (
             <>

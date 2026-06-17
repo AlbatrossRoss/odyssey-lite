@@ -9,7 +9,6 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { createAppBoard, deleteAppBoard, fetchBoardsByAccount, updateAppBoard, type AppBoard } from "@/lib/boards";
 import { readAccountSessionId } from "@/lib/accounts";
 import { fetchAppPostsByIds, type AppPost } from "@/lib/posts";
-import { writePostNavigationContext } from "@/lib/postNavigationContext";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 
 type BoardFormState = {
@@ -284,7 +283,6 @@ export default function BoardsPage() {
                           <BoardSavedPostCard
                             index={index}
                             key={post.id}
-                            onOpen={() => writePostNavigationContext(selectedPosts.map((item) => item.id), "board")}
                             post={post}
                           />
                         ))}
@@ -437,11 +435,11 @@ function BoardHeroCard({ board, onSelect, selected }: { board: AppBoard; onSelec
   );
 }
 
-function BoardSavedPostCard({ index, onOpen, post }: { index: number; onOpen: () => void; post: AppPost }) {
+function BoardSavedPostCard({ index, post }: { index: number; post: AppPost }) {
   const aspectClass = index % 5 === 1 || index % 5 === 4 ? "aspect-[0.82]" : index % 5 === 2 ? "aspect-[1.08]" : "aspect-square";
 
   return (
-    <Link className="group block min-w-0 text-ink" href={`/posts/${post.id}`} onClick={onOpen}>
+    <Link className="group block min-w-0 text-ink" href={`/posts/${post.id}`}>
       <span className={`relative block overflow-hidden rounded-[8px] bg-shell ${aspectClass}`}>
         {post.imageUrl ? (
           <PostMediaPreview alt={post.title} className="h-full w-full object-cover transition duration-300 group-active:scale-[0.99]" mediaType={post.mediaTypes[0]} src={post.imageUrl} />

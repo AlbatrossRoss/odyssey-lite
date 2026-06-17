@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 17, 2026",
+    id: "v7.5",
+    title: "Map Stability and Profile Loading",
+    summary:
+      "Improved map scrolling stability by keeping pin preview images eager and reducing unnecessary marker rebuilds, added a stricter profile loading gate that waits for profile data and the header map, and removed swipe navigation between recommendation detail pages.",
+  },
+  {
+    date: "June 17, 2026",
     id: "v7.4",
     title: "Recommendation Detail and Performance Pass",
     summary:

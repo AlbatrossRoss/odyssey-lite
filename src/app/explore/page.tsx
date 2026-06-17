@@ -16,7 +16,6 @@ import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib
 import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
 import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
-import { writePostNavigationContext } from "@/lib/postNavigationContext";
 import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
@@ -689,7 +688,6 @@ export default function ExplorePage() {
   }, []);
 
   const handlePostOpen = useCallback((post: AppPost) => {
-    writePostNavigationContext(feedPostIdsRef.current.length ? feedPostIdsRef.current : [post.id], "explore");
     writeStoredExploreState({
       ...exploreStateRef.current,
       selectedPostId: post.id,
