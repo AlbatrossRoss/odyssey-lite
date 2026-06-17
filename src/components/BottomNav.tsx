@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Map, MapPin, Plus, Search, SquareStack, UserRound, X } from "lucide-react";
+import { Bookmark, ChevronRight, Map, MapPin, Plus, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,7 +8,7 @@ import { fetchAccountById, readAccountSessionId, type AppAccount } from "@/lib/a
 
 const navItems = [
   { activeKey: "Explore", label: "Explore", href: "/explore", icon: Search },
-  { activeKey: "Boards", label: "Boards", href: "/boards", icon: SquareStack },
+  { activeKey: "Boards", label: "Boards", href: "/boards", icon: Bookmark },
   { activeKey: "Create", label: "Post", href: "/create", icon: Plus },
   { activeKey: "Accounts", label: "Profile", href: "/accounts", icon: UserRound },
 ];

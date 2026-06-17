@@ -22,24 +22,28 @@ export default function BoardDetailPage() {
   const [board, setBoard] = useState<AppBoard | null>(null);
   const [posts, setPosts] = useState<AppPost[]>([]);
   const [form, setForm] = useState<BoardFormState>({ title: "", subtitle: "" });
+  const [viewerId, setViewerId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     const accountId = readAccountSessionId();
+    const boardOwnerId = new URLSearchParams(window.location.search).get("account") || accountId;
 
-    if (!accountId) {
+    setViewerId(accountId);
+
+    if (!boardOwnerId) {
       setLoaded(true);
       return;
     }
 
     let active = true;
-    const viewerId = accountId;
+    const ownerId = boardOwnerId;
 
     async function loadBoard() {
       try {
-        const matchingBoard = await fetchBoardBySlug(viewerId, params.slug);
+        const matchingBoard = await fetchBoardBySlug(ownerId, params.slug);
 
         if (!active) {
           return;
@@ -83,6 +87,7 @@ export default function BoardDetailPage() {
   if (!board) {
     return null;
   }
+  const canManageBoard = Boolean(viewerId && viewerId === board.accountId);
 
   function closeSettings() {
     if (!board) {
@@ -130,14 +135,16 @@ export default function BoardDetailPage() {
         <header className="relative h-64">
           <img alt={board.title} className="h-full w-full object-cover" src={board.coverImageUrl} />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/20 via-transparent to-ink/76" />
-          <button
-            aria-label="Board settings"
-            className="safe-top-control absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
-            onClick={() => setSettingsOpen(true)}
-            type="button"
-          >
-            <Settings aria-hidden="true" size={20} />
-          </button>
+          {canManageBoard ? (
+            <button
+              aria-label="Board settings"
+              className="safe-top-control absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-ink shadow-lift backdrop-blur"
+              onClick={() => setSettingsOpen(true)}
+              type="button"
+            >
+              <Settings aria-hidden="true" size={20} />
+            </button>
+          ) : null}
           <div className="absolute bottom-5 left-5 right-5 text-white">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/74">Board</p>
             <h1 className="text-4xl font-black leading-none">{board.title}</h1>

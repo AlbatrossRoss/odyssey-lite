@@ -24,6 +24,7 @@ export type AccountWithStats = AppAccount & {
 };
 
 const SESSION_KEY = "odyssey-lite-account-id";
+const sessionCookieMaxAge = 60 * 60 * 24 * 365;
 
 function mapAccount(account: {
   id: string;
@@ -58,10 +59,16 @@ export function readAccountSessionId() {
   }
 
   try {
-    return window.localStorage.getItem(SESSION_KEY);
+    const storedSessionId = window.localStorage.getItem(SESSION_KEY);
+
+    if (storedSessionId) {
+      return storedSessionId;
+    }
   } catch {
-    return null;
+    // Fall back to the cookie below if localStorage is unavailable.
   }
+
+  return readAccountSessionCookie();
 }
 
 export function writeAccountSessionId(accountId: string) {
@@ -70,6 +77,8 @@ export function writeAccountSessionId(accountId: string) {
   } catch {
     // Keep the account in the database even if browser storage is unavailable.
   }
+
+  writeAccountSessionCookie(accountId);
 
   window.dispatchEvent(new CustomEvent("odyssey:account-session-changed", { detail: accountId }));
 }
@@ -81,7 +90,38 @@ export function clearAccountSessionId() {
     // Nothing to clear when browser storage is unavailable.
   }
 
+  clearAccountSessionCookie();
+
   window.dispatchEvent(new CustomEvent("odyssey:account-session-changed"));
+}
+
+function readAccountSessionCookie() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const sessionCookie = document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(`${SESSION_KEY}=`));
+
+  return sessionCookie ? decodeURIComponent(sessionCookie.slice(SESSION_KEY.length + 1)) : null;
+}
+
+function writeAccountSessionCookie(accountId: string) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.cookie = `${SESSION_KEY}=${encodeURIComponent(accountId)}; max-age=${sessionCookieMaxAge}; path=/; samesite=lax`;
+}
+
+function clearAccountSessionCookie() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.cookie = `${SESSION_KEY}=; max-age=0; path=/; samesite=lax`;
 }
 
 export function assertAccountsConfigured() {

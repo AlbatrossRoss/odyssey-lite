@@ -22,6 +22,7 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { fetchBoardsByAccount, type AppBoard } from "@/lib/boards";
 import { createAppPost, fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
+import { writePostNavigationContext } from "@/lib/postNavigationContext";
 import { uploadPostMedia } from "@/lib/media";
 import type { AppPostTag } from "@/lib/postTags";
 
@@ -625,7 +626,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                   {profileRecentPosts.length ? (
                     <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
                       {profileRecentPosts.slice(0, 8).map((post) => (
-                        <ProfileRecentCard key={post.id} post={post} />
+                        <ProfileRecentCard key={post.id} navigationIds={profileRecentPosts.map((item) => item.id)} post={post} />
                       ))}
                     </div>
                   ) : profilePostsHydrated ? (
@@ -668,7 +669,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                   {profileBoards.length ? (
                     <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
                       {profileBoards.slice(0, 6).map((board) => (
-                        <ProfileBoardCard board={board} key={board.id} />
+                        <ProfileBoardCard board={board} isOwnProfile={isOwnProfile} key={board.id} />
                       ))}
                     </div>
                   ) : (
@@ -976,7 +977,7 @@ export function AccountsView({ username }: AccountsViewProps) {
           </header>
           <div className="no-scrollbar grid flex-1 grid-cols-2 gap-3 overflow-y-auto px-5 pb-[calc(var(--safe-area-bottom)+1rem)]">
             {profileRecentPosts.map((post) => (
-              <ProfileGridPostCard key={post.id} post={post} />
+              <ProfileGridPostCard key={post.id} navigationIds={profileRecentPosts.map((item) => item.id)} post={post} />
             ))}
             {!profileRecentPosts.length ? (
               <p className="col-span-2 rounded-[18px] bg-white px-5 py-8 text-center text-sm font-bold text-ink/52 shadow-sm">
@@ -1237,10 +1238,14 @@ function ProfileStat({ label, onClick, value }: { label: string; onClick: () => 
   );
 }
 
-function ProfileRecentCard({ post }: { post: AppPost }) {
+function ProfileRecentCard({ navigationIds, post }: { navigationIds: string[]; post: AppPost }) {
   return (
     <div className="relative shrink-0">
-      <Link className="relative block h-[158px] w-[116px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-ink/5" href={`/posts/${post.id}`}>
+      <Link
+        className="relative block h-[158px] w-[116px] overflow-hidden rounded-[8px] bg-white text-left shadow-sm ring-1 ring-ink/5"
+        href={`/posts/${post.id}`}
+        onClick={() => writePostNavigationContext(navigationIds, "profile")}
+      >
         {post.imageUrl ? (
           <>
             <PostMediaPreview
@@ -1309,9 +1314,13 @@ function ProfileTripCard({ trip }: { trip: AppPost }) {
   );
 }
 
-function ProfileGridPostCard({ post }: { post: AppPost }) {
+function ProfileGridPostCard({ navigationIds, post }: { navigationIds: string[]; post: AppPost }) {
   return (
-    <Link className="relative block h-[226px] min-h-0 overflow-hidden rounded-[10px] bg-white shadow-sm ring-1 ring-ink/5" href={`/posts/${post.id}`}>
+    <Link
+      className="relative block h-[226px] min-h-0 overflow-hidden rounded-[10px] bg-white shadow-sm ring-1 ring-ink/5"
+      href={`/posts/${post.id}`}
+      onClick={() => writePostNavigationContext(navigationIds, "profile")}
+    >
       {post.imageUrl ? (
         <>
           <PostMediaPreview alt={post.title} className="absolute inset-0 h-full w-full object-cover" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
@@ -1340,12 +1349,30 @@ function ProfileGridPostCard({ post }: { post: AppPost }) {
   );
 }
 
-function ProfileBoardCard({ board }: { board: AppBoard }) {
-  const imageUrl = board.previewImageUrls[0] ?? board.coverImageUrl;
+function ProfileBoardCard({ board, isOwnProfile }: { board: AppBoard; isOwnProfile: boolean }) {
+  const previewImages = [board.previewImageUrls[0], board.previewImageUrls[1], board.previewImageUrls[2]].filter(
+    (imageUrl): imageUrl is string => Boolean(imageUrl),
+  );
+  const fallbackImage = previewImages[0];
+  const href = isOwnProfile ? `/boards?board=${encodeURIComponent(board.slug)}` : `/boards/${board.slug}?account=${encodeURIComponent(board.accountId)}`;
 
   return (
-    <Link className="block w-[132px] shrink-0 overflow-hidden rounded-[12px] bg-white shadow-lift" href={`/boards/${board.slug}`}>
-      <img alt="" className="h-24 w-full object-cover" src={imageUrl} />
+    <Link className="block w-[132px] shrink-0 overflow-hidden rounded-[12px] bg-white shadow-sm ring-1 ring-ink/5" href={href}>
+      <span className="grid h-24 w-full grid-cols-[1.15fr_0.85fr] gap-0.5 bg-shell">
+        {fallbackImage ? <img alt="" className="h-full min-h-0 w-full object-cover" src={fallbackImage} /> : <span className="h-full min-h-0 w-full bg-ink/10" />}
+        <span className="grid min-h-0 grid-rows-2 gap-0.5">
+          {previewImages[1] ?? fallbackImage ? (
+            <img alt="" className="h-full min-h-0 w-full object-cover" src={previewImages[1] ?? fallbackImage} />
+          ) : (
+            <span className="h-full min-h-0 w-full bg-ink/10" />
+          )}
+          {previewImages[2] ?? fallbackImage ? (
+            <img alt="" className="h-full min-h-0 w-full object-cover" src={previewImages[2] ?? fallbackImage} />
+          ) : (
+            <span className="h-full min-h-0 w-full bg-ink/10" />
+          )}
+        </span>
+      </span>
       <span className="block p-3">
         <span className="line-clamp-1 text-sm font-black text-ink">{board.title}</span>
         <span className="mt-1 block text-xs font-bold text-ink/48">

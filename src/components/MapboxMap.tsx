@@ -32,6 +32,7 @@ type MapboxMapProps = {
   }) => void;
   className?: string;
   zoom?: number;
+  fitToAppPosts?: boolean;
   interactive?: boolean;
   dark?: boolean;
   userLocation?: [number, number] | null;
@@ -159,6 +160,7 @@ export function MapboxMap({
   onMoveEnd,
   className = "",
   zoom = 6.35,
+  fitToAppPosts = false,
   interactive = true,
   dark = false,
   userLocation = null,
@@ -263,6 +265,49 @@ export function MapboxMap({
 
     mapRef.current.once("load", flyToTarget);
   }, [mapTarget]);
+
+  useEffect(() => {
+    if (!mapRef.current || !fitToAppPosts || !appPosts.length) {
+      return;
+    }
+
+    const fitToPosts = () => {
+      if (!mapRef.current) {
+        return;
+      }
+
+      const bounds = appPosts.reduce((nextBounds, post) => nextBounds.extend(post.coordinates), new mapboxgl.LngLatBounds(appPosts[0].coordinates, appPosts[0].coordinates));
+
+      if (appPosts.length === 1) {
+        mapRef.current.flyTo({
+          center: appPosts[0].coordinates,
+          duration: 700,
+          essential: true,
+          zoom: 11,
+        });
+        return;
+      }
+
+      mapRef.current.fitBounds(bounds, {
+        duration: 700,
+        essential: true,
+        maxZoom: 11,
+        padding: {
+          bottom: 96,
+          left: 52,
+          right: 52,
+          top: 52,
+        },
+      });
+    };
+
+    if (mapRef.current.loaded()) {
+      fitToPosts();
+      return;
+    }
+
+    mapRef.current.once("load", fitToPosts);
+  }, [appPosts, fitToAppPosts]);
 
   useEffect(() => {
     if (!mapRef.current) {

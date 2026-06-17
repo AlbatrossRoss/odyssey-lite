@@ -16,6 +16,7 @@ import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib
 import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
 import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
+import { writePostNavigationContext } from "@/lib/postNavigationContext";
 import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
@@ -326,6 +327,7 @@ export default function ExplorePage() {
   const [savingPostId, setSavingPostId] = useState<string | null>(null);
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(() => new Set());
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
+  const feedPostIdsRef = useRef<string[]>([]);
   const exploreStateRef = useRef<StoredExploreState>({
     activeDestination: restoredExploreState?.activeDestination ?? "",
     activeCategoryFilters: restoredExploreState?.activeCategoryFilters ?? [],
@@ -687,6 +689,7 @@ export default function ExplorePage() {
   }, []);
 
   const handlePostOpen = useCallback((post: AppPost) => {
+    writePostNavigationContext(feedPostIdsRef.current.length ? feedPostIdsRef.current : [post.id], "explore");
     writeStoredExploreState({
       ...exploreStateRef.current,
       selectedPostId: post.id,
@@ -797,8 +800,12 @@ export default function ExplorePage() {
   const mapAreaPosts = mapArea ? filteredPosts.filter((post) => coordinateInBounds(post.coordinates, mapArea.bounds)) : [];
   const visibleAppPosts = exploreSource === "map" ? mapAreaPosts : searchPosts;
   const selectedPost = selectedPostId ? visibleAppPosts.find((post) => post.id === selectedPostId) ?? null : null;
-  const feedPosts = selectedPost ? [selectedPost, ...visibleAppPosts.filter((post) => post.id !== selectedPost.id)] : visibleAppPosts;
+  const feedPosts = useMemo(
+    () => (selectedPost ? [selectedPost, ...visibleAppPosts.filter((post) => post.id !== selectedPost.id)] : visibleAppPosts),
+    [selectedPost, visibleAppPosts],
+  );
   const peekPosts = feedPosts;
+  const feedPostIds = useMemo(() => feedPosts.map((post) => post.id), [feedPosts]);
   const recommendationCount = visibleAppPosts.length;
   const recommendationSubtitle =
     recommendationCount > 0
@@ -810,6 +817,11 @@ export default function ExplorePage() {
           : activeFilter === "Mine"
             ? "Your recommendations will show up here"
             : "No recommendations in this area yet";
+
+  useEffect(() => {
+    feedPostIdsRef.current = feedPostIds;
+  }, [feedPostIds]);
+
   const sheetClassName =
     sheetPosition === "expanded"
       ? "nav-cleared-bottom top-[82px] pb-4"

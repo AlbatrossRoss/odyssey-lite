@@ -235,16 +235,17 @@ export default function CreatePage() {
       return;
     }
 
-    const resolvedCoordinates = coordinates ?? (location.trim() ? await geocodePlace(location) : undefined);
-
-    if (!resolvedCoordinates) {
-      setMessage("Add a location before sharing.");
-      return;
-    }
-
     setStatus("sharing");
 
     try {
+      const resolvedCoordinates = coordinates ?? (location.trim() ? await geocodePlace(location) : undefined);
+
+      if (!resolvedCoordinates) {
+        setStatus("idle");
+        setMessage("Add a location before sharing.");
+        return;
+      }
+
       const mediaUrls = await Promise.all(selectedMedia.map((item) => uploadPostMedia(item.file, accountId)));
       const mediaTypes = selectedMedia.map((item) => item.kind);
       const createdPost = await createAppPost({
@@ -587,8 +588,11 @@ export default function CreatePage() {
             type="button"
           >
             <Send aria-hidden="true" size={19} />
-            {status === "sharing" ? "Posting..." : "Post Recommendation"}
+            {status === "sharing" ? "Sharing..." : "Share Recommendation"}
           </button>
+          <p className="mt-2 px-2 text-center text-[11px] font-medium leading-snug text-ink/44">
+            Prototype uploads may take a few moments, please be patient.
+          </p>
         </footer>
       </section>
     </MobileFrame>

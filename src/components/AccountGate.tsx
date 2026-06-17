@@ -6,6 +6,7 @@ import { ImagePlus, LogIn } from "lucide-react";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   AppAccount,
+  clearAccountSessionId,
   createAccount,
   fetchAccountById,
   loginAccount,
@@ -51,13 +52,15 @@ export function AccountGate({ children }: AccountGateProps) {
 
         if (active) {
           if (restored) {
+            setHasStoredSession(true);
             setAccount(restored);
           } else {
+            clearAccountSessionId();
             setHasStoredSession(false);
           }
         }
       } catch {
-        // Let the user log in again if session restore fails.
+        // Keep the saved device session when restore is slow or temporarily unavailable.
       } finally {
         if (active) {
           setRestoreStatus("ready");
@@ -78,7 +81,6 @@ export function AccountGate({ children }: AccountGateProps) {
     }
 
     const timeoutId = window.setTimeout(() => {
-      setHasStoredSession(false);
       setRestoreStatus("ready");
     }, 3500);
 
@@ -127,7 +129,7 @@ export function AccountGate({ children }: AccountGateProps) {
     setPhotoUrl(await fileToDataUrl(file));
   }
 
-  if (account || (restoreStatus === "checking" && hasStoredSession)) {
+  if (account || hasStoredSession) {
     return children;
   }
 

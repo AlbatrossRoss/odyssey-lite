@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 17, 2026",
+    id: "v7.3",
+    title: "Boards Redesign and Post Swiping",
+    summary:
+      "Redesigned Boards with selectable board previews, compact saved-post layouts, board-only maps that fit saved pins, profile board routing, stronger remembered-login behavior, and swipe navigation through post detail pages from Explore, Boards, and Profiles.",
+  },
+  {
     date: "June 16, 2026",
     id: "v7.2",
     title: "Trip Posting Paused",
