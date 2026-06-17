@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 17, 2026",
+    id: "v7.4",
+    title: "Recommendation Detail and Performance Pass",
+    summary:
+      "Refined recommendation detail pages with moved shared-by controls, follow actions, more-media strips, nested comment replies, and lighter location cards, while improving performance through image compression, lazy media loading, reduced video autoplay, capped post fetches, and new database indexes.",
+  },
+  {
+    date: "June 17, 2026",
     id: "v7.3",
     title: "Boards Redesign and Post Swiping",
     summary:

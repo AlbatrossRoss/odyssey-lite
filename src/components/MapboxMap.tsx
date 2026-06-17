@@ -359,8 +359,8 @@ export function MapboxMap({
       const mediaMarkup = !post.imageUrl
         ? `<span class="odyssey-marker-text">${escapeHtml(textOnlyEmoji)}</span>`
         : post.mediaTypes[0] === "video"
-          ? `<video class="odyssey-marker-photo" src="${post.imageUrl}" autoplay loop muted playsinline></video>`
-          : `<img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" />`;
+          ? `<span class="odyssey-marker-text">▶</span>`
+          : `<img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" loading="lazy" />`;
 
       element.innerHTML = `
         <span class="odyssey-marker-card" data-selected="${post.id === selectedPostId}">

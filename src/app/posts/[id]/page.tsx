@@ -10,9 +10,8 @@ import {
   Check,
   ChevronDown,
   Expand,
-  Heart,
   MapPin,
-  MoreHorizontal,
+  Play,
   Plus,
   Send,
   Trash2,
@@ -27,7 +26,7 @@ import { deleteAppPost, fetchAppPostById, fetchAppPosts, type AppPost } from "@/
 import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
-import { fetchAccountById, readAccountSessionId } from "@/lib/accounts";
+import { fetchFollowingIds, readAccountSessionId, setAccountFollow } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
 import { readPostNavigationContext } from "@/lib/postNavigationContext";
 
@@ -52,10 +51,12 @@ export default function PostDetailPage() {
   const [commentDraft, setCommentDraft] = useState("");
   const [commentStatus, setCommentStatus] = useState<"idle" | "loading" | "saving">("loading");
   const [commentMessage, setCommentMessage] = useState("");
-  const [viewerUsername, setViewerUsername] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<AppPostComment | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [expandedMediaIndex, setExpandedMediaIndex] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+  const [followStatus, setFollowStatus] = useState<"ready" | "saving">("ready");
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
   const expandedMediaScrollerRef = useRef<HTMLDivElement | null>(null);
   const postSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -101,22 +102,6 @@ export default function PostDetailPage() {
           }
         }
       });
-
-    if (viewerId) {
-      fetchAccountById(viewerId)
-        .then((account) => {
-          if (active) {
-            setViewerUsername(account?.username ?? null);
-          }
-        })
-        .catch(() => {
-          if (active) {
-            setViewerUsername(null);
-          }
-        });
-    } else {
-      setViewerUsername(null);
-    }
 
     return () => {
       active = false;
@@ -172,6 +157,31 @@ export default function PostDetailPage() {
     };
   }, [accountId]);
 
+  useEffect(() => {
+    if (!accountId || !post || accountId === post.accountId) {
+      setIsFollowingAuthor(false);
+      return;
+    }
+
+    let active = true;
+
+    fetchFollowingIds(accountId)
+      .then((ids) => {
+        if (active) {
+          setIsFollowingAuthor(ids.includes(post.accountId));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsFollowingAuthor(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accountId, post]);
+
   const mapExperience = useMemo<Experience | null>(() => {
     if (!post) {
       return null;
@@ -200,24 +210,36 @@ export default function PostDetailPage() {
       })),
     [post?.mediaTypes, postMediaUrls],
   );
-  const commentMentionTarget = useMemo(() => {
-    if (!post || !accountId) {
-      return null;
-    }
-
-    if (accountId !== post.accountId) {
-      return post.username;
-    }
-
-    const latestOtherComment = comments.find((comment) => comment.accountId !== accountId);
-
-    if (!latestOtherComment || latestOtherComment.username === viewerUsername) {
-      return null;
-    }
-
-    return latestOtherComment.username;
-  }, [accountId, comments, post, viewerUsername]);
+  const commentMentionTarget = replyTarget?.username ?? null;
   const resolvedCommentBody = commentBodyWithMention(commentDraft, commentMentionTarget);
+  const topLevelComments = useMemo(() => {
+    const commentIds = new Set(comments.map((comment) => comment.id));
+
+    return comments.filter((comment) => !comment.replyToCommentId || !commentIds.has(comment.replyToCommentId));
+  }, [comments]);
+  const visibleCommentRoots = topLevelComments.length ? topLevelComments : comments;
+  const repliesByCommentId = useMemo(() => {
+    const commentIds = new Set(comments.map((comment) => comment.id));
+    const nextReplies = new Map<string, AppPostComment[]>();
+
+    comments.forEach((comment) => {
+      if (!comment.replyToCommentId || !commentIds.has(comment.replyToCommentId)) {
+        return;
+      }
+
+      const existingReplies = nextReplies.get(comment.replyToCommentId) ?? [];
+      nextReplies.set(comment.replyToCommentId, [...existingReplies, comment]);
+    });
+
+    nextReplies.forEach((replies, commentId) => {
+      nextReplies.set(
+        commentId,
+        [...replies].sort((first, second) => new Date(first.createdAt).getTime() - new Date(second.createdAt).getTime()),
+      );
+    });
+
+    return nextReplies;
+  }, [comments]);
 
   useEffect(() => {
     const scroller = mediaScrollerRef.current;
@@ -468,10 +490,12 @@ export default function PostDetailPage() {
         accountId,
         body: commentBodyWithMention(commentDraft, commentMentionTarget),
         postId: post.id,
+        replyToCommentId: replyTarget?.id ?? null,
       });
 
       setComments((current) => [createdComment, ...current]);
       setCommentDraft("");
+      setReplyTarget(null);
     } catch (error) {
       setCommentMessage(formatError(error));
     } finally {
@@ -496,6 +520,80 @@ export default function PostDetailPage() {
     } catch (error) {
       setCommentMessage(formatError(error));
     }
+  }
+
+  async function handleToggleFollowAuthor() {
+    if (!accountId || !post || accountId === post.accountId || followStatus === "saving") {
+      return;
+    }
+
+    const nextFollowState = !isFollowingAuthor;
+
+    setFollowStatus("saving");
+    setIsFollowingAuthor(nextFollowState);
+
+    try {
+      await setAccountFollow(accountId, post.accountId, nextFollowState);
+    } catch (error) {
+      setIsFollowingAuthor(!nextFollowState);
+      setCommentMessage(formatError(error));
+    } finally {
+      setFollowStatus("ready");
+    }
+  }
+
+  function renderComment(comment: AppPostComment, isReply = false) {
+    const replies = repliesByCommentId.get(comment.id) ?? [];
+
+    return (
+      <div className={isReply ? "ml-11 border-l border-ink/8 pl-3" : ""} key={comment.id}>
+        <article className="flex gap-3">
+          <Link
+            aria-label={`Open @${comment.username}`}
+            className={`${isReply ? "h-7 w-7" : "h-8 w-8"} flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45`}
+            href={`/accounts/${comment.username}`}
+          >
+            {comment.profilePhotoUrl ? (
+              <img alt="" className="h-full w-full object-cover" src={comment.profilePhotoUrl} />
+            ) : (
+              <UserRound aria-hidden="true" size={isReply ? 15 : 17} />
+            )}
+          </Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <Link className="text-sm font-black text-ink" href={`/accounts/${comment.username}`}>
+                {comment.username}
+              </Link>
+              <span className="text-xs font-bold text-ink/38">{formatCommentTime(comment.createdAt)}</span>
+            </div>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-relaxed text-ink/68">{comment.body}</p>
+            {accountId && accountId !== comment.accountId ? (
+              <button
+                className="mt-2 text-xs font-black text-ink/46"
+                onClick={() => {
+                  setReplyTarget(comment);
+                  setCommentMessage("");
+                  setCommentDraft((current) => {
+                    const mention = `@${comment.username} `;
+                    const trimmedDraft = current.trim();
+
+                    if (!trimmedDraft || /^@\S+\s*$/.test(current)) {
+                      return mention;
+                    }
+
+                    return current.toLowerCase().startsWith(mention.trim().toLowerCase()) ? current : `${mention}${current}`;
+                  });
+                }}
+                type="button"
+              >
+                Reply
+              </button>
+            ) : null}
+          </div>
+        </article>
+        {replies.length ? <div className="mt-3 space-y-3">{replies.map((reply) => renderComment(reply, true))}</div> : null}
+      </div>
+    );
   }
 
   return (
@@ -581,6 +679,42 @@ export default function PostDetailPage() {
         </section>
 
         <div className={`rounded-t-[18px] bg-white px-5 pb-8 shadow-[0_-10px_24px_rgba(24,35,31,0.08)] ${postMediaItems.length ? "pt-8" : "pt-4"}`}>
+          <section className="mb-5 flex items-center justify-between gap-3">
+            <Link className="flex min-w-0 items-center gap-3" href={`/accounts/${post.username}`}>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45">
+                {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <UserRound aria-hidden="true" size={20} />}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-normal text-ink/64">
+                  Shared by <strong className="font-black text-ink">{post.username}</strong>
+                </span>
+                <span className="block text-xs font-bold text-ink/44">{post.dateLabel}</span>
+              </span>
+            </Link>
+            {accountId === post.accountId ? (
+              <button
+                aria-label="Delete post"
+                className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-black text-coral"
+                onClick={() => void handleDeletePost()}
+                type="button"
+              >
+                <Trash2 aria-hidden="true" size={15} />
+                Delete
+              </button>
+            ) : (
+              <button
+                className={`h-9 shrink-0 rounded-full px-4 text-xs font-black transition disabled:opacity-60 ${
+                  isFollowingAuthor ? "border border-ink/10 bg-white text-ink" : "bg-ink text-white shadow-lift"
+                }`}
+                disabled={followStatus === "saving"}
+                onClick={() => void handleToggleFollowAuthor()}
+                type="button"
+              >
+                {isFollowingAuthor ? "Following" : "Follow"}
+              </button>
+            )}
+          </section>
+
           <section>
             <h1 className="text-[26px] font-black leading-tight text-ink">{post.title}</h1>
             <p className="mt-3 whitespace-pre-wrap text-[15px] font-normal leading-relaxed text-ink">{post.caption}</p>
@@ -606,51 +740,47 @@ export default function PostDetailPage() {
             ) : null}
           </section>
 
-          <section className="mt-5 border-t border-ink/8 pt-5">
-            <div className="flex items-start justify-between gap-3">
-              <Link className="flex items-center gap-3" href={`/accounts/${post.username}`}>
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45">
-                  {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <UserRound aria-hidden="true" size={20} />}
-                </span>
-                <span>
-                  <span className="block text-sm font-normal text-ink/64">Shared by <strong className="font-black text-ink">{post.username}</strong></span>
-                  <span className="block text-xs font-bold text-ink/44">{post.dateLabel}</span>
-                </span>
-              </Link>
-              {accountId === post.accountId ? (
+          {postMediaItems.length > 1 ? (
+            <section className="mt-5 border-t border-ink/8 pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-black text-ink">More from this experience</h2>
                 <button
-                  aria-label="Delete post"
-                  className="flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-black text-coral"
-                  onClick={() => void handleDeletePost()}
+                  className="shrink-0 text-sm font-black text-blue-600"
+                  onClick={() => setExpandedMediaIndex(0)}
                   type="button"
                 >
-                  <Trash2 aria-hidden="true" size={15} />
-                  Delete
+                  See all ({postMediaItems.length})
                 </button>
-              ) : (
-                <button aria-label="More post options" className="flex h-9 w-9 items-center justify-center rounded-full text-ink/54" type="button">
-                  <MoreHorizontal aria-hidden="true" size={20} />
-                </button>
-              )}
-            </div>
-          </section>
-
-          <section className="mt-5 rounded-[18px] border border-ink/10 bg-white p-4 shadow-[0_8px_22px_rgba(24,35,31,0.05)]">
-            <p className="text-base font-black text-ink">Location</p>
-            <div className="mt-3 grid grid-cols-[1fr_1.15fr] gap-4">
-              <div className="space-y-3 text-sm font-normal text-ink/62">
-                <p className="flex items-start gap-2">
-                  <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-ink" size={17} />
-                  <span>
-                    <span className="block font-black text-ink">{post.location}</span>
-                  </span>
-                </p>
               </div>
-              <div className="relative overflow-hidden rounded-[16px]">
+              <div className="no-scrollbar mt-4 flex gap-3 overflow-x-auto border-b border-ink/8 pb-5">
+                {postMediaItems.map((item, index) => (
+                  <button
+                    aria-label={`Open media ${index + 1}`}
+                    className="relative h-[92px] w-[132px] shrink-0 overflow-hidden rounded-[15px] bg-ink/8 shadow-[0_8px_18px_rgba(24,35,31,0.08)]"
+                    key={`${item.url}-experience-strip`}
+                    onClick={() => setExpandedMediaIndex(index)}
+                    type="button"
+                  >
+                    <PostMediaPreview alt="" autoPlay={false} className="h-full w-full object-cover" mediaType={item.mediaType} src={item.url} />
+                    {item.mediaType === "video" ? (
+                      <span className="absolute bottom-2 left-2 grid h-9 w-9 place-items-center rounded-full bg-ink/56 text-white shadow-lift backdrop-blur">
+                        <Play aria-hidden="true" fill="currentColor" size={17} />
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="mt-5">
+            <h2 className="text-[22px] font-black text-ink">Location</h2>
+            <div className="mt-3 overflow-hidden rounded-[18px] border border-ink/10 bg-white shadow-[0_8px_22px_rgba(24,35,31,0.05)]">
+              <div className="relative overflow-hidden">
                 <MapboxMap
-                  className="h-36"
+                  className="h-[150px] w-full"
                   experiences={[mapExperience]}
-                  mapTarget={{ center: post.coordinates, zoom: 14.2 }}
+                  mapTarget={{ center: post.coordinates, zoom: 12.8 }}
                   selectedSlug={mapExperience.slug}
                   zoom={10.4}
                 />
@@ -676,57 +806,54 @@ export default function PostDetailPage() {
               {commentStatus === "loading" ? (
                 <p className="py-4 text-center text-sm font-bold text-ink/42">Loading comments...</p>
               ) : comments.length ? (
-                comments.slice(0, 2).map((comment) => (
-                  <article className="flex gap-3" key={comment.id}>
-                    <Link
-                      aria-label={`Open @${comment.username}`}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-shell text-ink/45"
-                      href={`/accounts/${comment.username}`}
-                    >
-                      {comment.profilePhotoUrl ? (
-                        <img alt="" className="h-full w-full object-cover" src={comment.profilePhotoUrl} />
-                      ) : (
-                        <UserRound aria-hidden="true" size={17} />
-                      )}
-                    </Link>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <Link className="text-sm font-black text-ink" href={`/accounts/${comment.username}`}>
-                          {comment.username}
-                        </Link>
-                        <span className="text-xs font-bold text-ink/38">{formatCommentTime(comment.createdAt)}</span>
-                      </div>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold leading-relaxed text-ink/68">{comment.body}</p>
-                    </div>
-                    <Heart aria-hidden="true" className="mt-1 shrink-0 text-ink/38" size={17} />
-                  </article>
-                ))
+                visibleCommentRoots.map((comment) => renderComment(comment))
               ) : (
                 <p className="py-2 text-center text-sm font-bold text-ink/42">No comments yet.</p>
               )}
             </div>
 
             {accountId ? (
-              <form className="mt-5 flex items-end gap-2 rounded-full border border-ink/8 bg-white p-2 shadow-inner" onSubmit={handleCreateComment}>
-                <label className="block flex-1">
-                  <span className="sr-only">Add a public comment</span>
-                  <textarea
-                    className="max-h-24 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/34"
-                    maxLength={500}
-                    onChange={(event) => setCommentDraft(event.target.value)}
-                    placeholder={commentMentionTarget ? `Reply to @${commentMentionTarget}` : "Add a public comment"}
-                    value={commentDraft}
-                  />
-                </label>
-                <button
-                  aria-label="Post comment"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-white shadow-lift disabled:opacity-35"
-                  disabled={commentStatus === "saving" || !commentDraft.trim() || resolvedCommentBody.length > 500}
-                  type="submit"
-                >
-                  <Send aria-hidden="true" size={16} />
-                </button>
-              </form>
+              <div className="mt-5">
+                {replyTarget ? (
+                  <div className="mb-2 flex items-center justify-between gap-3 rounded-2xl bg-shell px-4 py-2">
+                    <p className="min-w-0 truncate text-xs font-bold text-ink/54">
+                      Replying to <span className="font-black text-ink">@{replyTarget.username}</span>
+                    </p>
+                    <button
+                      className="shrink-0 text-xs font-black text-coral"
+                      onClick={() => {
+                        const mention = `@${replyTarget.username}`;
+
+                        setReplyTarget(null);
+                        setCommentDraft((current) => (current.trim().toLowerCase() === mention.toLowerCase() ? "" : current));
+                      }}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
+                <form className="flex items-end gap-2 rounded-full border border-ink/8 bg-white p-2 shadow-inner" onSubmit={handleCreateComment}>
+                  <label className="block flex-1">
+                    <span className="sr-only">Add a public comment</span>
+                    <textarea
+                      className="max-h-24 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-sm font-semibold leading-relaxed text-ink outline-none placeholder:text-ink/34"
+                      maxLength={500}
+                      onChange={(event) => setCommentDraft(event.target.value)}
+                      placeholder={commentMentionTarget ? `Reply to @${commentMentionTarget}` : "Add a public comment"}
+                      value={commentDraft}
+                    />
+                  </label>
+                  <button
+                    aria-label="Post comment"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-white shadow-lift disabled:opacity-35"
+                    disabled={commentStatus === "saving" || !commentDraft.trim() || resolvedCommentBody.length > 500}
+                    type="submit"
+                  >
+                    <Send aria-hidden="true" size={16} />
+                  </button>
+                </form>
+              </div>
             ) : (
               <Link className="mt-4 flex h-12 items-center justify-center rounded-full bg-shell px-5 text-sm font-black text-ink" href="/accounts">
                 Log in to comment

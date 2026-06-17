@@ -68,6 +68,7 @@ const basePostSelectColumns =
 const postSelectColumnsWithMediaUrls = `${basePostSelectColumns}, media_urls`;
 const postSelectColumnsWithMediaTypes = `${postSelectColumnsWithMediaUrls}, media_types`;
 const postSelectColumns = `${postSelectColumnsWithMediaTypes}, tags`;
+const defaultPostFetchLimit = 80;
 
 function assertPostsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -220,7 +221,9 @@ function missingPostColumnName(error: unknown) {
 type PostRowsQuery = {
   eq: (column: string, value: string) => PostRowsQuery;
   in: (column: string, values: string[]) => PostRowsQuery;
-  order: (column: string, options: { ascending: boolean }) => PromiseLike<{ data: unknown; error: unknown }>;
+  limit: (count: number) => PostRowsQuery;
+  order: (column: string, options: { ascending: boolean }) => PostRowsQuery;
+  then: PromiseLike<{ data: unknown; error: unknown }>["then"];
 };
 
 type SinglePostQuery = {
@@ -378,7 +381,7 @@ export async function createAppPost(draft: AppPostDraft) {
 export async function fetchAppPosts() {
   assertPostsConfigured();
 
-  return hydratePosts(await fetchPostRows((query) => query.order("created_at", { ascending: false })));
+  return hydratePosts(await fetchPostRows((query) => query.order("created_at", { ascending: false }).limit(defaultPostFetchLimit)));
 }
 
 export async function fetchAppPostsByAccount(accountId: string) {
@@ -387,7 +390,8 @@ export async function fetchAppPostsByAccount(accountId: string) {
   return hydratePosts(await fetchPostRows((query) =>
     query
     .eq("account_id", accountId)
-    .order("created_at", { ascending: false }),
+    .order("created_at", { ascending: false })
+    .limit(defaultPostFetchLimit),
   ));
 }
 

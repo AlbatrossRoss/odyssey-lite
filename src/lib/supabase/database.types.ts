@@ -109,6 +109,7 @@ export type Database = {
           post_id: string;
           account_id: string;
           body: string;
+          reply_to_comment_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -116,6 +117,7 @@ export type Database = {
           post_id: string;
           account_id: string;
           body: string;
+          reply_to_comment_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["app_post_comments"]["Insert"]>;

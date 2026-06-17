@@ -9,6 +9,7 @@ export type AppPostComment = {
   username: string;
   profilePhotoUrl: string | null;
   body: string;
+  replyToCommentId: string | null;
   createdAt: string;
 };
 
@@ -22,6 +23,7 @@ type AppPostCommentRow = {
   post_id: string;
   account_id: string;
   body: string;
+  reply_to_comment_id?: string | null;
   created_at: string;
 };
 
@@ -66,6 +68,18 @@ function commentReadsTableMissing(error: unknown) {
   return code === "42P01" || code === "PGRST205" || message.includes("app_post_comment_reads");
 }
 
+function commentReplyColumnMissing(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+
+  return code === "42703" || message.includes("reply_to_comment_id");
+}
+
 function mapComment(comment: AppPostCommentRow, account?: CommentAccountRow): AppPostComment {
   return {
     id: comment.id,
@@ -74,6 +88,7 @@ function mapComment(comment: AppPostCommentRow, account?: CommentAccountRow): Ap
     username: account?.username ?? "traveler",
     profilePhotoUrl: account?.profile_photo_url ?? null,
     body: comment.body,
+    replyToCommentId: comment.reply_to_comment_id ?? null,
     createdAt: comment.created_at,
   };
 }
@@ -96,6 +111,31 @@ async function hydrateComments(comments: AppPostCommentRow[]) {
   return comments.map((comment) => mapComment(comment, accounts.get(comment.account_id)));
 }
 
+async function addReplyTargets(comments: AppPostCommentRow[]) {
+  if (!comments.length) {
+    return comments;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const commentIds = comments.map((comment) => comment.id);
+  const { data, error } = await supabase.from("app_post_comments").select("id, reply_to_comment_id").in("id", commentIds);
+
+  if (error) {
+    if (commentReplyColumnMissing(error) || commentsTableMissing(error)) {
+      return comments;
+    }
+
+    throw error;
+  }
+
+  const replyTargetsById = new Map(((data ?? []) as Array<{ id: string; reply_to_comment_id: string | null }>).map((comment) => [comment.id, comment.reply_to_comment_id]));
+
+  return comments.map((comment) => ({
+    ...comment,
+    reply_to_comment_id: replyTargetsById.get(comment.id) ?? null,
+  }));
+}
+
 export async function fetchPostComments(postId: string) {
   assertCommentsConfigured();
 
@@ -114,10 +154,20 @@ export async function fetchPostComments(postId: string) {
     throw error;
   }
 
-  return hydrateComments((data ?? []) as AppPostCommentRow[]);
+  return hydrateComments(await addReplyTargets((data ?? []) as AppPostCommentRow[]));
 }
 
-export async function createPostComment({ accountId, body, postId }: { accountId: string; body: string; postId: string }) {
+export async function createPostComment({
+  accountId,
+  body,
+  postId,
+  replyToCommentId = null,
+}: {
+  accountId: string;
+  body: string;
+  postId: string;
+  replyToCommentId?: string | null;
+}) {
   assertCommentsConfigured();
 
   const trimmedBody = body.trim();
@@ -131,15 +181,24 @@ export async function createPostComment({ accountId, body, postId }: { accountId
   }
 
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("app_post_comments")
-    .insert({
-      account_id: accountId,
-      body: trimmedBody,
-      post_id: postId,
-    })
-    .select("id, post_id, account_id, body, created_at")
-    .single();
+  const insertComment = (includeReplyColumn: boolean) =>
+    supabase
+      .from("app_post_comments")
+      .insert({
+        account_id: accountId,
+        body: trimmedBody,
+        post_id: postId,
+        ...(includeReplyColumn ? { reply_to_comment_id: replyToCommentId } : {}),
+      })
+      .select(includeReplyColumn ? "id, post_id, account_id, body, reply_to_comment_id, created_at" : "id, post_id, account_id, body, created_at")
+      .single();
+  let { data, error } = await insertComment(true);
+
+  if (commentReplyColumnMissing(error)) {
+    const fallback = await insertComment(false);
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (commentsTableMissing(error)) {
     throw new Error("Comments are not set up yet. Run the 0009_app_post_comments Supabase migration, then try again.");
@@ -149,7 +208,9 @@ export async function createPostComment({ accountId, body, postId }: { accountId
     throw error;
   }
 
-  return (await hydrateComments([data as AppPostCommentRow]))[0];
+  const createdRow = data as unknown as AppPostCommentRow;
+
+  return (await hydrateComments([{ ...createdRow, reply_to_comment_id: createdRow.reply_to_comment_id ?? replyToCommentId }]))[0];
 }
 
 export async function fetchUnreadCommentNotifications(accountId: string) {
@@ -191,8 +252,29 @@ export async function fetchCommentNotifications(accountId: string) {
     throw commentsError;
   }
 
-  const commentRows = ((comments ?? []) as AppPostCommentRow[]).filter(
-    (comment) => ownedPostIds.has(comment.post_id) || (mention ? comment.body.toLowerCase().includes(mention) : false),
+  const allCommentRows = await addReplyTargets((comments ?? []) as AppPostCommentRow[]);
+  const replyParentIds = Array.from(new Set(allCommentRows.map((comment) => comment.reply_to_comment_id).filter((id): id is string => Boolean(id))));
+  let repliedToCommentIds = new Set<string>();
+
+  if (replyParentIds.length) {
+    const { data: replyParents, error: replyParentsError } = await supabase
+      .from("app_post_comments")
+      .select("id")
+      .eq("account_id", accountId)
+      .in("id", replyParentIds);
+
+    if (replyParentsError && !commentsTableMissing(replyParentsError)) {
+      throw replyParentsError;
+    }
+
+    repliedToCommentIds = new Set(((replyParents ?? []) as Array<{ id: string }>).map((comment) => comment.id));
+  }
+
+  const commentRows = allCommentRows.filter(
+    (comment) =>
+      ownedPostIds.has(comment.post_id) ||
+      (mention ? comment.body.toLowerCase().includes(mention) : false) ||
+      (comment.reply_to_comment_id ? repliedToCommentIds.has(comment.reply_to_comment_id) : false),
   );
 
   if (!commentRows.length) {
