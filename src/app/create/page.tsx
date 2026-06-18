@@ -191,17 +191,29 @@ export default function CreatePage() {
       return;
     }
 
-    const metadata = await readMediaMetadata(file);
-    const nextCoordinates = metadata.coordinates;
-    const nextLocation = nextCoordinates ? await reverseGeocodeCoordinates(nextCoordinates) : metadata.location;
-    const nextDate = metadata.date ?? fallbackDateFromFile(file);
+    const metadataByFile = new Map<File, MediaMetadata>();
+    const readSelectedMetadata = async (item: File) => {
+      const metadata = await readMediaMetadata(item);
+      metadataByFile.set(item, metadata);
+      return metadata;
+    };
+    const selectedMetadata = await Promise.all(mediaFiles.map(readSelectedMetadata));
+    const primaryMetadata =
+      selectedMetadata.find((item) => item.coordinates) ??
+      selectedMetadata.find((item) => item.location) ??
+      selectedMetadata.find((item) => item.date) ??
+      selectedMetadata[0] ??
+      {};
+    const nextCoordinates = primaryMetadata.coordinates;
+    const nextLocation = nextCoordinates ? await reverseGeocodeCoordinates(nextCoordinates) : primaryMetadata.location;
+    const nextDate = primaryMetadata.date ?? fallbackDateFromFile(file);
     const nextMedia = await Promise.all(
       mediaFiles.map(async (item) => ({
         file: item,
         id: `${item.name}-${item.lastModified}-${item.size}`,
         isHeic: isHeicFile(item),
         kind: isVideoFile(item) ? ("video" as const) : ("image" as const),
-        metadata: item === file ? metadata : await readMediaMetadata(item),
+        metadata: metadataByFile.get(item) ?? {},
         ...(await createPreview(item)),
       })),
     );
@@ -612,55 +624,56 @@ function PostedSuccessPage({
 }) {
   return (
     <MobileFrame>
-      <section className="safe-top-bar flex h-full flex-col bg-white px-3 pb-12 text-ink">
-        <div className="flex flex-1 flex-col items-center justify-center pt-1">
-          <div className="mb-4 text-center">
-            <p className="text-sm font-black">Posted!</p>
-            <div className="relative mx-auto mt-4 grid h-16 w-16 place-items-center rounded-full bg-[#9bc58f] text-white shadow-[0_12px_30px_rgba(77,111,65,0.22)]">
-              <Check aria-hidden="true" size={30} strokeWidth={2.8} />
+      <section className="safe-top-bar safe-page-bottom flex h-full flex-col overflow-hidden bg-white px-3 text-ink">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-start pt-1">
+          <div className="mb-3 text-center">
+            <p className="text-sm font-black leading-tight">Posted!</p>
+            <div className="relative mx-auto mt-3 grid h-14 w-14 place-items-center rounded-full bg-[#9bc58f] text-white shadow-[0_12px_30px_rgba(77,111,65,0.22)]">
+              <Check aria-hidden="true" size={27} strokeWidth={2.8} />
             </div>
-            <p className="mx-auto mt-4 max-w-[230px] text-sm font-semibold leading-tight text-ink/78">Your recommendation is live and ready to inspire others.</p>
+            <p className="mx-auto mt-3 max-w-[240px] text-[13px] font-semibold leading-tight text-ink/78">Your recommendation is live and ready to inspire others.</p>
           </div>
 
-          <article className="w-full overflow-hidden rounded-[10px] bg-white shadow-soft">
+          <article className="w-full overflow-hidden rounded-[10px] bg-white shadow-[0_12px_28px_rgba(24,35,31,0.12)]">
             <SuccessMedia imageUrl={post.imageUrl} mediaType={post.mediaType} />
-            <div className="relative px-3 pb-4 pt-3">
-              <div className="-mt-10 mb-3 flex items-end gap-2">
-                <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-shell shadow-sm">
+            <div className="relative px-3 pb-3 pt-2.5">
+              <div className="-mt-8 mb-2 flex items-end gap-2">
+                <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-shell shadow-sm">
                   {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <span className="text-sm font-black">Y</span>}
                 </div>
-                <div className="min-w-[64px] rounded-full bg-white/95 px-3 py-1.5 shadow-sm">
-                  <p className="whitespace-nowrap text-[11px] font-black leading-none">{post.username}</p>
-                  <p className="mt-1 whitespace-nowrap text-[9px] font-semibold leading-none text-ink/54">just now</p>
+                <div className="min-w-[60px] rounded-full bg-white/95 px-2.5 py-1.5 shadow-sm">
+                  <p className="whitespace-nowrap text-[10px] font-black leading-none">{post.username}</p>
+                  <p className="mt-1 whitespace-nowrap text-[8px] font-semibold leading-none text-ink/54">just now</p>
                 </div>
               </div>
-              <h2 className="text-xl font-black leading-tight">{post.title}</h2>
-              <p className="mt-2 text-xs font-semibold leading-snug text-ink/56">{post.location}</p>
-              <p className="mt-1 text-xs font-semibold text-ink/46">{post.dateLabel}</p>
-              <p className="mt-3 line-clamp-3 text-xs font-semibold leading-relaxed text-ink/70">{post.description}</p>
+              <h2 className="line-clamp-2 text-lg font-black leading-tight">{post.title}</h2>
+              <p className="mt-1.5 line-clamp-1 text-[11px] font-semibold leading-snug text-ink/56">{post.location}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-ink/46">{post.dateLabel}</p>
+              <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-ink/70">{post.description}</p>
               {post.tags.length ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {post.tags.map((tag) => (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {post.tags.slice(0, 4).map((tag) => (
                     <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[10px] font-normal text-ink/72" key={tag}>
                       {tag}
                     </span>
                   ))}
+                  {post.tags.length > 4 ? <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[10px] font-normal text-ink/72">+{post.tags.length - 4}</span> : null}
                 </div>
               ) : null}
             </div>
           </article>
         </div>
 
-        <div className="space-y-3">
-          <button className="flex h-14 w-full items-center justify-center gap-2 rounded-[9px] bg-moss text-base font-black text-white shadow-lift" onClick={onView} type="button">
+        <div className="shrink-0 space-y-2 pt-3">
+          <button className="flex h-12 w-full items-center justify-center gap-2 rounded-[9px] bg-moss text-sm font-black text-white shadow-lift" onClick={onView} type="button">
             <Send aria-hidden="true" size={17} />
-            View Trip
+            View Recommendation
           </button>
-          <button className="flex h-14 w-full items-center justify-center gap-2 rounded-[9px] bg-[#f5f2ed] text-base font-black text-ink" onClick={onShare} type="button">
+          <button className="flex h-12 w-full items-center justify-center gap-2 rounded-[9px] bg-[#f5f2ed] text-sm font-black text-ink" onClick={onShare} type="button">
             <Share2 aria-hidden="true" size={17} />
-            Share Trip
+            Share Recommendation
           </button>
-          <button className="mx-auto block h-10 px-6 text-sm font-black text-moss" onClick={onDone} type="button">
+          <button className="mx-auto block h-8 px-6 text-xs font-black text-moss" onClick={onDone} type="button">
             Done
           </button>
         </div>
@@ -672,17 +685,17 @@ function PostedSuccessPage({
 function SuccessMedia({ imageUrl, mediaType }: { imageUrl: string | null; mediaType?: "image" | "video" }) {
   if (!imageUrl) {
     return (
-      <div className="grid aspect-[1.55] w-full place-items-center bg-shell text-ink/36">
+      <div className="grid aspect-[1.9] w-full place-items-center bg-shell text-ink/36">
         <ImagePlus aria-hidden="true" size={34} />
       </div>
     );
   }
 
   if (mediaType === "video") {
-    return <video aria-label="Posted trip preview" autoPlay className="aspect-[1.55] w-full object-cover" loop muted playsInline src={imageUrl} />;
+    return <video aria-label="Posted recommendation preview" autoPlay className="aspect-[1.9] w-full object-cover" loop muted playsInline src={imageUrl} />;
   }
 
-  return <img alt="" className="aspect-[1.55] w-full object-cover" src={imageUrl} />;
+  return <img alt="" className="aspect-[1.9] w-full object-cover" src={imageUrl} />;
 }
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {
@@ -839,6 +852,28 @@ function readVideoDuration(file: File) {
 }
 
 async function readMediaMetadata(file: File): Promise<MediaMetadata> {
+  if (isVideoFile(file)) {
+    return readVideoMetadata(file);
+  }
+
+  return readImageMetadata(file);
+}
+
+async function readImageMetadata(file: File): Promise<MediaMetadata> {
+  const exifrMetadata = await readExifrMetadata(file);
+
+  if (exifrMetadata.coordinates || exifrMetadata.date) {
+    return exifrMetadata;
+  }
+
+  if (isHeicFile(file)) {
+    try {
+      return readHeicExif(await file.arrayBuffer());
+    } catch {
+      return {};
+    }
+  }
+
   if (!file.type.includes("jpeg") && !file.type.includes("jpg")) {
     return {};
   }
@@ -848,6 +883,301 @@ async function readMediaMetadata(file: File): Promise<MediaMetadata> {
   } catch {
     return {};
   }
+}
+
+async function readExifrMetadata(file: File): Promise<MediaMetadata> {
+  try {
+    const exifr = await import("exifr");
+    const metadata = await exifr.parse(file, {
+      exif: true,
+      gps: true,
+    });
+
+    if (!metadata) {
+      return {};
+    }
+
+    const latitude = firstFiniteNumber(metadata.latitude, metadata.GPSLatitude);
+    const longitude = firstFiniteNumber(metadata.longitude, metadata.GPSLongitude);
+    const dateValue = metadata.DateTimeOriginal ?? metadata.CreateDate ?? metadata.ModifyDate ?? metadata.DateTime;
+
+    return {
+      coordinates:
+        typeof latitude === "number" && typeof longitude === "number" && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
+          ? [longitude, latitude]
+          : undefined,
+      date: normalizeMetadataDate(dateValue),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function firstFiniteNumber(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (Array.isArray(value)) {
+      const decimal = degreesToDecimal(value.map((item) => Number(item)));
+      if (Number.isFinite(decimal)) {
+        return decimal;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeMetadataDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === "string") {
+    const normalized = normalizeExifDate(value) || value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return undefined;
+}
+
+function readHeicExif(buffer: ArrayBuffer): MediaMetadata {
+  const view = new DataView(buffer);
+  const exifOffset = findAsciiInBuffer(view, "Exif\u0000\u0000");
+
+  if (exifOffset >= 0) {
+    return readTiffExif(view, exifOffset + 6);
+  }
+
+  const text = new TextDecoder("latin1").decode(buffer);
+  return {
+    coordinates: readIso6709Coordinates(text) ?? readGpsCoordinatesFromText(text),
+    date: readVideoDateString(text),
+  };
+}
+
+async function readVideoMetadata(file: File): Promise<MediaMetadata> {
+  if (!/\.(m4v|mov|mp4)$/i.test(file.name) && !/(quicktime|mp4)/i.test(file.type)) {
+    return {};
+  }
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const text = new TextDecoder("latin1").decode(buffer);
+    const atomText = extractMp4MetadataText(buffer);
+    const searchableText = `${atomText}\n${text}`;
+    const coordinates = readIso6709Coordinates(searchableText) ?? readGpsCoordinatesFromText(searchableText) ?? readLooseCoordinatePair(searchableText);
+    const textDate = readVideoDateString(searchableText);
+    const atomDate = readMp4CreationDate(buffer);
+
+    return {
+      coordinates,
+      date: textDate ?? atomDate,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function extractMp4MetadataText(buffer: ArrayBuffer) {
+  const view = new DataView(buffer);
+  const values: string[] = [];
+  collectMp4TextAtoms(view, 0, view.byteLength, 0, values);
+  return values.join("\n");
+}
+
+function collectMp4TextAtoms(view: DataView, start: number, end: number, depth: number, values: string[]) {
+  if (depth > 8) {
+    return;
+  }
+
+  let offset = start;
+
+  while (offset + 8 <= end) {
+    const size = view.getUint32(offset);
+    const type = readAscii(view, offset + 4, 4);
+    const headerSize = size === 1 ? 16 : 8;
+    const atomSize = size === 1 && offset + 16 <= end ? Number(view.getBigUint64(offset + 8)) : size || end - offset;
+    const contentStart = offset + headerSize;
+    const contentEnd = Math.min(offset + atomSize, end);
+
+    if (atomSize < headerSize || contentStart > end || contentEnd <= contentStart) {
+      break;
+    }
+
+    if (["moov", "trak", "mdia", "minf", "stbl", "udta", "meta", "ilst", "keys"].includes(type)) {
+      collectMp4TextAtoms(view, type === "meta" ? Math.min(contentStart + 4, contentEnd) : contentStart, contentEnd, depth + 1, values);
+    } else if (isLikelyMetadataAtom(type, contentEnd - contentStart)) {
+      const value = extractPrintableText(view, contentStart, contentEnd);
+      if (value) {
+        values.push(type, value);
+      }
+    }
+
+    offset += atomSize;
+  }
+}
+
+function isLikelyMetadataAtom(type: string, size: number) {
+  return size > 0 && size < 4096 && (type === "data" || type === "loci" || type.startsWith("©") || /^[a-zA-Z0-9._-]{4}$/.test(type));
+}
+
+function extractPrintableText(view: DataView, start: number, end: number) {
+  const bytes = Array.from({ length: end - start }, (_, index) => view.getUint8(start + index));
+  const strings: string[] = [];
+  let current = "";
+
+  bytes.forEach((byte) => {
+    if (byte >= 32 && byte <= 126) {
+      current += String.fromCharCode(byte);
+      return;
+    }
+
+    if (current.length >= 4) {
+      strings.push(current);
+    }
+    current = "";
+  });
+
+  if (current.length >= 4) {
+    strings.push(current);
+  }
+
+  return strings.join(" ");
+}
+
+function readIso6709Coordinates(text: string): [number, number] | undefined {
+  const matches = text.matchAll(/([+-]\d{2,3}(?:\.\d+)?)([+-]\d{2,3}(?:\.\d+)?)(?:[+-]\d+(?:\.\d+)?)?\/?/g);
+
+  for (const match of matches) {
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
+      return [longitude, latitude];
+    }
+  }
+
+  return undefined;
+}
+
+function readGpsCoordinatesFromText(text: string): [number, number] | undefined {
+  const decimalPair = text.match(/GPSLatitude[^+-\d]{0,80}([+-]?\d{1,2}(?:\.\d+)?)[\s\S]{0,220}?GPSLongitude[^+-\d]{0,80}([+-]?\d{1,3}(?:\.\d+)?)/i);
+  const reversedDecimalPair = text.match(/GPSLongitude[^+-\d]{0,80}([+-]?\d{1,3}(?:\.\d+)?)[\s\S]{0,220}?GPSLatitude[^+-\d]{0,80}([+-]?\d{1,2}(?:\.\d+)?)/i);
+  const nmeaPair = text.match(/([NS])\s*(\d{1,2}(?:\.\d+)?)[^\dEW+-]{0,20}([EW])\s*(\d{1,3}(?:\.\d+)?)/i);
+  const latitudeRef = text.match(/GPSLatitudeRef[^NSEW]{0,40}([NS])/i)?.[1];
+  const longitudeRef = text.match(/GPSLongitudeRef[^NSEW]{0,40}([EW])/i)?.[1];
+
+  if (decimalPair) {
+    return normalizeTextCoordinates(Number(decimalPair[1]), Number(decimalPair[2]), latitudeRef, longitudeRef);
+  }
+
+  if (reversedDecimalPair) {
+    return normalizeTextCoordinates(Number(reversedDecimalPair[2]), Number(reversedDecimalPair[1]), latitudeRef, longitudeRef);
+  }
+
+  if (nmeaPair) {
+    return normalizeTextCoordinates(Number(nmeaPair[2]), Number(nmeaPair[4]), nmeaPair[1], nmeaPair[3]);
+  }
+
+  return undefined;
+}
+
+function readLooseCoordinatePair(text: string): [number, number] | undefined {
+  const locationSections = text.match(/(?:location|gps|geo|coordinates?)[\s\S]{0,260}/gi) ?? [];
+
+  for (const section of locationSections) {
+    const pair = section.match(/([+-]?\d{1,2}(?:\.\d+)?)[,\s]+([+-]?\d{1,3}(?:\.\d+)?)/);
+
+    if (!pair) {
+      continue;
+    }
+
+    const coordinates = normalizeTextCoordinates(Number(pair[1]), Number(pair[2]));
+
+    if (coordinates) {
+      return coordinates;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeTextCoordinates(latitude: number, longitude: number, latitudeRef?: string, longitudeRef?: string): [number, number] | undefined {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+    return undefined;
+  }
+
+  const normalizedLatitude = latitude * (latitudeRef?.toUpperCase() === "S" ? -1 : 1);
+  const normalizedLongitude = longitude * (longitudeRef?.toUpperCase() === "W" ? -1 : 1);
+  return [normalizedLongitude, normalizedLatitude];
+}
+
+function readVideoDateString(text: string) {
+  const match = text.match(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:?\d{2})?/);
+  return match?.[0]?.slice(0, 10);
+}
+
+function readMp4CreationDate(buffer: ArrayBuffer) {
+  const view = new DataView(buffer);
+  const seconds = findMvhdCreationSeconds(view, 0, view.byteLength, 0);
+
+  if (!seconds || seconds < 2082844800) {
+    return undefined;
+  }
+
+  const timestamp = (seconds - 2082844800) * 1000;
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function findMvhdCreationSeconds(view: DataView, start: number, end: number, depth: number): number | undefined {
+  if (depth > 5) {
+    return undefined;
+  }
+
+  let offset = start;
+
+  while (offset + 8 <= end) {
+    const size = view.getUint32(offset);
+    const type = readAscii(view, offset + 4, 4);
+    const headerSize = size === 1 ? 16 : 8;
+    const atomSize = size === 1 && offset + 16 <= end ? Number(view.getBigUint64(offset + 8)) : size || end - offset;
+    const contentStart = offset + headerSize;
+    const contentEnd = Math.min(offset + atomSize, end);
+
+    if (atomSize < headerSize || contentStart > end || contentEnd <= contentStart) {
+      break;
+    }
+
+    if (type === "mvhd" && contentStart + 8 <= contentEnd) {
+      const version = view.getUint8(contentStart);
+      if (version === 1 && contentStart + 16 <= contentEnd) {
+        return Number(view.getBigUint64(contentStart + 4));
+      }
+      return view.getUint32(contentStart + 4);
+    }
+
+    if (["moov", "trak", "mdia", "minf", "stbl", "udta"].includes(type)) {
+      const result = findMvhdCreationSeconds(view, contentStart, contentEnd, depth + 1);
+      if (result) {
+        return result;
+      }
+    }
+
+    offset += atomSize;
+  }
+
+  return undefined;
 }
 
 function readJpegExif(buffer: ArrayBuffer): MediaMetadata {
@@ -969,6 +1299,19 @@ function typeSize(type: number) {
 
 function readAscii(view: DataView, offset: number, length: number) {
   return Array.from({ length }, (_, index) => String.fromCharCode(view.getUint8(offset + index))).join("");
+}
+
+function findAsciiInBuffer(view: DataView, pattern: string) {
+  const patternBytes = Array.from(pattern, (character) => character.charCodeAt(0));
+
+  for (let offset = 0; offset <= view.byteLength - patternBytes.length; offset += 1) {
+    const matches = patternBytes.every((byte, index) => view.getUint8(offset + index) === byte);
+    if (matches) {
+      return offset;
+    }
+  }
+
+  return -1;
 }
 
 function normalizeExifDate(value: string) {

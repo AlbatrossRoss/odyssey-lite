@@ -250,11 +250,16 @@ export default function PostDetailPage() {
       const mediaIndex = Number(video.dataset.mediaIndex);
       const isActive = mediaIndex === activePhotoIndex;
 
-      video.muted = !isActive;
+      video.muted = true;
 
       if (!isActive) {
         video.pause();
+        return;
       }
+
+      void video.play().catch(() => {
+        // If autoplay is blocked, the visible native controls can still start playback.
+      });
     });
   }, [activePhotoIndex, postMediaItems]);
 
@@ -560,9 +565,9 @@ export default function PostDetailPage() {
                       data-post-detail-media
                       key={`${item.url}-${index}`}
                       loop
-                      muted={activePhotoIndex !== index}
+                      muted
                       playsInline
-                      preload="metadata"
+                      preload={activePhotoIndex === index ? "auto" : "metadata"}
                       src={item.url}
                     />
                   ) : (
