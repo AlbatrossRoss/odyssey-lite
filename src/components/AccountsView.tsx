@@ -9,8 +9,10 @@ import {
   accountDisplayName,
   clearAccountSessionId,
   fetchAccountById,
+  fetchAccountByUsernameWithStats,
   fetchAccountConnections,
   fetchAccountsWithStats,
+  fetchAccountWithStats,
   readAccountSessionId,
   setAccountFollow,
   updateAccountCurrentCity,
@@ -34,6 +36,8 @@ const profileBoardsCachePrefix = "odyssey-profile-boards-cache-v1";
 const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const profileHydrationTimeoutMs = 4500;
+const profileMapDelayMs = 850;
+const localCacheMaxAgeMs = 1000 * 60 * 60 * 12;
 const tripPostingEnabled = false;
 
 type SetupStep = "photo" | "city" | "follow" | "local-recs" | "done";
@@ -83,6 +87,7 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [accountsHydrated, setAccountsHydrated] = useState(false);
   const [profilePostsHydrated, setProfilePostsHydrated] = useState(false);
+  const [profileBoardsHydrated, setProfileBoardsHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
   const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
@@ -106,26 +111,44 @@ export function AccountsView({ username }: AccountsViewProps) {
       return;
     }
 
-    setAccountsHydrated(false);
     const cachedAccounts = readCachedAccounts(sessionId).filter((account) => !isZeroStatsViewerFallback(account, sessionId));
 
     if (cachedAccounts.length) {
       setAccounts(cachedAccounts);
       setStatus("ready");
+      setAccountsHydrated(true);
     } else {
+      setAccountsHydrated(false);
       setStatus("loading");
     }
 
     try {
-      const nextAccounts = await fetchAccountsWithStats(sessionId);
+      const primaryAccount = username
+        ? await fetchAccountByUsernameWithStats(username, sessionId)
+        : await fetchAccountWithStats(sessionId, sessionId);
 
-      if (nextAccounts.length) {
-        writeCachedAccounts(sessionId, nextAccounts);
-        setAccounts(nextAccounts);
+      if (primaryAccount) {
+        setAccounts((current) => mergeAccounts(current, [primaryAccount]));
+        setAccountsHydrated(true);
+        setStatus("ready");
+      } else if (!cachedAccounts.length) {
+        setAccountsHydrated(true);
+        setStatus("ready");
+        return;
       }
 
-      setAccountsHydrated(true);
-      setStatus("ready");
+      scheduleProfileTask(async () => {
+        try {
+          const nextAccounts = await fetchAccountsWithStats(sessionId);
+
+          if (nextAccounts.length) {
+            writeCachedAccounts(sessionId, nextAccounts);
+            setAccounts((current) => mergeAccounts(current, nextAccounts));
+          }
+        } catch {
+          // Suggestions and secondary account stats can refresh next time.
+        }
+      });
     } catch (error) {
       try {
         const fallbackAccount = await withTimeout(fetchAccountById(sessionId), profileHydrationTimeoutMs);
@@ -136,7 +159,7 @@ export function AccountsView({ username }: AccountsViewProps) {
             isFollowedByViewer: false,
             stats: { followers: 0, following: 0, posts: 0 },
           }];
-          setAccounts(fallbackAccounts);
+          setAccounts((current) => mergeAccounts(current, fallbackAccounts));
         } else {
           setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
         }
@@ -146,7 +169,7 @@ export function AccountsView({ username }: AccountsViewProps) {
       setAccountsHydrated(true);
       setStatus("ready");
     }
-  }, [viewerId]);
+  }, [username, viewerId]);
 
   useEffect(() => {
     const sessionId = readAccountSessionId();
@@ -217,11 +240,13 @@ export function AccountsView({ username }: AccountsViewProps) {
   useEffect(() => {
     let active = true;
     setProfilePostsHydrated(false);
+    setProfileBoardsHydrated(false);
 
     if (!profile) {
       setProfilePosts([]);
       setProfileBoards([]);
       setProfilePostsHydrated(true);
+      setProfileBoardsHydrated(true);
       return;
     }
 
@@ -230,10 +255,12 @@ export function AccountsView({ username }: AccountsViewProps) {
 
     if (cachedBoards.length) {
       setProfileBoards(cachedBoards);
+      setProfileBoardsHydrated(true);
     }
 
     if (cachedPosts.length) {
       setProfilePosts(cachedPosts);
+      setProfilePostsHydrated(true);
     }
 
     withTimeout(fetchAppPostsByAccount(profile.id), profileHydrationTimeoutMs)
@@ -248,7 +275,9 @@ export function AccountsView({ username }: AccountsViewProps) {
       })
       .catch(() => {
         if (active) {
-          setProfilePosts([]);
+          if (!cachedPosts.length) {
+            setProfilePosts([]);
+          }
           setProfilePostsHydrated(true);
         }
       });
@@ -260,11 +289,15 @@ export function AccountsView({ username }: AccountsViewProps) {
             writeCachedProfileBoards(profile.id, boards);
             setProfileBoards(boards);
           }
+          setProfileBoardsHydrated(true);
         }
       })
       .catch(() => {
         if (active) {
-          setProfileBoards([]);
+          if (!cachedBoards.length) {
+            setProfileBoards([]);
+          }
+          setProfileBoardsHydrated(true);
         }
       });
 
@@ -687,12 +720,12 @@ export function AccountsView({ username }: AccountsViewProps) {
                         <ProfileBoardCard board={board} isOwnProfile={isOwnProfile} key={board.id} />
                       ))}
                     </div>
-                  ) : (
+                  ) : profileBoardsHydrated ? (
                     <div className="rounded-[24px] bg-white px-5 py-7 text-center shadow-lift">
                       <Bookmark aria-hidden="true" className="mx-auto text-ink/34" size={26} />
                       <p className="mt-2 text-sm font-bold leading-relaxed text-ink/52">No boards saved yet.</p>
                     </div>
-                  )}
+                  ) : null}
                 </section>
 
               </section>
@@ -1089,12 +1122,7 @@ export function AccountsView({ username }: AccountsViewProps) {
 }
 
 function readCachedAccounts(viewerId: string) {
-  try {
-    const cached = window.sessionStorage.getItem(`${accountsCachePrefix}-${viewerId}`);
-    return cached ? (JSON.parse(cached) as AccountWithStats[]) : [];
-  } catch {
-    return [];
-  }
+  return readCachedValue<AccountWithStats[]>(`${accountsCachePrefix}-${viewerId}`) ?? [];
 }
 
 function isZeroStatsViewerFallback(account: AccountWithStats, viewerId: string) {
@@ -1108,45 +1136,86 @@ function isZeroStatsViewerFallback(account: AccountWithStats, viewerId: string) 
 }
 
 function writeCachedAccounts(viewerId: string, accounts: AccountWithStats[]) {
-  try {
-    window.sessionStorage.setItem(`${accountsCachePrefix}-${viewerId}`, JSON.stringify(accounts));
-  } catch {
-    // Account data still refreshes from Supabase if session storage is unavailable.
-  }
+  writeCachedValue(`${accountsCachePrefix}-${viewerId}`, accounts);
 }
 
 function readCachedProfileBoards(accountId: string) {
-  try {
-    const cached = window.sessionStorage.getItem(`${profileBoardsCachePrefix}-${accountId}`);
-    return cached ? (JSON.parse(cached) as AppBoard[]) : [];
-  } catch {
-    return [];
-  }
+  return readCachedValue<AppBoard[]>(`${profileBoardsCachePrefix}-${accountId}`) ?? [];
 }
 
 function writeCachedProfileBoards(accountId: string, boards: AppBoard[]) {
-  try {
-    window.sessionStorage.setItem(`${profileBoardsCachePrefix}-${accountId}`, JSON.stringify(boards));
-  } catch {
-    // Profile boards still refresh from Supabase if session storage is unavailable.
-  }
+  writeCachedValue(`${profileBoardsCachePrefix}-${accountId}`, boards);
 }
 
 function readCachedProfilePosts(accountId: string) {
-  try {
-    const cached = window.sessionStorage.getItem(`${profilePostsCachePrefix}-${accountId}`);
-    return cached ? (JSON.parse(cached) as AppPost[]) : [];
-  } catch {
-    return [];
-  }
+  return readCachedValue<AppPost[]>(`${profilePostsCachePrefix}-${accountId}`) ?? [];
 }
 
 function writeCachedProfilePosts(accountId: string, posts: AppPost[]) {
+  writeCachedValue(`${profilePostsCachePrefix}-${accountId}`, posts);
+}
+
+function readCachedValue<T>(key: string) {
   try {
-    window.sessionStorage.setItem(`${profilePostsCachePrefix}-${accountId}`, JSON.stringify(posts));
+    const cached = window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
+
+    if (!cached) {
+      return null;
+    }
+
+    const parsed = JSON.parse(cached) as { savedAt?: number; value?: T } | T;
+
+    if (parsed && typeof parsed === "object" && "value" in parsed) {
+      const savedAt = typeof parsed.savedAt === "number" ? parsed.savedAt : 0;
+
+      if (Date.now() - savedAt <= localCacheMaxAgeMs) {
+        return parsed.value ?? null;
+      }
+
+      return parsed.value ?? null;
+    }
+
+    return parsed as T;
   } catch {
-    // Profile posts still refresh from Supabase if session storage is unavailable.
+    return null;
   }
+}
+
+function writeCachedValue<T>(key: string, value: T) {
+  const payload = JSON.stringify({ savedAt: Date.now(), value });
+
+  try {
+    window.localStorage.setItem(key, payload);
+  } catch {
+    try {
+      window.sessionStorage.setItem(key, payload);
+    } catch {
+      // Profile data still refreshes from Supabase if browser storage is unavailable.
+    }
+  }
+}
+
+function mergeAccounts(current: AccountWithStats[], incoming: AccountWithStats[]) {
+  const accountsById = new Map(current.map((account) => [account.id, account]));
+
+  incoming.forEach((account) => {
+    accountsById.set(account.id, account);
+  });
+
+  return Array.from(accountsById.values());
+}
+
+function scheduleProfileTask(task: () => void | Promise<void>) {
+  const run = () => {
+    void task();
+  };
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(run, { timeout: 1200 });
+    return;
+  }
+
+  globalThis.setTimeout(run, 250);
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
@@ -1247,19 +1316,41 @@ function writeProfileExploreState(posts: AppPost[], isOwnProfile: boolean, profi
 }
 
 function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolean; posts: AppPost[]; profile: AccountWithStats }) {
+  const [mapEnabled, setMapEnabled] = useState(false);
   const mapCenter = profile.currentCityCoordinates ?? posts[0]?.coordinates ?? ([-98.5795, 39.8283] as [number, number]);
   const mapZoom = posts.length || profile.currentCityCoordinates ? 2.15 : 1.75;
 
+  useEffect(() => {
+    setMapEnabled(false);
+
+    const enableMap = () => setMapEnabled(true);
+    let cleanup: () => void = () => undefined;
+
+    if ("requestIdleCallback" in window && "cancelIdleCallback" in window) {
+      const idleCallback = window.requestIdleCallback(enableMap, { timeout: profileMapDelayMs });
+      cleanup = () => window.cancelIdleCallback(idleCallback);
+    } else {
+      const timeoutId = globalThis.setTimeout(enableMap, profileMapDelayMs);
+      cleanup = () => globalThis.clearTimeout(timeoutId);
+    }
+
+    return () => {
+      cleanup();
+    };
+  }, [profile.id]);
+
   return (
     <div className="relative -mx-4 h-[207px] overflow-hidden bg-[#b9ddec]">
-      <DynamicMapboxMap
-        appPosts={posts}
-        className="absolute inset-0 h-full w-full"
-        experiences={[]}
-        interactive={false}
-        mapTarget={{ center: mapCenter, zoom: mapZoom }}
-        zoom={mapZoom}
-      />
+      {mapEnabled ? (
+        <DynamicMapboxMap
+          appPosts={posts}
+          className="absolute inset-0 h-full w-full"
+          experiences={[]}
+          interactive={false}
+          mapTarget={{ center: mapCenter, zoom: mapZoom }}
+          zoom={mapZoom}
+        />
+      ) : null}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-white/0 via-56% to-[#fbfaf7]/72" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#fbfaf7] via-[#fbfaf7]/88 via-56% to-transparent" />
       <Link

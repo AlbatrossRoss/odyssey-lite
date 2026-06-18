@@ -190,14 +190,9 @@ export function MapboxMap({
     [appPosts, experiences, userLocation],
   );
 
-  function setMarkerVideosPaused(paused: boolean) {
+  function pauseMarkerVideos() {
     containerRef.current?.querySelectorAll<HTMLVideoElement>(".odyssey-marker video").forEach((video) => {
-      if (paused) {
-        video.pause();
-        return;
-      }
-
-      video.play().catch(() => undefined);
+      video.pause();
     });
   }
 
@@ -266,10 +261,10 @@ export function MapboxMap({
       mapRef.current.once("idle", notifyReady);
     });
     mapRef.current.on("movestart", () => {
-      setMarkerVideosPaused(true);
+      pauseMarkerVideos();
     });
     mapRef.current.on("moveend", () => {
-      setMarkerVideosPaused(false);
+      pauseMarkerVideos();
       if (!mapRef.current) {
         return;
       }
@@ -426,7 +421,7 @@ export function MapboxMap({
       const mediaMarkup = !post.imageUrl
         ? `<span class="odyssey-marker-text">${escapeHtml(textOnlyEmoji)}</span>`
         : isVideoPost
-          ? `<video class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" autoplay loop muted playsinline preload="auto"></video>`
+          ? `<video class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" muted playsinline preload="metadata"></video>`
           : `<img class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" alt="" decoding="async" />`;
 
       element.innerHTML = `
@@ -447,14 +442,28 @@ export function MapboxMap({
       if (markerVideo) {
         markerVideo.defaultMuted = true;
         markerVideo.muted = true;
-        markerVideo.loop = true;
         markerVideo.playsInline = true;
         markerVideo.setAttribute("muted", "");
         markerVideo.setAttribute("playsinline", "");
         markerVideo.setAttribute("webkit-playsinline", "");
-        requestAnimationFrame(() => {
-          markerVideo.play().catch(() => undefined);
-        });
+        markerVideo.addEventListener(
+          "loadedmetadata",
+          () => {
+            try {
+              markerVideo.currentTime = Math.min(0.1, Number.isFinite(markerVideo.duration) ? markerVideo.duration / 2 : 0.1);
+            } catch {
+              // The first native frame is still fine if this video cannot seek yet.
+            }
+          },
+          { once: true },
+        );
+        markerVideo.addEventListener(
+          "loadeddata",
+          () => {
+            markerVideo.pause();
+          },
+          { once: true },
+        );
       }
 
       return marker;

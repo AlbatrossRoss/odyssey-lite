@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 18, 2026",
+    id: "v8.1",
+    title: "Profile Cache and Map Pin Smoothing",
+    summary:
+      "Improved Profile load speed with targeted profile stat fetches, local stale-while-revalidate caching for profile posts and boards, delayed profile header map loading, and changed Explore map video pins to paused freeze-frame thumbnails while keeping recommendation previews autoplaying.",
+  },
+  {
+    date: "June 18, 2026",
     id: "v8.0",
     title: "Map Performance Split",
     summary:

@@ -143,6 +143,19 @@ export async function fetchAccountById(accountId: string) {
   return data ? mapAccount(data) : null;
 }
 
+export async function fetchAccountByUsername(username: string) {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.from("app_accounts").select("*").eq("username", normalizeUsername(username)).maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapAccount(data) : null;
+}
+
 export async function createAccount({
   username,
   password,
@@ -265,6 +278,59 @@ export async function fetchAccountsWithStats(viewerId: string) {
       isFollowedByViewer: follows.some((follow) => follow.follower_id === viewerId && follow.following_id === mapped.id),
     };
   });
+}
+
+export async function fetchAccountWithStats(accountId: string, viewerId: string | null = accountId) {
+  const account = await fetchAccountById(accountId);
+
+  if (!account) {
+    return null;
+  }
+
+  return withStats(account, viewerId);
+}
+
+export async function fetchAccountByUsernameWithStats(username: string, viewerId: string | null) {
+  const account = await fetchAccountByUsername(username);
+
+  if (!account) {
+    return null;
+  }
+
+  return withStats(account, viewerId);
+}
+
+async function withStats(account: AppAccount, viewerId: string | null): Promise<AccountWithStats> {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const [followers, following, posts, followedByViewer] = await Promise.all([
+    supabase.from("account_follows").select("*", { count: "exact", head: true }).eq("following_id", account.id),
+    supabase.from("account_follows").select("*", { count: "exact", head: true }).eq("follower_id", account.id),
+    supabase.from("app_posts").select("*", { count: "exact", head: true }).eq("account_id", account.id),
+    viewerId && viewerId !== account.id
+      ? supabase
+        .from("account_follows")
+        .select("follower_id", { count: "exact", head: true })
+        .eq("follower_id", viewerId)
+        .eq("following_id", account.id)
+      : Promise.resolve({ count: 0, error: null }),
+  ]);
+
+  if (followers.error) throw followers.error;
+  if (following.error) throw following.error;
+  if (posts.error) throw posts.error;
+  if (followedByViewer.error) throw followedByViewer.error;
+
+  return {
+    ...account,
+    stats: {
+      followers: followers.count ?? 0,
+      following: following.count ?? 0,
+      posts: posts.count ?? 0,
+    },
+    isFollowedByViewer: (followedByViewer.count ?? 0) > 0,
+  };
 }
 
 export async function setAccountFollow(viewerId: string, accountId: string, shouldFollow: boolean) {
