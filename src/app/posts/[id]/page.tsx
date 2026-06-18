@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   Expand,
+  Heart,
   MapPin,
   Play,
   Plus,
@@ -24,6 +25,7 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { deleteAppPost, fetchAppPostById, fetchAppPosts, type AppPost } from "@/lib/posts";
 import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
+import { fetchPostLikeSummary, setPostLike } from "@/lib/postLikes";
 import type { Experience } from "@/lib/data";
 import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
 import { fetchFollowingIds, readAccountSessionId, setAccountFollow } from "@/lib/accounts";
@@ -56,6 +58,10 @@ export default function PostDetailPage() {
   const [mapExpanded, setMapExpanded] = useState(false);
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
   const [followStatus, setFollowStatus] = useState<"ready" | "saving">("ready");
+  const [likeCount, setLikeCount] = useState(0);
+  const [isLikedByViewer, setIsLikedByViewer] = useState(false);
+  const [likeStatus, setLikeStatus] = useState<"ready" | "saving">("ready");
+  const [likeMessage, setLikeMessage] = useState("");
   const mediaScrollerRef = useRef<HTMLDivElement | null>(null);
   const expandedMediaScrollerRef = useRef<HTMLDivElement | null>(null);
 
@@ -180,6 +186,32 @@ export default function PostDetailPage() {
     };
   }, [accountId, post]);
 
+  useEffect(() => {
+    if (!post) {
+      return;
+    }
+
+    let active = true;
+
+    fetchPostLikeSummary(post.id, accountId)
+      .then((summary) => {
+        if (active) {
+          setLikeCount(summary.count);
+          setIsLikedByViewer(summary.isLikedByViewer);
+          setLikeMessage("");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setLikeMessage(formatError(error));
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accountId, post]);
+
   const mapExperience = useMemo<Experience | null>(() => {
     if (!post) {
       return null;
@@ -250,7 +282,7 @@ export default function PostDetailPage() {
       const mediaIndex = Number(video.dataset.mediaIndex);
       const isActive = mediaIndex === activePhotoIndex;
 
-      video.muted = true;
+      video.muted = false;
 
       if (!isActive) {
         video.pause();
@@ -488,6 +520,29 @@ export default function PostDetailPage() {
     }
   }
 
+  async function handleToggleLike() {
+    if (!accountId || !post || likeStatus === "saving") {
+      setLikeMessage(accountId ? "" : "Log in to like recommendations.");
+      return;
+    }
+
+    const nextLiked = !isLikedByViewer;
+    setLikeStatus("saving");
+    setLikeMessage("");
+    setIsLikedByViewer(nextLiked);
+    setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
+
+    try {
+      await setPostLike(post.id, accountId, nextLiked);
+    } catch (error) {
+      setIsLikedByViewer(!nextLiked);
+      setLikeCount((count) => Math.max(0, count + (nextLiked ? -1 : 1)));
+      setLikeMessage(formatError(error));
+    } finally {
+      setLikeStatus("ready");
+    }
+  }
+
   function renderComment(comment: AppPostComment, isReply = false) {
     const replies = repliesByCommentId.get(comment.id) ?? [];
 
@@ -565,7 +620,6 @@ export default function PostDetailPage() {
                       data-post-detail-media
                       key={`${item.url}-${index}`}
                       loop
-                      muted
                       playsInline
                       preload={activePhotoIndex === index ? "auto" : "metadata"}
                       src={item.url}
@@ -603,6 +657,24 @@ export default function PostDetailPage() {
             type="button"
           >
             <ArrowLeft aria-hidden="true" size={20} />
+          </button>
+          <button
+            aria-label={isLikedByViewer ? "Unlike recommendation" : "Like recommendation"}
+            className={`absolute right-5 top-[calc(var(--safe-area-top)+1rem)] flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-3 shadow-lift backdrop-blur disabled:opacity-60 ${
+              postMediaItems.length
+                ? isLikedByViewer
+                  ? "bg-white text-coral"
+                  : "bg-ink/42 text-white"
+                : isLikedByViewer
+                  ? "bg-coral/10 text-coral"
+                  : "bg-white/94 text-ink"
+            }`}
+            disabled={likeStatus === "saving"}
+            onClick={() => void handleToggleLike()}
+            type="button"
+          >
+            <Heart aria-hidden="true" fill={isLikedByViewer ? "currentColor" : "none"} size={19} />
+            {likeCount > 0 ? <span className="text-xs font-black">{likeCount}</span> : null}
           </button>
           {postMediaUrls.length > 1 ? (
             <div className="absolute bottom-6 right-5 rounded-full bg-ink/36 px-4 py-2 text-xs font-black text-white shadow-lift backdrop-blur">
@@ -807,6 +879,7 @@ export default function PostDetailPage() {
             )}
 
             {commentMessage ? <p className="mt-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{commentMessage}</p> : null}
+            {likeMessage ? <p className="mt-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{likeMessage}</p> : null}
           </section>
 
         </div>

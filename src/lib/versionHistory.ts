@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 18, 2026",
+    id: "v8.2",
+    title: "Recommendation Likes and Audio",
+    summary:
+      "Added recommendation likes with hero-level heart controls, visible like counts, like notifications in the Explore notification drawer, a Supabase likes migration, and restored audio playback for recommendation detail swipe-preview videos.",
+  },
+  {
+    date: "June 18, 2026",
     id: "v8.1",
     title: "Profile Cache and Map Pin Smoothing",
     summary:

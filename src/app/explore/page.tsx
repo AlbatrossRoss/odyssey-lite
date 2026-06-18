@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bell, MapPin, MessageCircle, X } from "lucide-react";
+import { ArrowLeft, Bell, Heart, MapPin, MessageCircle, X } from "lucide-react";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
@@ -15,6 +15,7 @@ import { consumeActionBanner, writeActionBanner, type ActionBanner } from "@/lib
 import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
 import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
 import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
+import { fetchLikeNotifications, markLikeNotificationsRead, type AppLikeNotification } from "@/lib/postLikes";
 import { fetchAppPosts, type AppPost } from "@/lib/posts";
 import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
 
@@ -38,6 +39,7 @@ type MapArea = {
 };
 
 type SheetPosition = "minimized" | "peek" | "expanded";
+type ExploreNotification = (AppCommentNotification & { type: "comment" }) | AppLikeNotification;
 
 type MapView = {
   center: [number, number];
@@ -307,7 +309,8 @@ export default function ExplorePage() {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
   const [commentNotifications, setCommentNotifications] = useState<AppCommentNotification[]>([]);
-  const [unreadCommentCount, setUnreadCommentCount] = useState(0);
+  const [likeNotifications, setLikeNotifications] = useState<AppLikeNotification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<"idle" | "loading">("idle");
   const [notificationMessage, setNotificationMessage] = useState("");
@@ -354,6 +357,14 @@ export default function ExplorePage() {
       return true;
     });
   }, [mapboxSuggestions]);
+  const notifications = useMemo<ExploreNotification[]>(
+    () =>
+      [
+        ...commentNotifications.map((notification) => ({ ...notification, type: "comment" as const })),
+        ...likeNotifications,
+      ].sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()),
+    [commentNotifications, likeNotifications],
+  );
 
   useEffect(() => {
     const banner = consumeActionBanner();
@@ -558,7 +569,8 @@ export default function ExplorePage() {
   useEffect(() => {
     if (!viewerId) {
       setCommentNotifications([]);
-      setUnreadCommentCount(0);
+      setLikeNotifications([]);
+      setUnreadNotificationCount(0);
       setNotificationStatus("idle");
       return;
     }
@@ -568,11 +580,15 @@ export default function ExplorePage() {
     setNotificationStatus("loading");
     setNotificationMessage("");
 
-    fetchCommentNotifications(viewerId)
-      .then((notifications) => {
+    Promise.all([fetchCommentNotifications(viewerId), fetchLikeNotifications(viewerId)])
+      .then(([comments, likes]) => {
         if (active) {
-          setCommentNotifications(notifications);
-          setUnreadCommentCount(notifications.filter((notification) => !notification.isRead).length);
+          setCommentNotifications(comments);
+          setLikeNotifications(likes);
+          setUnreadNotificationCount(
+            comments.filter((notification) => !notification.isRead).length +
+            likes.filter((notification) => !notification.isRead).length,
+          );
           setNotificationStatus("idle");
         }
       })
@@ -700,17 +716,28 @@ export default function ExplorePage() {
   }, []);
 
   const handleNotificationOpen = useCallback(
-    (notification: AppCommentNotification) => {
+    (notification: ExploreNotification) => {
       setNotificationsOpen(false);
 
       if (!viewerId || notification.isRead) {
         return;
       }
 
+      if (notification.type === "like") {
+        setLikeNotifications((current) =>
+          current.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item)),
+        );
+        setUnreadNotificationCount((count) => Math.max(0, count - 1));
+        void markLikeNotificationsRead(viewerId, [notification.id]).catch((error) => {
+          setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
+        });
+        return;
+      }
+
       setCommentNotifications((current) =>
         current.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item)),
       );
-      setUnreadCommentCount((count) => Math.max(0, count - 1));
+      setUnreadNotificationCount((count) => Math.max(0, count - 1));
       void markCommentNotificationsRead(viewerId, [notification.id]).catch((error) => {
         setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
       });
@@ -972,9 +999,9 @@ export default function ExplorePage() {
               type="button"
             >
               <Bell aria-hidden="true" size={20} />
-              {unreadCommentCount ? (
+              {unreadNotificationCount ? (
                 <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-black leading-none text-white">
-                  {unreadCommentCount > 9 ? "9+" : unreadCommentCount}
+                  {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
                 </span>
               ) : null}
             </button>
@@ -1014,7 +1041,7 @@ export default function ExplorePage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-coral">Notifications</p>
-                <h2 className="mt-1 text-2xl font-black text-ink">Comment history</h2>
+                <h2 className="mt-1 text-2xl font-black text-ink">Notifications</h2>
               </div>
               <button
                 aria-label="Close notifications"
@@ -1025,9 +1052,9 @@ export default function ExplorePage() {
                 <X aria-hidden="true" size={18} />
               </button>
             </div>
-            {unreadCommentCount ? (
+            {unreadNotificationCount ? (
               <p className="mt-2 text-xs font-bold text-ink/50">
-                {unreadCommentCount} unread {unreadCommentCount === 1 ? "comment" : "comments"}
+                {unreadNotificationCount} unread {unreadNotificationCount === 1 ? "notification" : "notifications"}
               </p>
             ) : null}
           </div>
@@ -1041,29 +1068,35 @@ export default function ExplorePage() {
               <p className="rounded-[20px] bg-shell px-4 py-5 text-center text-sm font-bold text-ink/46">Loading notifications...</p>
             ) : notificationMessage ? (
               <p className="rounded-[20px] bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{notificationMessage}</p>
-            ) : commentNotifications.length ? (
+            ) : notifications.length ? (
               <div className="space-y-3">
-                {commentNotifications.map((notification) => (
+                {notifications.map((notification) => (
                   <Link
                     className={`relative flex gap-3 rounded-[22px] p-3 ${
                       notification.isRead ? "bg-shell text-ink/76" : "bg-coral/10 text-ink ring-1 ring-coral/18"
                     }`}
                     href={`/posts/${notification.postId}`}
-                    key={notification.id}
+                    key={`${notification.type}-${notification.id}`}
                     onClick={() => handleNotificationOpen(notification)}
                   >
                     {!notification.isRead ? <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-coral" /> : null}
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-ink/42">
                       {notification.profilePhotoUrl ? (
                         <img alt="" className="h-full w-full object-cover" src={notification.profilePhotoUrl} />
+                      ) : notification.type === "like" ? (
+                        <Heart aria-hidden="true" size={18} />
                       ) : (
                         <MessageCircle aria-hidden="true" size={18} />
                       )}
                     </span>
                     <span className="min-w-0 flex-1 pr-3">
-                      <span className="block text-sm font-black leading-tight">@{notification.username} commented</span>
+                      <span className="block text-sm font-black leading-tight">
+                        @{notification.username} {notification.type === "like" ? "liked your recommendation" : "commented"}
+                      </span>
                       <span className="mt-0.5 block truncate text-xs font-bold text-ink/50">on {notification.postTitle}</span>
-                      <span className="mt-1 line-clamp-3 block text-xs font-semibold leading-snug text-ink/62">{notification.body}</span>
+                      {notification.type === "comment" ? (
+                        <span className="mt-1 line-clamp-3 block text-xs font-semibold leading-snug text-ink/62">{notification.body}</span>
+                      ) : null}
                       <span className="mt-2 block text-[10px] font-black uppercase tracking-[0.12em] text-ink/34">
                         {formatNotificationTime(notification.createdAt)}
                       </span>
