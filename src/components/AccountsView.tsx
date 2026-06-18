@@ -8,6 +8,7 @@ import {
   AccountWithStats,
   accountDisplayName,
   clearAccountSessionId,
+  fetchAccountById,
   fetchAccountConnections,
   fetchAccountsWithStats,
   readAccountSessionId,
@@ -124,12 +125,40 @@ export function AccountsView({ username }: AccountsViewProps) {
       if (nextAccounts) {
         writeCachedAccounts(sessionId, nextAccounts);
         setAccounts(nextAccounts);
+      } else if (!cachedAccounts.length) {
+        const fallbackAccount = await withTimeout(fetchAccountById(sessionId), profileHydrationTimeoutMs);
+
+        if (fallbackAccount) {
+          const fallbackAccounts: AccountWithStats[] = [{
+            ...fallbackAccount,
+            isFollowedByViewer: false,
+            stats: { followers: 0, following: 0, posts: 0 },
+          }];
+          writeCachedAccounts(sessionId, fallbackAccounts);
+          setAccounts(fallbackAccounts);
+        }
       }
 
       setAccountsHydrated(true);
       setStatus("ready");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
+      try {
+        const fallbackAccount = await withTimeout(fetchAccountById(sessionId), profileHydrationTimeoutMs);
+
+        if (fallbackAccount) {
+          const fallbackAccounts: AccountWithStats[] = [{
+            ...fallbackAccount,
+            isFollowedByViewer: false,
+            stats: { followers: 0, following: 0, posts: 0 },
+          }];
+          writeCachedAccounts(sessionId, fallbackAccounts);
+          setAccounts(fallbackAccounts);
+        } else {
+          setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
+        }
+      } catch {
+        setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
+      }
       setAccountsHydrated(true);
       setStatus("ready");
     }

@@ -60,7 +60,7 @@ export function AccountGate({ children }: AccountGateProps) {
       }
 
       try {
-        const restored = await withTimeout(fetchAccountById(accountId), 2500);
+        const restored = await withTimeout(fetchAccountById(accountId), 8000);
 
         if (active) {
           if (restored) {
@@ -76,8 +76,9 @@ export function AccountGate({ children }: AccountGateProps) {
         }
       } catch {
         if (active) {
-          setHasStoredSession(true);
-          setStartupLoading(window.sessionStorage.getItem(startupLoadingCompleteKey) !== "true");
+          setHasStoredSession(false);
+          setMessage("We couldn't restore your saved login. Please log in again.");
+          window.sessionStorage.removeItem(startupLoadingCompleteKey);
         }
       } finally {
         if (active) {
