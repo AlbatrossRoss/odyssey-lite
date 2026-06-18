@@ -42,14 +42,14 @@ export function PostMediaPreview({ alt = "", autoPlay = true, className, control
         autoPlay={autoPlay}
         className={className}
         controls={controls}
+        key={src}
         loop
         muted={muted}
         playsInline
         preload={autoPlay ? "auto" : "metadata"}
         ref={videoRef}
-      >
-        <source src={src} type={videoMimeType(src)} />
-      </video>
+        src={src}
+      />
     );
   }
 
@@ -66,22 +66,4 @@ export function PostMediaPreview({ alt = "", autoPlay = true, className, control
       src={src}
     />
   );
-}
-
-function videoMimeType(src: string) {
-  const cleanSrc = src.split("?")[0]?.toLowerCase() ?? "";
-
-  if (cleanSrc.endsWith(".mov") || cleanSrc.endsWith(".qt")) {
-    return "video/quicktime";
-  }
-
-  if (cleanSrc.endsWith(".webm")) {
-    return "video/webm";
-  }
-
-  if (cleanSrc.endsWith(".m4v")) {
-    return "video/x-m4v";
-  }
-
-  return "video/mp4";
 }

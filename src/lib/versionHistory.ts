@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 18, 2026",
+    id: "v7.8",
+    title: "Posting and Profile Reliability",
+    summary:
+      "Removed the blocking startup preload, fixed profile stats getting stuck at zero from stale fallback cache, improved video thumbnails and playback reliability, tightened the posted confirmation card, and restored the Cover label on the first create-page media thumbnail.",
+  },
+  {
     date: "June 17, 2026",
     id: "v7.7",
     title: "Explore and Profile Startup Preload",

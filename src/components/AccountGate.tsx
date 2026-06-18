@@ -1,22 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ImagePlus, LogIn } from "lucide-react";
-import { LoadingScreen } from "@/components/LoadingScreen";
 import {
   AppAccount,
   clearAccountSessionId,
   createAccount,
   fetchAccountById,
-  fetchAccountsWithStats,
   loginAccount,
   readAccountSessionId,
   writeAccountSessionId,
 } from "@/lib/accounts";
-import { fetchBoardsByAccount } from "@/lib/boards";
-import { fetchAppPosts, fetchAppPostsByAccount } from "@/lib/posts";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 type AccountGateProps = {
@@ -24,25 +19,16 @@ type AccountGateProps = {
 };
 
 type Mode = "create" | "login";
-const accountsCachePrefix = "odyssey-accounts-cache-v1";
-const appPostsCacheKey = "odyssey-app-posts-cache-v2";
-const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
-const startupLoadingCompleteKey = "odyssey-startup-loading-complete-v1";
-const startupPreloadTimeoutMs = 8500;
 
 export function AccountGate({ children }: AccountGateProps) {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [sessionCandidateId, setSessionCandidateId] = useState<string | null>(() => readAccountSessionId());
-  const [hasStoredSession, setHasStoredSession] = useState(false);
-  const [startupLoading, setStartupLoading] = useState(false);
+  const [hasStoredSession, setHasStoredSession] = useState(() => Boolean(readAccountSessionId() && isSupabaseConfigured()));
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [mode, setMode] = useState<Mode>("create");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "saving">("ready");
-  const [restoreStatus, setRestoreStatus] = useState<"checking" | "ready">("checking");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -54,35 +40,25 @@ export function AccountGate({ children }: AccountGateProps) {
       if (!accountId || !isSupabaseConfigured()) {
         if (active) {
           setHasStoredSession(false);
-          setRestoreStatus("ready");
         }
         return;
       }
 
       try {
-        const restored = await withTimeout(fetchAccountById(accountId), 8000);
+        const restored = await fetchAccountById(accountId);
 
         if (active) {
           if (restored) {
             setHasStoredSession(true);
             setAccount(restored);
-            setStartupLoading(window.sessionStorage.getItem(startupLoadingCompleteKey) !== "true");
           } else {
             clearAccountSessionId();
-            setSessionCandidateId(null);
             setHasStoredSession(false);
-            window.sessionStorage.removeItem(startupLoadingCompleteKey);
           }
         }
       } catch {
         if (active) {
-          setHasStoredSession(false);
-          setMessage("We couldn't restore your saved login. Please log in again.");
-          window.sessionStorage.removeItem(startupLoadingCompleteKey);
-        }
-      } finally {
-        if (active) {
-          setRestoreStatus("ready");
+          setHasStoredSession(true);
         }
       }
     }
@@ -93,39 +69,6 @@ export function AccountGate({ children }: AccountGateProps) {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (restoreStatus !== "checking") {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setRestoreStatus("ready");
-    }, 3500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [restoreStatus]);
-
-  useEffect(() => {
-    const accountId = account?.id ?? readAccountSessionId();
-
-    if (!startupLoading || !hasStoredSession || !accountId) {
-      return;
-    }
-
-    function finishStartupLoading() {
-      window.sessionStorage.setItem(startupLoadingCompleteKey, "true");
-      setStartupLoading(false);
-    }
-
-    void preloadStartup(accountId, router).finally(finishStartupLoading);
-
-    const timeoutId = window.setTimeout(finishStartupLoading, startupPreloadTimeoutMs);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [account?.id, hasStoredSession, router, startupLoading]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -151,10 +94,8 @@ export function AccountGate({ children }: AccountGateProps) {
       }
 
       writeAccountSessionId(nextAccount.id);
-      window.sessionStorage.removeItem(startupLoadingCompleteKey);
       setHasStoredSession(true);
       setAccount(nextAccount);
-      setStartupLoading(true);
       setStatus("ready");
     } catch (error) {
       const errorMessage = formatError(error);
@@ -172,16 +113,7 @@ export function AccountGate({ children }: AccountGateProps) {
   }
 
   if (account || hasStoredSession) {
-    return (
-      <>
-        {children}
-        {startupLoading ? <LoadingScreen className="fixed inset-0 z-[9999]" framed /> : null}
-      </>
-    );
-  }
-
-  if (restoreStatus === "checking" && sessionCandidateId) {
-    return <LoadingScreen />;
+    return children;
   }
 
   return (
@@ -297,51 +229,6 @@ function fileToDataUrl(file: File) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
-  return Promise.race<T | null>([
-    promise,
-    new Promise<null>((resolve) => {
-      window.setTimeout(() => resolve(null), timeoutMs);
-    }),
-  ]);
-}
-
-async function preloadStartup(accountId: string, router: ReturnType<typeof useRouter>) {
-  router.prefetch("/explore");
-  router.prefetch("/accounts");
-
-  const [posts, accounts, profilePosts, boards] = await Promise.allSettled([
-    withTimeout(fetchAppPosts(), startupPreloadTimeoutMs),
-    withTimeout(fetchAccountsWithStats(accountId), startupPreloadTimeoutMs),
-    withTimeout(fetchAppPostsByAccount(accountId), startupPreloadTimeoutMs),
-    withTimeout(fetchBoardsByAccount(accountId), startupPreloadTimeoutMs),
-  ]);
-
-  if (posts.status === "fulfilled" && posts.value) {
-    writeSessionCache(appPostsCacheKey, posts.value);
-  }
-
-  if (accounts.status === "fulfilled" && accounts.value) {
-    writeSessionCache(`${accountsCachePrefix}-${accountId}`, accounts.value);
-  }
-
-  if (profilePosts.status === "fulfilled" && profilePosts.value) {
-    writeSessionCache(`${profilePostsCachePrefix}-${accountId}`, profilePosts.value);
-  }
-
-  if (boards.status === "fulfilled" && boards.value) {
-    writeSessionCache(`odyssey-profile-boards-cache-v1-${accountId}`, boards.value);
-  }
-}
-
-function writeSessionCache(key: string, value: unknown) {
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Startup still completes if browser storage is unavailable.
-  }
 }
 
 function formatError(error: unknown) {

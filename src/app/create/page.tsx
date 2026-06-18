@@ -513,8 +513,8 @@ export default function CreatePage() {
                     type="button"
                   >
                     <MediaPreview className="h-full w-full object-cover" item={item} />
-                    {item.id === activeMediaId ? (
-                      <span className="absolute inset-x-1 bottom-1 rounded-full bg-moss px-1.5 py-0.5 text-[10px] font-black text-white">Selected</span>
+                    {index === 0 ? (
+                      <span className="absolute inset-x-1 bottom-1 rounded-full bg-moss px-1.5 py-0.5 text-[10px] font-black text-white">Cover</span>
                     ) : (
                       <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink/60 px-1 text-[10px] font-black text-white">
                         {index + 1}
@@ -685,45 +685,45 @@ function PostedSuccessPage({
     <MobileFrame>
       <section className="safe-top-bar safe-page-bottom flex h-full flex-col overflow-hidden bg-white px-3 text-ink">
         <div className="flex min-h-0 flex-1 flex-col items-center justify-start pt-1">
-          <div className="mb-3 text-center">
+          <div className="mb-2 text-center">
             <p className="text-sm font-black leading-tight">Posted!</p>
-            <div className="relative mx-auto mt-3 grid h-14 w-14 place-items-center rounded-full bg-[#9bc58f] text-white shadow-[0_12px_30px_rgba(77,111,65,0.22)]">
-              <Check aria-hidden="true" size={27} strokeWidth={2.8} />
+            <div className="relative mx-auto mt-2 grid h-12 w-12 place-items-center rounded-full bg-[#9bc58f] text-white shadow-[0_12px_30px_rgba(77,111,65,0.22)]">
+              <Check aria-hidden="true" size={24} strokeWidth={2.8} />
             </div>
-            <p className="mx-auto mt-3 max-w-[240px] text-[13px] font-semibold leading-tight text-ink/78">Your recommendation is live and ready to inspire others.</p>
+            <p className="mx-auto mt-2 max-w-[250px] text-[12px] font-semibold leading-tight text-ink/78">Your recommendation is live and ready to inspire others.</p>
           </div>
 
           <article className="w-full overflow-hidden rounded-[10px] bg-white shadow-[0_12px_28px_rgba(24,35,31,0.12)]">
             <SuccessMedia imageUrl={post.imageUrl} mediaType={post.mediaType} />
-            <div className="relative px-3 pb-3 pt-2.5">
-              <div className="-mt-8 mb-2 flex items-end gap-2">
-                <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-shell shadow-sm">
+            <div className="relative px-3 pb-2.5 pt-2">
+              <div className="-mt-7 mb-1.5 flex items-end gap-2">
+                <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-shell shadow-sm">
                   {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <span className="text-sm font-black">Y</span>}
                 </div>
-                <div className="min-w-[60px] rounded-full bg-white/95 px-2.5 py-1.5 shadow-sm">
-                  <p className="whitespace-nowrap text-[10px] font-black leading-none">{post.username}</p>
+                <div className="min-w-[58px] max-w-[160px] rounded-full bg-white/95 px-2.5 py-1.5 shadow-sm">
+                  <p className="truncate whitespace-nowrap text-[10px] font-black leading-none">{post.username}</p>
                   <p className="mt-1 whitespace-nowrap text-[8px] font-semibold leading-none text-ink/54">just now</p>
                 </div>
               </div>
-              <h2 className="line-clamp-2 text-lg font-black leading-tight">{post.title}</h2>
-              <p className="mt-1.5 line-clamp-1 text-[11px] font-semibold leading-snug text-ink/56">{post.location}</p>
-              <p className="mt-0.5 text-[11px] font-semibold text-ink/46">{post.dateLabel}</p>
-              <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-ink/70">{post.description}</p>
+              <h2 className="line-clamp-2 text-[17px] font-black leading-tight">{post.title}</h2>
+              <p className="mt-1 line-clamp-1 text-[11px] font-semibold leading-snug text-ink/56">{post.location}</p>
+              <p className="mt-0.5 line-clamp-1 text-[11px] font-semibold text-ink/46">{post.dateLabel}</p>
+              <p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-snug text-ink/70">{post.description}</p>
               {post.tags.length ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-1.5 flex max-h-[24px] flex-wrap gap-1.5 overflow-hidden">
                   {post.tags.slice(0, 4).map((tag) => (
-                    <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[10px] font-normal text-ink/72" key={tag}>
+                    <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[9px] font-normal leading-none text-ink/72" key={tag}>
                       {tag}
                     </span>
                   ))}
-                  {post.tags.length > 4 ? <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[10px] font-normal text-ink/72">+{post.tags.length - 4}</span> : null}
+                  {post.tags.length > 4 ? <span className="rounded-full bg-[#f1efeb] px-2.5 py-1 text-[9px] font-normal leading-none text-ink/72">+{post.tags.length - 4}</span> : null}
                 </div>
               ) : null}
             </div>
           </article>
         </div>
 
-        <div className="shrink-0 space-y-2 pt-3">
+        <div className="shrink-0 space-y-2 pt-2.5">
           <button className="flex h-12 w-full items-center justify-center gap-2 rounded-[9px] bg-moss text-sm font-black text-white shadow-lift" onClick={onView} type="button">
             <Send aria-hidden="true" size={17} />
             View Recommendation
@@ -744,17 +744,17 @@ function PostedSuccessPage({
 function SuccessMedia({ imageUrl, mediaType }: { imageUrl: string | null; mediaType?: "image" | "video" }) {
   if (!imageUrl) {
     return (
-      <div className="grid aspect-[1.9] w-full place-items-center bg-shell text-ink/36">
+      <div className="grid aspect-[2.15] w-full place-items-center bg-shell text-ink/36">
         <ImagePlus aria-hidden="true" size={34} />
       </div>
     );
   }
 
   if (mediaType === "video") {
-    return <video aria-label="Posted recommendation preview" autoPlay className="aspect-[1.9] w-full object-cover" loop muted playsInline src={imageUrl} />;
+    return <video aria-label="Posted recommendation preview" autoPlay className="aspect-[2.15] w-full object-cover" loop muted playsInline src={imageUrl} />;
   }
 
-  return <img alt="" className="aspect-[1.9] w-full object-cover" src={imageUrl} />;
+  return <img alt="" className="aspect-[2.15] w-full object-cover" src={imageUrl} />;
 }
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {

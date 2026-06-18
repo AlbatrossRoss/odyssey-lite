@@ -35,7 +35,6 @@ const profilePostsCachePrefix = "odyssey-profile-posts-cache-v1";
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const profileHydrationTimeoutMs = 4500;
 const tripPostingEnabled = false;
-const startupReadyEvent = "odyssey:startup-profile-ready";
 
 type SetupStep = "photo" | "city" | "follow" | "local-recs" | "done";
 type PlaceSuggestion = {
@@ -84,8 +83,6 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [accountsHydrated, setAccountsHydrated] = useState(false);
   const [profilePostsHydrated, setProfilePostsHydrated] = useState(false);
-  const [profileBoardsHydrated, setProfileBoardsHydrated] = useState(false);
-  const [profileMapReady, setProfileMapReady] = useState(false);
   const [message, setMessage] = useState("");
   const [connectionOpen, setConnectionOpen] = useState<"followers" | "following" | null>(null);
   const [connectionAccounts, setConnectionAccounts] = useState<AppAccount[]>([]);
@@ -110,7 +107,7 @@ export function AccountsView({ username }: AccountsViewProps) {
     }
 
     setAccountsHydrated(false);
-    const cachedAccounts = readCachedAccounts(sessionId);
+    const cachedAccounts = readCachedAccounts(sessionId).filter((account) => !isZeroStatsViewerFallback(account, sessionId));
 
     if (cachedAccounts.length) {
       setAccounts(cachedAccounts);
@@ -120,23 +117,11 @@ export function AccountsView({ username }: AccountsViewProps) {
     }
 
     try {
-      const nextAccounts = await withTimeout(fetchAccountsWithStats(sessionId), profileHydrationTimeoutMs);
+      const nextAccounts = await fetchAccountsWithStats(sessionId);
 
-      if (nextAccounts) {
+      if (nextAccounts.length) {
         writeCachedAccounts(sessionId, nextAccounts);
         setAccounts(nextAccounts);
-      } else if (!cachedAccounts.length) {
-        const fallbackAccount = await withTimeout(fetchAccountById(sessionId), profileHydrationTimeoutMs);
-
-        if (fallbackAccount) {
-          const fallbackAccounts: AccountWithStats[] = [{
-            ...fallbackAccount,
-            isFollowedByViewer: false,
-            stats: { followers: 0, following: 0, posts: 0 },
-          }];
-          writeCachedAccounts(sessionId, fallbackAccounts);
-          setAccounts(fallbackAccounts);
-        }
       }
 
       setAccountsHydrated(true);
@@ -151,7 +136,6 @@ export function AccountsView({ username }: AccountsViewProps) {
             isFollowedByViewer: false,
             stats: { followers: 0, following: 0, posts: 0 },
           }];
-          writeCachedAccounts(sessionId, fallbackAccounts);
           setAccounts(fallbackAccounts);
         } else {
           setMessage(error instanceof Error ? error.message : "Unable to load accounts.");
@@ -229,34 +213,15 @@ export function AccountsView({ username }: AccountsViewProps) {
   const setupTotal = 5;
   const setupPercent = Math.round((setupProgress / setupTotal) * 100);
   const showProfileSetup = isOwnProfile && status === "ready" && accountsHydrated && profilePostsHydrated && setupProgress < setupTotal;
-  const isProfileDataLoading = status === "loading" || !accountsHydrated || !profilePostsHydrated || !profileBoardsHydrated;
-
-  useEffect(() => {
-    if (!isProfileDataLoading) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setAccountsHydrated(true);
-      setProfilePostsHydrated(true);
-      setProfileBoardsHydrated(true);
-      setStatus("ready");
-    }, 6000);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isProfileDataLoading]);
 
   useEffect(() => {
     let active = true;
     setProfilePostsHydrated(false);
-    setProfileBoardsHydrated(false);
-    setProfileMapReady(false);
 
     if (!profile) {
       setProfilePosts([]);
       setProfileBoards([]);
       setProfilePostsHydrated(true);
-      setProfileBoardsHydrated(true);
       return;
     }
 
@@ -295,13 +260,11 @@ export function AccountsView({ username }: AccountsViewProps) {
             writeCachedProfileBoards(profile.id, boards);
             setProfileBoards(boards);
           }
-          setProfileBoardsHydrated(true);
         }
       })
       .catch(() => {
         if (active) {
           setProfileBoards([]);
-          setProfileBoardsHydrated(true);
         }
       });
 
@@ -309,26 +272,6 @@ export function AccountsView({ username }: AccountsViewProps) {
       active = false;
     };
   }, [profile]);
-
-  useEffect(() => {
-    if (!profile || isProfileDataLoading || profileMapReady) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setProfileMapReady(true);
-    }, 2800);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isProfileDataLoading, profile, profileMapReady]);
-
-  useEffect(() => {
-    if (!profile || isProfileDataLoading || !profileMapReady) {
-      return;
-    }
-
-    window.dispatchEvent(new Event(startupReadyEvent));
-  }, [isProfileDataLoading, profile, profileMapReady]);
 
   useEffect(() => {
     const query = cityInput.trim();
@@ -584,7 +527,7 @@ export function AccountsView({ username }: AccountsViewProps) {
         <div className="px-4">
           {profile ? (
             <section className="pt-2">
-              <ProfileMapHero isOwnProfile={isOwnProfile} onMapReady={() => setProfileMapReady(true)} posts={profilePosts} profile={profile} />
+              <ProfileMapHero isOwnProfile={isOwnProfile} posts={profilePosts} profile={profile} />
 
               <section className="-mt-24 relative z-10 bg-transparent px-1 pb-2 pt-0">
                 <div className="px-3">
@@ -1154,6 +1097,16 @@ function readCachedAccounts(viewerId: string) {
   }
 }
 
+function isZeroStatsViewerFallback(account: AccountWithStats, viewerId: string) {
+  return (
+    account.id === viewerId &&
+    account.stats.followers === 0 &&
+    account.stats.following === 0 &&
+    account.stats.posts === 0 &&
+    !account.isFollowedByViewer
+  );
+}
+
 function writeCachedAccounts(viewerId: string, accounts: AccountWithStats[]) {
   try {
     window.sessionStorage.setItem(`${accountsCachePrefix}-${viewerId}`, JSON.stringify(accounts));
@@ -1293,7 +1246,7 @@ function writeProfileExploreState(posts: AppPost[], isOwnProfile: boolean, profi
   }
 }
 
-function ProfileMapHero({ isOwnProfile, onMapReady, posts, profile }: { isOwnProfile: boolean; onMapReady: () => void; posts: AppPost[]; profile: AccountWithStats }) {
+function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolean; posts: AppPost[]; profile: AccountWithStats }) {
   const mapCenter = profile.currentCityCoordinates ?? posts[0]?.coordinates ?? ([-98.5795, 39.8283] as [number, number]);
   const mapZoom = posts.length || profile.currentCityCoordinates ? 2.15 : 1.75;
 
@@ -1305,7 +1258,6 @@ function ProfileMapHero({ isOwnProfile, onMapReady, posts, profile }: { isOwnPro
         experiences={[]}
         interactive={false}
         mapTarget={{ center: mapCenter, zoom: mapZoom }}
-        onReady={onMapReady}
         zoom={mapZoom}
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 via-white/0 via-56% to-[#fbfaf7]/72" />

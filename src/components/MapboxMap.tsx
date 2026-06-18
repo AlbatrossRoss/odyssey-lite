@@ -405,13 +405,13 @@ export function MapboxMap({
       element.className = "odyssey-marker";
       element.type = "button";
       element.setAttribute("aria-label", post.title);
-      const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${post.profilePhotoUrl}" alt="" />` : "";
+      const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${escapeHtml(post.profilePhotoUrl)}" alt="" />` : "";
       const textOnlyEmoji = post.tags[0] ? emojiForPostTag(post.tags[0]) : "📍";
       const mediaMarkup = !post.imageUrl
         ? `<span class="odyssey-marker-text">${escapeHtml(textOnlyEmoji)}</span>`
         : post.mediaTypes[0] === "video"
-          ? `<span class="odyssey-marker-text">▶</span>`
-          : `<img class="odyssey-marker-photo" src="${post.imageUrl}" alt="" decoding="async" />`;
+          ? `<video class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" muted playsinline preload="metadata"></video><span class="odyssey-marker-video-badge">▶</span>`
+          : `<img class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" alt="" decoding="async" />`;
 
       element.innerHTML = `
         <span class="odyssey-marker-card" data-post-id="${escapeHtml(post.id)}" data-selected="false">
@@ -425,6 +425,21 @@ export function MapboxMap({
       };
       element.addEventListener("click", selectPost);
       element.addEventListener("pointerup", selectPost);
+
+      const markerVideo = element.querySelector("video");
+      markerVideo?.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (markerVideo.duration > 0) {
+            try {
+              markerVideo.currentTime = Math.min(0.12, markerVideo.duration / 2);
+            } catch {
+              // Some remote video files are not seekable until later; the marker can still show the native poster frame.
+            }
+          }
+        },
+        { once: true },
+      );
 
       return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
     });
