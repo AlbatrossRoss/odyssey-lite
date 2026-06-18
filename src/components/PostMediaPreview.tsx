@@ -16,26 +16,36 @@ type PostMediaPreviewProps = {
 
 export function PostMediaPreview({ alt = "", autoPlay = true, className, controls = false, fallbackUrl, mediaType = "image", muted = true, src }: PostMediaPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const isVideo = mediaType === "video" || isVideoSrc(src);
 
   useEffect(() => {
     const video = videoRef.current;
 
-    if (!video || mediaType !== "video") {
+    if (!video || !isVideo) {
       return;
     }
+
+    video.defaultMuted = muted;
+    video.muted = muted;
+    video.loop = true;
+    video.playsInline = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
 
     if (!autoPlay) {
       video.pause();
       return;
     }
 
-    video.muted = muted;
-    void video.play().catch(() => {
-      // Browser autoplay rules can still block a preview; native controls remain available where shown.
+    requestAnimationFrame(() => {
+      video.play().catch(() => {
+        // Browser autoplay rules can still block a preview; native controls remain available where shown.
+      });
     });
-  }, [autoPlay, mediaType, muted, src]);
+  }, [autoPlay, isVideo, muted, src]);
 
-  if (mediaType === "video") {
+  if (isVideo) {
     return (
       <video
         aria-label={alt}
@@ -71,4 +81,8 @@ export function PostMediaPreview({ alt = "", autoPlay = true, className, control
       src={src}
     />
   );
+}
+
+function isVideoSrc(src: string) {
+  return /\.(avi|m4v|mov|mp4|webm)(\?|#|$)/i.test(src);
 }

@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 18, 2026",
+    id: "v7.9",
+    title: "Video Autoplay Reliability",
+    summary:
+      "Improved video thumbnail autoplay by detecting video URLs even when saved media metadata is stale, applying mobile-safe inline playback attributes directly, and retrying map marker playback after markers are added to the map.",
+  },
+  {
+    date: "June 18, 2026",
     id: "v7.8",
     title: "Posting and Profile Reliability",
     summary:

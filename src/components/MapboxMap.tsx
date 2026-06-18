@@ -407,9 +407,10 @@ export function MapboxMap({
       element.setAttribute("aria-label", post.title);
       const avatarMarkup = post.profilePhotoUrl ? `<img class="odyssey-marker-avatar" src="${escapeHtml(post.profilePhotoUrl)}" alt="" />` : "";
       const textOnlyEmoji = post.tags[0] ? emojiForPostTag(post.tags[0]) : "📍";
+      const isVideoPost = post.imageUrl ? post.mediaTypes[0] === "video" || isVideoUrl(post.imageUrl) : false;
       const mediaMarkup = !post.imageUrl
         ? `<span class="odyssey-marker-text">${escapeHtml(textOnlyEmoji)}</span>`
-        : post.mediaTypes[0] === "video"
+        : isVideoPost
           ? `<video class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" autoplay loop muted playsinline preload="auto"></video>`
           : `<img class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" alt="" decoding="async" />`;
 
@@ -426,10 +427,22 @@ export function MapboxMap({
       element.addEventListener("click", selectPost);
       element.addEventListener("pointerup", selectPost);
 
+      const marker = new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
       const markerVideo = element.querySelector("video");
-      markerVideo?.play().catch(() => undefined);
+      if (markerVideo) {
+        markerVideo.defaultMuted = true;
+        markerVideo.muted = true;
+        markerVideo.loop = true;
+        markerVideo.playsInline = true;
+        markerVideo.setAttribute("muted", "");
+        markerVideo.setAttribute("playsinline", "");
+        markerVideo.setAttribute("webkit-playsinline", "");
+        requestAnimationFrame(() => {
+          markerVideo.play().catch(() => undefined);
+        });
+      }
 
-      return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
+      return marker;
     });
 
     markersRef.current = [...(userLocationMarker ? [userLocationMarker] : []), ...experienceMarkers, ...postMarkers];
@@ -499,4 +512,8 @@ function escapeHtml(value: string) {
     if (character === '"') return "&quot;";
     return "&#39;";
   });
+}
+
+function isVideoUrl(url: string) {
+  return /\.(avi|m4v|mov|mp4|webm)(\?|#|$)/i.test(url);
 }
