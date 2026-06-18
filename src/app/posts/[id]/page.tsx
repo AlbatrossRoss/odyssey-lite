@@ -707,7 +707,7 @@ export default function PostDetailPage() {
                     onClick={() => setExpandedMediaIndex(index)}
                     type="button"
                   >
-                    <PostMediaPreview alt="" autoPlay={false} className="h-full w-full object-cover" mediaType={item.mediaType} src={item.url} />
+                    <PostMediaPreview alt="" className="h-full w-full object-cover" mediaType={item.mediaType} src={item.url} />
                     {item.mediaType === "video" ? (
                       <span className="absolute bottom-2 left-2 grid h-9 w-9 place-items-center rounded-full bg-ink/56 text-white shadow-lift backdrop-blur">
                         <Play aria-hidden="true" fill="currentColor" size={17} />

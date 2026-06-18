@@ -759,10 +759,6 @@ function SuccessMedia({ imageUrl, mediaType }: { imageUrl: string | null; mediaT
 
 function MediaPreview({ className, item }: { className: string; item: SelectedUpload }) {
   if (item.kind === "video") {
-    if (item.posterUrl) {
-      return <img alt="" className={className} src={item.posterUrl} />;
-    }
-
     return <video aria-label="Selected video preview" autoPlay className={className} loop muted playsInline src={item.url} />;
   }
 
@@ -787,8 +783,7 @@ function isVideoFile(file: File) {
 
 async function createPreview(file: File) {
   if (isVideoFile(file)) {
-    const url = URL.createObjectURL(file);
-    return { posterUrl: await createVideoPosterUrl(url), previewReady: true, url };
+    return { previewReady: true, url: URL.createObjectURL(file) };
   }
 
   if (!isHeicFile(file)) {
@@ -808,48 +803,6 @@ async function createPreview(file: File) {
   }
 
   return { previewReady: false, url: URL.createObjectURL(file) };
-}
-
-function createVideoPosterUrl(videoUrl: string) {
-  return new Promise<string | undefined>((resolve) => {
-    const video = document.createElement("video");
-    const canvas = document.createElement("canvas");
-    const timeoutId = window.setTimeout(() => cleanup(), 5000);
-
-    function cleanup(value?: string) {
-      window.clearTimeout(timeoutId);
-      video.removeAttribute("src");
-      video.load();
-      resolve(value);
-    }
-
-    function drawPoster() {
-      if (!video.videoWidth || !video.videoHeight) {
-        cleanup();
-        return;
-      }
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => cleanup(blob ? URL.createObjectURL(blob) : undefined), "image/jpeg", 0.82);
-    }
-
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "metadata";
-    video.onloadeddata = () => {
-      try {
-        video.currentTime = Math.min(0.1, Number.isFinite(video.duration) ? video.duration / 2 : 0.1);
-      } catch {
-        drawPoster();
-      }
-    };
-    video.onseeked = drawPoster;
-    video.onerror = () => cleanup();
-    video.src = videoUrl;
-    video.load();
-  });
 }
 
 function revokeSelectedUploadUrls(item: SelectedUpload) {

@@ -45,6 +45,11 @@ export function PostMediaPreview({ alt = "", autoPlay = true, className, control
         key={src}
         loop
         muted={muted}
+        onCanPlay={(event) => {
+          if (autoPlay) {
+            event.currentTarget.play().catch(() => undefined);
+          }
+        }}
         playsInline
         preload={autoPlay ? "auto" : "metadata"}
         ref={videoRef}

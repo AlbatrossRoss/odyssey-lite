@@ -165,21 +165,6 @@ body > * {
   object-fit: cover;
 }
 
-.odyssey-marker-video-badge {
-  position: absolute;
-  right: 1px;
-  bottom: 1px;
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border-radius: 999px;
-  background: rgba(20, 33, 49, 0.82);
-  color: #ffffff;
-  font-size: 9px;
-  line-height: 1;
-}
-
 .odyssey-marker-text {
   display: grid;
   width: 100%;

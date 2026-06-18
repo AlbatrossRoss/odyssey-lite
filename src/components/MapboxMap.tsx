@@ -410,7 +410,7 @@ export function MapboxMap({
       const mediaMarkup = !post.imageUrl
         ? `<span class="odyssey-marker-text">${escapeHtml(textOnlyEmoji)}</span>`
         : post.mediaTypes[0] === "video"
-          ? `<video class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" muted playsinline preload="metadata"></video><span class="odyssey-marker-video-badge">▶</span>`
+          ? `<video class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" autoplay loop muted playsinline preload="auto"></video>`
           : `<img class="odyssey-marker-photo" src="${escapeHtml(post.imageUrl)}" alt="" decoding="async" />`;
 
       element.innerHTML = `
@@ -427,19 +427,7 @@ export function MapboxMap({
       element.addEventListener("pointerup", selectPost);
 
       const markerVideo = element.querySelector("video");
-      markerVideo?.addEventListener(
-        "loadedmetadata",
-        () => {
-          if (markerVideo.duration > 0) {
-            try {
-              markerVideo.currentTime = Math.min(0.12, markerVideo.duration / 2);
-            } catch {
-              // Some remote video files are not seekable until later; the marker can still show the native poster frame.
-            }
-          }
-        },
-        { once: true },
-      );
+      markerVideo?.play().catch(() => undefined);
 
       return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(post.coordinates).addTo(mapRef.current!);
     });

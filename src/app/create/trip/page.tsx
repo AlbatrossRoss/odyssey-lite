@@ -571,11 +571,7 @@ function TripMediaStep({
           {memories.map((memory, index) => (
             <div className="relative aspect-square overflow-hidden rounded-[10px] bg-shell shadow-sm" key={memory.id}>
               {memory.kind === "video" ? (
-                memory.posterUrl ? (
-                  <img alt="" className="h-full w-full object-cover" src={memory.posterUrl} />
-                ) : (
-                  <video aria-label={`Trip memory ${index + 1}`} className="h-full w-full object-cover" muted playsInline preload="metadata" src={memory.url} />
-                )
+                <video aria-label={`Trip memory ${index + 1}`} autoPlay className="h-full w-full object-cover" loop muted playsInline src={memory.url} />
               ) : memory.isHeic && !memory.previewReady ? (
                 <HeicPreview />
               ) : (
@@ -1792,10 +1788,8 @@ function CoverPickerSheet({
 }
 
 function MemoryPreview({ memory }: { memory: TripMemory }) {
-  return memory.kind === "video" && memory.posterUrl ? (
-    <img alt="" className="h-full w-full object-cover" draggable={false} src={memory.posterUrl} />
-  ) : memory.kind === "video" ? (
-    <video className="h-full w-full object-cover" draggable={false} muted playsInline preload="metadata" src={memory.url} />
+  return memory.kind === "video" ? (
+    <video autoPlay className="h-full w-full object-cover" draggable={false} loop muted playsInline src={memory.url} />
   ) : memory.isHeic && !memory.previewReady ? (
     <HeicPreview compact />
   ) : (
@@ -2192,8 +2186,7 @@ function formatMediaCount(count: number, label: "photo" | "video") {
 
 async function createPreview(file: File) {
   if (isVideoFile(file)) {
-    const url = URL.createObjectURL(file);
-    return { posterUrl: await createVideoPosterUrl(url), previewReady: true, url };
+    return { previewReady: true, url: URL.createObjectURL(file) };
   }
 
   if (!isHeicFile(file)) {
@@ -2213,49 +2206,6 @@ async function createPreview(file: File) {
   }
 
   return { previewReady: false, url: URL.createObjectURL(file) };
-}
-
-function createVideoPosterUrl(videoUrl: string) {
-  return new Promise<string | undefined>((resolve) => {
-    const video = document.createElement("video");
-    const canvas = document.createElement("canvas");
-    const timeoutId = window.setTimeout(() => cleanup(), 5000);
-
-    function cleanup(value?: string) {
-      window.clearTimeout(timeoutId);
-      video.removeAttribute("src");
-      video.load();
-      resolve(value);
-    }
-
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "metadata";
-    video.onloadeddata = () => {
-      try {
-        video.currentTime = Math.min(0.1, Number.isFinite(video.duration) ? video.duration / 2 : 0.1);
-      } catch {
-        drawPoster();
-      }
-    };
-    video.onseeked = drawPoster;
-    video.onerror = () => cleanup();
-
-    function drawPoster() {
-      if (!video.videoWidth || !video.videoHeight) {
-        cleanup();
-        return;
-      }
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => cleanup(blob ? URL.createObjectURL(blob) : undefined), "image/jpeg", 0.82);
-    }
-
-    video.src = videoUrl;
-    video.load();
-  });
 }
 
 function revokeTripMemoryUrls(memory: TripMemory) {
