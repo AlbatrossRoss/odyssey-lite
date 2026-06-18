@@ -51,6 +51,7 @@ export default function CreatePage() {
   const currentLocationRef = useRef("");
   const selectedMediaRef = useRef<SelectedUpload[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
+  const [activeMediaId, setActiveMediaId] = useState("");
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [recommendation, setRecommendation] = useState("");
   const [description, setDescription] = useState("");
@@ -69,6 +70,17 @@ export default function CreatePage() {
   useEffect(() => {
     selectedMediaRef.current = selectedMedia;
   }, [selectedMedia]);
+
+  useEffect(() => {
+    if (!selectedMedia.length) {
+      setActiveMediaId("");
+      return;
+    }
+
+    if (!activeMediaId || !selectedMedia.some((item) => item.id === activeMediaId)) {
+      setActiveMediaId(selectedMedia[0].id);
+    }
+  }, [activeMediaId, selectedMedia]);
 
   useEffect(() => {
     return () => {
@@ -198,15 +210,11 @@ export default function CreatePage() {
       return metadata;
     };
     const selectedMetadata = await Promise.all(mediaFiles.map(readSelectedMetadata));
-    const primaryMetadata =
-      selectedMetadata.find((item) => item.coordinates) ??
-      selectedMetadata.find((item) => item.location) ??
-      selectedMetadata.find((item) => item.date) ??
-      selectedMetadata[0] ??
-      {};
-    const nextCoordinates = primaryMetadata.coordinates;
-    const nextLocation = nextCoordinates ? await reverseGeocodeCoordinates(nextCoordinates) : primaryMetadata.location;
-    const nextDate = primaryMetadata.date ?? fallbackDateFromFile(file);
+    const allMetadata = [...selectedMediaRef.current.map((item) => item.metadata), ...selectedMetadata];
+    const locationDecision = decidePostLocation(allMetadata);
+    const nextCoordinates = locationDecision.coordinates;
+    const nextLocation = nextCoordinates ? await reverseGeocodeCoordinates(nextCoordinates) : locationDecision.location;
+    const nextDate = allMetadata.find((item) => item.date)?.date ?? fallbackDateFromFile(file);
     const nextMedia = await Promise.all(
       mediaFiles.map(async (item) => ({
         file: item,
@@ -219,6 +227,7 @@ export default function CreatePage() {
     );
 
     setSelectedMedia((current) => [...current, ...nextMedia]);
+    setActiveMediaId((current) => current || nextMedia[0]?.id || "");
     if (nextCoordinates) {
       setCoordinates(nextCoordinates);
     }
@@ -287,6 +296,7 @@ export default function CreatePage() {
     selectedMedia.forEach(revokeSelectedUploadUrls);
 
     setSelectedMedia([]);
+    setActiveMediaId("");
     setRecommendation("");
     setDescription("");
     setSelectedTags([]);
@@ -320,6 +330,26 @@ export default function CreatePage() {
       const next = [...current];
       const [movedItem] = next.splice(sourceIndex, 1);
       next.splice(targetIndex, 0, movedItem);
+      return next;
+    });
+  }
+
+  function removeActiveMedia() {
+    if (!activeMediaId) {
+      return;
+    }
+
+    setSelectedMedia((current) => {
+      const removeIndex = current.findIndex((item) => item.id === activeMediaId);
+
+      if (removeIndex < 0) {
+        return current;
+      }
+
+      const removedItem = current[removeIndex];
+      revokeSelectedUploadUrls(removedItem);
+      const next = current.filter((item) => item.id !== activeMediaId);
+      setActiveMediaId(next[Math.min(removeIndex, next.length - 1)]?.id ?? "");
       return next;
     });
   }
@@ -362,6 +392,8 @@ export default function CreatePage() {
     );
   }
 
+  const activeMedia = selectedMedia.find((item) => item.id === activeMediaId) ?? selectedMedia[0];
+
   return (
     <MobileFrame>
       <section className="relative h-full overflow-hidden bg-white text-ink">
@@ -398,8 +430,8 @@ export default function CreatePage() {
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
-              {selectedMedia[0] ? (
-                <MediaPreview className="h-full w-full object-cover" item={selectedMedia[0]} />
+              {activeMedia ? (
+                <MediaPreview className="h-full w-full object-cover" item={activeMedia} />
               ) : (
                 <span className="grid h-full place-items-center">
                   <span className="flex flex-col items-center gap-2">
@@ -413,18 +445,39 @@ export default function CreatePage() {
                   {selectedMedia.length}
                 </span>
               ) : null}
+              {activeMedia ? (
+                <span
+                  aria-label="Remove selected media"
+                  className="absolute bottom-3 left-3 grid h-10 w-10 place-items-center rounded-full bg-ink/62 text-white shadow-lift backdrop-blur"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeActiveMedia();
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      removeActiveMedia();
+                    }
+                  }}
+                >
+                  <X aria-hidden="true" size={18} />
+                </span>
+              ) : null}
             </button>
           </section>
 
           {selectedMedia.length ? (
             <section className="mt-3">
               <p className="px-1 text-xs font-semibold text-ink/46">Drag to rearrange</p>
-              <div className="no-scrollbar -mx-1 mt-1 flex gap-2 overflow-x-auto px-1 py-1.5">
+              <div className="-mx-1 mt-1 flex flex-wrap gap-2 px-1 py-1.5">
                 {selectedMedia.map((item, index) => (
                   <button
-                    aria-label={index === 0 ? "Cover media" : `Media ${index + 1}`}
-                    className={`relative h-16 w-16 shrink-0 touch-none overflow-hidden rounded-[10px] bg-shell ring-1 transition ${
-                      index === 0 ? "ring-2 ring-moss" : "ring-ink/8"
+                    aria-label={item.id === activeMediaId ? "Selected media" : `Show media ${index + 1}`}
+                    className={`relative h-16 w-16 touch-none overflow-hidden rounded-[10px] bg-shell ring-1 transition ${
+                      item.id === activeMediaId ? "ring-2 ring-moss" : "ring-ink/8"
                     } ${draggedMediaId === item.id ? "scale-95 opacity-75" : ""}`}
                     data-media-id={item.id}
                     draggable={selectedMedia.length > 1}
@@ -450,12 +503,18 @@ export default function CreatePage() {
                       }
                     }}
                     onPointerMove={handleMediaPointerMove}
-                    onPointerUp={finishMediaDrag}
+                    onPointerUp={(event) => {
+                      if (draggedMediaId === item.id && event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                      finishMediaDrag();
+                    }}
+                    onClick={() => setActiveMediaId(item.id)}
                     type="button"
                   >
                     <MediaPreview className="h-full w-full object-cover" item={item} />
-                    {index === 0 ? (
-                      <span className="absolute inset-x-1 bottom-1 rounded-full bg-moss px-1.5 py-0.5 text-[10px] font-black text-white">Cover</span>
+                    {item.id === activeMediaId ? (
+                      <span className="absolute inset-x-1 bottom-1 rounded-full bg-moss px-1.5 py-0.5 text-[10px] font-black text-white">Selected</span>
                     ) : (
                       <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-ink/60 px-1 text-[10px] font-black text-white">
                         {index + 1}
@@ -465,7 +524,7 @@ export default function CreatePage() {
                 ))}
                 <button
                   aria-label="Add more media"
-                  className="grid h-16 w-16 shrink-0 place-items-center rounded-[10px] bg-[#f1efeb] text-ink/56 ring-1 ring-ink/6"
+                  className="grid h-16 w-16 place-items-center rounded-[10px] bg-[#f1efeb] text-ink/56 ring-1 ring-ink/6"
                   onClick={() => fileInputRef.current?.click()}
                   type="button"
                 >
@@ -1325,6 +1384,83 @@ function fallbackDateFromFile(file: File) {
   }
 
   return new Date(file.lastModified).toISOString().slice(0, 10);
+}
+
+function decidePostLocation(metadataItems: MediaMetadata[]): MediaMetadata {
+  const coordinateItems = metadataItems.filter((item): item is MediaMetadata & { coordinates: [number, number] } => Boolean(item.coordinates));
+
+  if (coordinateItems.length) {
+    const cluster = largestCoordinateCluster(coordinateItems.map((item) => item.coordinates));
+    return {
+      coordinates: averageCoordinates(cluster),
+    };
+  }
+
+  return {
+    location: mostCommonLocation(metadataItems.map((item) => item.location)),
+  };
+}
+
+function largestCoordinateCluster(coordinates: Array<[number, number]>) {
+  if (coordinates.length <= 1) {
+    return coordinates;
+  }
+
+  const clusters = coordinates.map((center) => coordinates.filter((coordinate) => distanceBetweenCoordinates(center, coordinate) <= 2.5));
+
+  return clusters.sort((first, second) => second.length - first.length)[0] ?? coordinates;
+}
+
+function averageCoordinates(coordinates: Array<[number, number]>): [number, number] {
+  const totals = coordinates.reduce(
+    (sum, coordinate) => ({
+      latitude: sum.latitude + coordinate[1],
+      longitude: sum.longitude + coordinate[0],
+    }),
+    { latitude: 0, longitude: 0 },
+  );
+
+  return [totals.longitude / coordinates.length, totals.latitude / coordinates.length];
+}
+
+function distanceBetweenCoordinates(first: [number, number], second: [number, number]) {
+  const earthRadiusKilometers = 6371;
+  const latitudeDelta = toRadians(second[1] - first[1]);
+  const longitudeDelta = toRadians(second[0] - first[0]);
+  const firstLatitude = toRadians(first[1]);
+  const secondLatitude = toRadians(second[1]);
+  const halfChordLength =
+    Math.sin(latitudeDelta / 2) ** 2 + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+
+  return 2 * earthRadiusKilometers * Math.atan2(Math.sqrt(halfChordLength), Math.sqrt(1 - halfChordLength));
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function mostCommonLocation(locations: Array<string | undefined>) {
+  const counts = new Map<string, { count: number; firstIndex: number; location: string }>();
+
+  locations.forEach((location, index) => {
+    const trimmed = location?.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    const key = trimmed.toLowerCase();
+    const current = counts.get(key);
+
+    if (current) {
+      current.count += 1;
+      return;
+    }
+
+    counts.set(key, { count: 1, firstIndex: index, location: trimmed });
+  });
+
+  return [...counts.values()].sort((first, second) => second.count - first.count || first.firstIndex - second.firstIndex)[0]?.location;
 }
 
 function successFromPost(post: AppPost): PostedSuccess {
