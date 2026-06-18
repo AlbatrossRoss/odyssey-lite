@@ -7,7 +7,7 @@ import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
 import { FilterChips } from "@/components/FilterChips";
-import { MapboxMap } from "@/components/MapboxMap";
+import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
@@ -905,7 +905,7 @@ export default function ExplorePage() {
   return (
     <MobileFrame>
       <section className="relative h-full bg-white">
-        <MapboxMap
+        <DynamicMapboxMap
           appPosts={visibleAppPosts}
           className={mapClassName}
           experiences={[]}

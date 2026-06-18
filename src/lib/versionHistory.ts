@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 18, 2026",
+    id: "v8.0",
+    title: "Map Performance Split",
+    summary:
+      "Reduced first-load JavaScript on map-heavy pages by lazy-loading Mapbox into its own client chunk, including Explore, Profiles, Boards, post details, experience details, and the hidden trip preview map, while pausing map marker videos during map movement.",
+  },
+  {
+    date: "June 18, 2026",
     id: "v7.9",
     title: "Video Autoplay Reliability",
     summary:

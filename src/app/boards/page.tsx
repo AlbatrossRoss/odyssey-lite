@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Bookmark, Grid2X2, MapPin, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
-import { MapboxMap } from "@/components/MapboxMap";
+import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { createAppBoard, deleteAppBoard, fetchBoardsByAccount, updateAppBoard, type AppBoard } from "@/lib/boards";
 import { readAccountSessionId } from "@/lib/accounts";
@@ -239,7 +239,7 @@ export default function BoardsPage() {
                 selectedPosts.length ? (
                   <section className="pt-0">
                     <div className="h-[560px] overflow-hidden bg-[#a9d7ed]">
-                      <MapboxMap
+                      <DynamicMapboxMap
                       appPosts={selectedPosts}
                       className="h-full w-full"
                       experiences={[]}

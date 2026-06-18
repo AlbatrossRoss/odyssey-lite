@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { MapboxMap } from "@/components/MapboxMap";
+import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { deleteAppPost, fetchAppPostById, fetchAppPosts, type AppPost } from "@/lib/posts";
@@ -723,7 +723,7 @@ export default function PostDetailPage() {
             <h2 className="text-[22px] font-black text-ink">Location</h2>
             <div className="mt-3 overflow-hidden rounded-[18px] border border-ink/10 bg-white shadow-[0_8px_22px_rgba(24,35,31,0.05)]">
               <div className="relative overflow-hidden">
-                <MapboxMap
+                <DynamicMapboxMap
                   className="h-[150px] w-full"
                   experiences={[mapExperience]}
                   mapTarget={{ center: post.coordinates, zoom: 12.8 }}
@@ -875,7 +875,7 @@ export default function PostDetailPage() {
 
       {mapExpanded ? (
         <div className="absolute inset-0 z-50 bg-ink">
-          <MapboxMap
+          <DynamicMapboxMap
             className="h-full w-full"
             experiences={[mapExperience]}
             mapTarget={{ center: post.coordinates, zoom: 15 }}

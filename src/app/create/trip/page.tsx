@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Calendar, Camera, ChevronDown, GripVertical, ImagePlus, Lightbulb, MapPin, MoreHorizontal, Pencil, Plus, Route, Send, Video, X } from "lucide-react";
-import mapboxgl from "mapbox-gl";
+import type { Map as MapboxMapInstance } from "mapbox-gl";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1625,76 +1625,98 @@ type TripPreviewMapPoint = {
 function TripPreviewMap({ points }: { points: TripPreviewMapPoint[] }) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  const sortedPoints = [...points].sort((a, b) => a.order - b.order);
+  const sortedPoints = useMemo(() => [...points].sort((a, b) => a.order - b.order), [points]);
 
   useEffect(() => {
     if (!mapContainerRef.current || !token || !sortedPoints.length) {
       return;
     }
 
-    mapboxgl.accessToken = token;
-    const map = new mapboxgl.Map({
-      attributionControl: false,
-      center: sortedPoints[0].coordinates,
-      container: mapContainerRef.current,
-      interactive: false,
-      style: "mapbox://styles/mapbox/outdoors-v12",
-      zoom: sortedPoints.length > 1 ? 7 : 10,
-    });
+    let active = true;
+    let map: MapboxMapInstance | null = null;
 
-    map.on("load", () => {
-      const routeCoordinates = sortedPoints.map((point) => point.coordinates);
+    async function initializeMap() {
+      const mapboxModule = await import("mapbox-gl");
+      const mapboxgl = mapboxModule.default;
 
-      map.addSource("trip-preview-route", {
-        data: {
-          geometry: {
-            coordinates: routeCoordinates,
-            type: "LineString",
-          },
-          properties: {},
-          type: "Feature",
-        },
-        type: "geojson",
-      });
-
-      map.addLayer({
-        id: "trip-preview-route-shadow",
-        paint: {
-          "line-blur": 1.5,
-          "line-color": "#ffffff",
-          "line-opacity": 0.86,
-          "line-width": 5,
-        },
-        source: "trip-preview-route",
-        type: "line",
-      });
-
-      map.addLayer({
-        id: "trip-preview-route-line",
-        paint: {
-          "line-color": "#1b5a37",
-          "line-dasharray": [1.5, 1],
-          "line-width": 2.4,
-        },
-        source: "trip-preview-route",
-        type: "line",
-      });
-
-      sortedPoints.forEach((point, index) => {
-        const element = document.createElement("span");
-        element.className = "grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-moss text-[11px] font-black text-white shadow-[0_4px_12px_rgba(24,35,31,0.24)]";
-        element.textContent = String(index + 1);
-
-        new mapboxgl.Marker({ element, anchor: "center" }).setLngLat(point.coordinates).addTo(map);
-      });
-
-      if (sortedPoints.length > 1) {
-        const bounds = sortedPoints.reduce((nextBounds, point) => nextBounds.extend(point.coordinates), new mapboxgl.LngLatBounds(sortedPoints[0].coordinates, sortedPoints[0].coordinates));
-        map.fitBounds(bounds, { duration: 0, padding: 36 });
+      if (!active || !mapContainerRef.current) {
+        return;
       }
-    });
 
-    return () => map.remove();
+      mapboxgl.accessToken = token;
+      map = new mapboxgl.Map({
+        attributionControl: false,
+        center: sortedPoints[0].coordinates,
+        container: mapContainerRef.current,
+        interactive: false,
+        style: "mapbox://styles/mapbox/outdoors-v12",
+        zoom: sortedPoints.length > 1 ? 7 : 10,
+      });
+
+      map.on("load", () => {
+        if (!map) {
+          return;
+        }
+
+        const currentMap = map;
+        const routeCoordinates = sortedPoints.map((point) => point.coordinates);
+
+        currentMap.addSource("trip-preview-route", {
+          data: {
+            geometry: {
+              coordinates: routeCoordinates,
+              type: "LineString",
+            },
+            properties: {},
+            type: "Feature",
+          },
+          type: "geojson",
+        });
+
+        currentMap.addLayer({
+          id: "trip-preview-route-shadow",
+          paint: {
+            "line-blur": 1.5,
+            "line-color": "#ffffff",
+            "line-opacity": 0.86,
+            "line-width": 5,
+          },
+          source: "trip-preview-route",
+          type: "line",
+        });
+
+        currentMap.addLayer({
+          id: "trip-preview-route-line",
+          paint: {
+            "line-color": "#1b5a37",
+            "line-dasharray": [1.5, 1],
+            "line-width": 2.4,
+          },
+          source: "trip-preview-route",
+          type: "line",
+        });
+
+        sortedPoints.forEach((point, index) => {
+          const element = document.createElement("span");
+          element.className = "grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-moss text-[11px] font-black text-white shadow-[0_4px_12px_rgba(24,35,31,0.24)]";
+          element.textContent = String(index + 1);
+
+          new mapboxgl.Marker({ element, anchor: "center" }).setLngLat(point.coordinates).addTo(currentMap);
+        });
+
+        if (sortedPoints.length > 1) {
+          const bounds = sortedPoints.reduce((nextBounds, point) => nextBounds.extend(point.coordinates), new mapboxgl.LngLatBounds(sortedPoints[0].coordinates, sortedPoints[0].coordinates));
+          currentMap.fitBounds(bounds, { duration: 0, padding: 36 });
+        }
+      });
+    }
+
+    void initializeMap();
+
+    return () => {
+      active = false;
+      map?.remove();
+    };
   }, [sortedPoints, token]);
 
   return (

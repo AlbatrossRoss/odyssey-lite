@@ -4,7 +4,7 @@ import { ArrowLeft, Bookmark, ExternalLink, MapPin, UsersRound } from "lucide-re
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MapboxMap } from "@/components/MapboxMap";
+import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { getExperience, getTrip, getUser, users } from "@/lib/data";
 import { readSavedSlugs, writeSavedSlugs } from "@/lib/saveStore";
@@ -102,7 +102,7 @@ export default function ExperienceDetailPage() {
             </div>
           </section>
 
-          <MapboxMap
+          <DynamicMapboxMap
             className="h-56 overflow-hidden rounded-[28px] shadow-soft"
             experiences={[detailExperience]}
             selectedSlug={detailExperience.slug}

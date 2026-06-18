@@ -17,7 +17,7 @@ import {
   updateAccountPhoto,
 } from "@/lib/accounts";
 import { BottomNav } from "@/components/BottomNav";
-import { MapboxMap } from "@/components/MapboxMap";
+import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { fetchBoardsByAccount, type AppBoard } from "@/lib/boards";
@@ -1252,7 +1252,7 @@ function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolea
 
   return (
     <div className="relative -mx-4 h-[207px] overflow-hidden bg-[#b9ddec]">
-      <MapboxMap
+      <DynamicMapboxMap
         appPosts={posts}
         className="absolute inset-0 h-full w-full"
         experiences={[]}

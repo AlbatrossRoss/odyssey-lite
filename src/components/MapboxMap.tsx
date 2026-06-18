@@ -8,7 +8,7 @@ import { getUser } from "@/lib/data";
 import type { AppPost } from "@/lib/posts";
 import { emojiForPostTag } from "@/lib/postTags";
 
-type MapboxMapProps = {
+export type MapboxMapProps = {
   experiences: Experience[];
   appPosts?: AppPost[];
   selectedSlug?: string;
@@ -190,6 +190,17 @@ export function MapboxMap({
     [appPosts, experiences, userLocation],
   );
 
+  function setMarkerVideosPaused(paused: boolean) {
+    containerRef.current?.querySelectorAll<HTMLVideoElement>(".odyssey-marker video").forEach((video) => {
+      if (paused) {
+        video.pause();
+        return;
+      }
+
+      video.play().catch(() => undefined);
+    });
+  }
+
   useEffect(() => {
     onMoveEndRef.current = onMoveEnd;
   }, [onMoveEnd]);
@@ -254,7 +265,11 @@ export function MapboxMap({
       mapRef.current.setPaintProperty("national-park", "fill-color", "#2e5142");
       mapRef.current.once("idle", notifyReady);
     });
+    mapRef.current.on("movestart", () => {
+      setMarkerVideosPaused(true);
+    });
     mapRef.current.on("moveend", () => {
+      setMarkerVideosPaused(false);
       if (!mapRef.current) {
         return;
       }
