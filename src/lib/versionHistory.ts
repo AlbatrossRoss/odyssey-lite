@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 25, 2026",
+    id: "v8.4",
+    title: "Mobile Load and Search Polish",
+    summary:
+      "Improved mobile Explore/Profile content loading with reused Supabase clients, persistent recommendation cache, deferred noncritical fetches, scoped board queries, faster profile fallbacks, clearer Explore search placeholder copy, and stronger PWA board-card image containment.",
+  },
+  {
+    date: "June 25, 2026",
     id: "v8.3",
     title: "Explore Search and Social Notifications",
     summary:

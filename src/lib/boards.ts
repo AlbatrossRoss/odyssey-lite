@@ -100,22 +100,34 @@ export async function fetchBoardsByAccount(accountId: string) {
   assertBoardsConfigured();
 
   const supabase = createSupabaseBrowserClient();
-  const [{ data: boards, error: boardsError }, { data: boardPosts, error: postsError }] = await Promise.all([
-    supabase.from("app_boards").select("*").eq("account_id", accountId).order("created_at", { ascending: true }),
-    supabase.from("app_board_posts").select("board_id, post_id").order("created_at", { ascending: true }),
-  ]);
+  const { data: boards, error: boardsError } = await supabase
+    .from("app_boards")
+    .select("*")
+    .eq("account_id", accountId)
+    .order("created_at", { ascending: true });
 
   if (boardsError) {
     throw boardsError;
   }
 
+  const boardRows = (boards ?? []) as AppBoardRow[];
+  const boardIds = boardRows.map((board) => board.id);
+
+  if (!boardIds.length) {
+    return [];
+  }
+
+  const { data: boardPosts, error: postsError } = await supabase
+    .from("app_board_posts")
+    .select("board_id, post_id")
+    .in("board_id", boardIds)
+    .order("created_at", { ascending: true });
+
   if (postsError) {
     throw postsError;
   }
 
-  const boardPostRows = ((boardPosts as AppBoardPostRow[]) ?? []).filter((item) =>
-    (boards as AppBoardRow[]).some((board) => board.id === item.board_id),
-  );
+  const boardPostRows = ((boardPosts as AppBoardPostRow[]) ?? []);
   const postIds = Array.from(new Set(boardPostRows.map((item) => item.post_id)));
   let previewPosts: BoardPreviewPostRow[] = [];
 
@@ -129,7 +141,7 @@ export async function fetchBoardsByAccount(accountId: string) {
     previewPosts = posts as BoardPreviewPostRow[];
   }
 
-  return (boards as AppBoardRow[]).map((board) => mapBoard(board, boardPostRows, previewPosts));
+  return boardRows.map((board) => mapBoard(board, boardPostRows, previewPosts));
 }
 
 export async function fetchBoardBySlug(accountId: string, slug: string) {

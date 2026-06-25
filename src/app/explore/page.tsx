@@ -33,6 +33,8 @@ const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const appPostsCacheKey = "odyssey-app-posts-cache-v2";
+const appPostsLocalCacheKey = "odyssey-app-posts-cache-v3";
+const appPostsLocalCacheMaxAgeMs = 1000 * 60 * 60 * 6;
 
 type MapBounds = {
   east: number;
@@ -291,7 +293,18 @@ function readCachedAppPosts() {
 
   try {
     const cached = window.sessionStorage.getItem(appPostsCacheKey);
-    return cached ? (JSON.parse(cached) as AppPost[]) : [];
+    if (cached) {
+      return JSON.parse(cached) as AppPost[];
+    }
+
+    const localCached = window.localStorage.getItem(appPostsLocalCacheKey);
+    const parsed = localCached ? (JSON.parse(localCached) as { savedAt?: number; value?: AppPost[] }) : null;
+
+    if (parsed?.value?.length && typeof parsed.savedAt === "number" && Date.now() - parsed.savedAt <= appPostsLocalCacheMaxAgeMs) {
+      return parsed.value;
+    }
+
+    return [];
   } catch {
     return [];
   }
@@ -300,8 +313,13 @@ function readCachedAppPosts() {
 function writeCachedAppPosts(posts: AppPost[]) {
   try {
     window.sessionStorage.setItem(appPostsCacheKey, JSON.stringify(posts));
+    window.localStorage.setItem(appPostsLocalCacheKey, JSON.stringify({ savedAt: Date.now(), value: posts }));
   } catch {
-    // Explore can still refresh from Supabase if session storage is unavailable.
+    try {
+      window.localStorage.setItem(appPostsLocalCacheKey, JSON.stringify({ savedAt: Date.now(), value: posts }));
+    } catch {
+      // Explore can still refresh from Supabase if browser storage is unavailable.
+    }
   }
 }
 
@@ -614,6 +632,10 @@ export default function ExplorePage() {
   }, [viewerId]);
 
   useEffect(() => {
+    if (!searchFocused || accountSearchAccounts.length) {
+      return;
+    }
+
     let active = true;
 
     fetchAccountsForSearch()
@@ -631,7 +653,7 @@ export default function ExplorePage() {
     return () => {
       active = false;
     };
-  }, [viewerId]);
+  }, [accountSearchAccounts.length, searchFocused]);
 
   useEffect(() => {
     if (!viewerId) {
@@ -644,33 +666,40 @@ export default function ExplorePage() {
     }
 
     let active = true;
+    let timeoutId: number | null = null;
 
-    setNotificationStatus("loading");
     setNotificationMessage("");
 
-    Promise.all([fetchCommentNotifications(viewerId), fetchFollowNotifications(viewerId), fetchLikeNotifications(viewerId)])
-      .then(([comments, follows, likes]) => {
-        if (active) {
-          setCommentNotifications(comments);
-          setFollowNotifications(follows);
-          setLikeNotifications(likes);
-          setUnreadNotificationCount(
-            comments.filter((notification) => !notification.isRead).length +
-            follows.filter((notification) => !notification.isRead).length +
-            likes.filter((notification) => !notification.isRead).length,
-          );
-          setNotificationStatus("idle");
-        }
-      })
-      .catch((error) => {
-        if (active) {
-          setNotificationMessage(error instanceof Error ? error.message : "Unable to load notifications.");
-          setNotificationStatus("idle");
-        }
-      });
+    timeoutId = window.setTimeout(() => {
+      setNotificationStatus("loading");
+
+      Promise.all([fetchCommentNotifications(viewerId), fetchFollowNotifications(viewerId), fetchLikeNotifications(viewerId)])
+        .then(([comments, follows, likes]) => {
+          if (active) {
+            setCommentNotifications(comments);
+            setFollowNotifications(follows);
+            setLikeNotifications(likes);
+            setUnreadNotificationCount(
+              comments.filter((notification) => !notification.isRead).length +
+              follows.filter((notification) => !notification.isRead).length +
+              likes.filter((notification) => !notification.isRead).length,
+            );
+            setNotificationStatus("idle");
+          }
+        })
+        .catch((error) => {
+          if (active) {
+            setNotificationMessage(error instanceof Error ? error.message : "Unable to load notifications.");
+            setNotificationStatus("idle");
+          }
+        });
+    }, 1200);
 
     return () => {
       active = false;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, [viewerId]);
 
@@ -1116,7 +1145,7 @@ export default function ExplorePage() {
                 onSearch={handleMapSearch}
                 onSuggestionSelect={handleSuggestionSelect}
                 onValueChange={setSearchQuery}
-                placeholder="Where to next?"
+                placeholder="Explore places, people, or interests"
                 suggestions={searchSuggestions}
                 value={searchQuery}
               />

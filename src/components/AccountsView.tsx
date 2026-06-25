@@ -9,6 +9,7 @@ import {
   accountDisplayName,
   clearAccountSessionId,
   fetchAccountById,
+  fetchAccountByUsername,
   fetchAccountByUsernameWithStats,
   fetchAccountConnections,
   fetchAccountsWithStats,
@@ -123,18 +124,34 @@ export function AccountsView({ username }: AccountsViewProps) {
     }
 
     try {
-      const primaryAccount = username
-        ? await fetchAccountByUsernameWithStats(username, sessionId)
-        : await fetchAccountWithStats(sessionId, sessionId);
+      const primaryAccount = await withTimeout(
+        username
+          ? fetchAccountByUsernameWithStats(username, sessionId)
+          : fetchAccountWithStats(sessionId, sessionId),
+        profileHydrationTimeoutMs,
+      );
 
       if (primaryAccount) {
         setAccounts((current) => mergeAccounts(current, [primaryAccount]));
         setAccountsHydrated(true);
         setStatus("ready");
       } else if (!cachedAccounts.length) {
+        const fallbackAccount = username
+          ? await withTimeout(fetchAccountByUsername(username), 1200)
+          : await withTimeout(fetchAccountById(sessionId), 1200);
+
+        if (fallbackAccount) {
+          setAccounts((current) =>
+            mergeAccounts(current, [{
+              ...fallbackAccount,
+              isFollowedByViewer: false,
+              stats: { followers: 0, following: 0, posts: 0 },
+            }]),
+          );
+        }
+
         setAccountsHydrated(true);
         setStatus("ready");
-        return;
       }
 
       scheduleProfileTask(async () => {
@@ -1517,23 +1534,23 @@ function ProfileBoardCard({ board, isOwnProfile }: { board: AppBoard; isOwnProfi
   const href = isOwnProfile ? `/boards?board=${encodeURIComponent(board.slug)}` : `/boards/${board.slug}?account=${encodeURIComponent(board.accountId)}`;
 
   return (
-    <Link className="block w-[132px] shrink-0 overflow-hidden rounded-[12px] bg-white shadow-sm ring-1 ring-ink/5" href={href}>
-      <span className="grid h-24 w-full grid-cols-[1.15fr_0.85fr] gap-0.5 bg-shell">
-        {fallbackImage ? <img alt="" className="h-full min-h-0 w-full object-cover" src={fallbackImage} /> : <span className="h-full min-h-0 w-full bg-ink/10" />}
+    <Link className="flex w-[132px] shrink-0 flex-col overflow-hidden rounded-[12px] bg-white shadow-sm ring-1 ring-ink/5" href={href}>
+      <span className="relative grid h-24 w-full shrink-0 grid-cols-[1.15fr_0.85fr] gap-0.5 overflow-hidden bg-shell">
+        {fallbackImage ? <img alt="" className="block h-full min-h-0 w-full object-cover" src={fallbackImage} /> : <span className="block h-full min-h-0 w-full bg-ink/10" />}
         <span className="grid min-h-0 grid-rows-2 gap-0.5">
           {previewImages[1] ?? fallbackImage ? (
-            <img alt="" className="h-full min-h-0 w-full object-cover" src={previewImages[1] ?? fallbackImage} />
+            <img alt="" className="block h-full min-h-0 w-full object-cover" src={previewImages[1] ?? fallbackImage} />
           ) : (
-            <span className="h-full min-h-0 w-full bg-ink/10" />
+            <span className="block h-full min-h-0 w-full bg-ink/10" />
           )}
           {previewImages[2] ?? fallbackImage ? (
-            <img alt="" className="h-full min-h-0 w-full object-cover" src={previewImages[2] ?? fallbackImage} />
+            <img alt="" className="block h-full min-h-0 w-full object-cover" src={previewImages[2] ?? fallbackImage} />
           ) : (
-            <span className="h-full min-h-0 w-full bg-ink/10" />
+            <span className="block h-full min-h-0 w-full bg-ink/10" />
           )}
         </span>
       </span>
-      <span className="block p-3">
+      <span className="relative z-10 block min-h-[64px] bg-white p-3">
         <span className="line-clamp-1 text-sm font-black text-ink">{board.title}</span>
         <span className="mt-1 block text-xs font-bold text-ink/48">
           {board.postIds.length} {board.postIds.length === 1 ? "place" : "places"}
