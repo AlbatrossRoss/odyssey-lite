@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bell, Heart, MapPin, MessageCircle, UserPlus, X } from "lucide-react";
+import { Bell, Heart, MapPin, MessageCircle, UserPlus, X } from "lucide-react";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
 import { FilterChips } from "@/components/FilterChips";
 import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
@@ -35,6 +36,7 @@ const exploreStateStorageKey = "odyssey-explore-view-state-v1";
 const appPostsCacheKey = "odyssey-app-posts-cache-v2";
 const appPostsLocalCacheKey = "odyssey-app-posts-cache-v3";
 const appPostsLocalCacheMaxAgeMs = 1000 * 60 * 60 * 6;
+let hasCompletedExploreColdLoad = false;
 
 type MapBounds = {
   east: number;
@@ -338,12 +340,14 @@ export default function ExplorePage() {
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
+  const [viewerStatus, setViewerStatus] = useState<"loading" | "ready">("loading");
   const [commentNotifications, setCommentNotifications] = useState<AppCommentNotification[]>([]);
   const [followNotifications, setFollowNotifications] = useState<AppFollowNotification[]>([]);
   const [likeNotifications, setLikeNotifications] = useState<AppLikeNotification[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<"idle" | "loading">("idle");
+  const [notificationsHydrated, setNotificationsHydrated] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
@@ -361,6 +365,8 @@ export default function ExplorePage() {
   const [saveMessage, setSaveMessage] = useState("");
   const [savingPostId, setSavingPostId] = useState<string | null>(null);
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(() => new Set());
+  const [shouldShowColdLoadScreen, setShouldShowColdLoadScreen] = useState(() => !hasCompletedExploreColdLoad);
+  const [coldLoadIntroComplete, setColdLoadIntroComplete] = useState(() => hasCompletedExploreColdLoad);
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const feedPostIdsRef = useRef<string[]>([]);
   const userChangedFilterRef = useRef(false);
@@ -579,10 +585,12 @@ export default function ExplorePage() {
     if (!viewerId) {
       setFollowingIds([]);
       setViewerPhotoUrl(null);
+      setViewerStatus("ready");
       return;
     }
 
     let active = true;
+    setViewerStatus("loading");
 
     Promise.all([fetchFollowingIds(viewerId), fetchAccountById(viewerId)])
       .then(([ids, account]) => {
@@ -598,6 +606,11 @@ export default function ExplorePage() {
         if (active) {
           setFollowingIds([]);
           setViewerPhotoUrl(null);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setViewerStatus("ready");
         }
       });
 
@@ -662,44 +675,41 @@ export default function ExplorePage() {
       setLikeNotifications([]);
       setUnreadNotificationCount(0);
       setNotificationStatus("idle");
+      setNotificationsHydrated(true);
       return;
     }
 
     let active = true;
-    let timeoutId: number | null = null;
 
     setNotificationMessage("");
+    setNotificationStatus("loading");
+    setNotificationsHydrated(false);
 
-    timeoutId = window.setTimeout(() => {
-      setNotificationStatus("loading");
-
-      Promise.all([fetchCommentNotifications(viewerId), fetchFollowNotifications(viewerId), fetchLikeNotifications(viewerId)])
-        .then(([comments, follows, likes]) => {
-          if (active) {
-            setCommentNotifications(comments);
-            setFollowNotifications(follows);
-            setLikeNotifications(likes);
-            setUnreadNotificationCount(
-              comments.filter((notification) => !notification.isRead).length +
-              follows.filter((notification) => !notification.isRead).length +
-              likes.filter((notification) => !notification.isRead).length,
-            );
-            setNotificationStatus("idle");
-          }
-        })
-        .catch((error) => {
-          if (active) {
-            setNotificationMessage(error instanceof Error ? error.message : "Unable to load notifications.");
-            setNotificationStatus("idle");
-          }
-        });
-    }, 1200);
+    Promise.all([fetchCommentNotifications(viewerId), fetchFollowNotifications(viewerId), fetchLikeNotifications(viewerId)])
+      .then(([comments, follows, likes]) => {
+        if (active) {
+          setCommentNotifications(comments);
+          setFollowNotifications(follows);
+          setLikeNotifications(likes);
+          setUnreadNotificationCount(
+            comments.filter((notification) => !notification.isRead).length +
+            follows.filter((notification) => !notification.isRead).length +
+            likes.filter((notification) => !notification.isRead).length,
+          );
+          setNotificationStatus("idle");
+          setNotificationsHydrated(true);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setNotificationMessage(error instanceof Error ? error.message : "Unable to load notifications.");
+          setNotificationStatus("idle");
+          setNotificationsHydrated(true);
+        }
+      });
 
     return () => {
       active = false;
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
     };
   }, [viewerId]);
 
@@ -985,6 +995,8 @@ export default function ExplorePage() {
   const feedPostIds = useMemo(() => feedPosts.map((post) => post.id), [feedPosts]);
   const recommendationCount = visibleAppPosts.length;
   const recommendationsLoading = appPostsStatus === "loading" && !feedPosts.length;
+  const exploreReady = appPostsStatus === "ready" && viewerStatus === "ready" && notificationsHydrated;
+  const showExploreColdLoadScreen = shouldShowColdLoadScreen && (!exploreReady || !coldLoadIntroComplete);
   const recommendationSubtitle =
     recommendationCount > 0
       ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter, activeCategoryFilters, profileUsername)}`
@@ -1022,6 +1034,25 @@ export default function ExplorePage() {
       setSelectedPostId(null);
     }
   }, [selectedPostId, visibleAppPosts]);
+
+  useEffect(() => {
+    if (!shouldShowColdLoadScreen || coldLoadIntroComplete) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setColdLoadIntroComplete(true), 2500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [coldLoadIntroComplete, shouldShowColdLoadScreen]);
+
+  useEffect(() => {
+    if (!exploreReady || !coldLoadIntroComplete || !shouldShowColdLoadScreen) {
+      return;
+    }
+
+    hasCompletedExploreColdLoad = true;
+    setShouldShowColdLoadScreen(false);
+  }, [coldLoadIntroComplete, exploreReady, shouldShowColdLoadScreen]);
 
   function handleSheetPointerDown(event: PointerEvent<HTMLElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1128,16 +1159,6 @@ export default function ExplorePage() {
           }`}
         >
           <div className="flex items-center gap-3">
-            {!searchFocused && (searchQuery || activeDestination || mapArea || profileAccountId) ? (
-              <button
-                aria-label="Clear search and show world map"
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
-                onClick={handleResetToWorld}
-                type="button"
-              >
-                <ArrowLeft aria-hidden="true" size={21} />
-              </button>
-            ) : null}
             <div className="min-w-0 flex-1">
               <SearchBar
                 compact
@@ -1146,6 +1167,7 @@ export default function ExplorePage() {
                 onSuggestionSelect={handleSuggestionSelect}
                 onValueChange={setSearchQuery}
                 placeholder="Explore places, people, or interests"
+                showBackButtonOnFocus={false}
                 suggestions={searchSuggestions}
                 value={searchQuery}
               />
@@ -1339,7 +1361,12 @@ export default function ExplorePage() {
             <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} />
           )}
         </section>
-        <BottomNav activeTab="Explore" onExploreClick={handleResetToWorld} />
+        {showExploreColdLoadScreen ? (
+          <div className="absolute inset-0 z-[80]">
+            <LoadingScreen framed progress={coldLoadIntroComplete ? 74 : 28} />
+          </div>
+        ) : null}
+        <BottomNav activeTab="Explore" onExploreClick={handleResetToWorld} profilePhotoUrl={viewerPhotoUrl} />
       </section>
     </MobileFrame>
   );

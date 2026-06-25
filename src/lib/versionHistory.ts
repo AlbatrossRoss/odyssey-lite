@@ -8,6 +8,13 @@ export type VersionHistoryEntry = {
 export const versionHistory: VersionHistoryEntry[] = [
   {
     date: "June 25, 2026",
+    id: "v8.5",
+    title: "Explore Cold Open Loading",
+    summary:
+      "Added a two-step Odyssey loading screen for the initial Explore cold open while profile photos, notifications, and first recommendations hydrate in the background, kept it from replaying during normal in-app navigation, and simplified Explore reset behavior through the bottom nav.",
+  },
+  {
+    date: "June 25, 2026",
     id: "v8.4",
     title: "Mobile Load and Search Polish",
     summary:

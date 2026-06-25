@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ImagePlus, LogIn } from "lucide-react";
 import {
@@ -21,6 +22,7 @@ type AccountGateProps = {
 type Mode = "create" | "login";
 
 export function AccountGate({ children }: AccountGateProps) {
+  const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [hasStoredSession, setHasStoredSession] = useState(() => Boolean(readAccountSessionId() && isSupabaseConfigured()));
   const [account, setAccount] = useState<AppAccount | null>(null);
@@ -112,7 +114,7 @@ export function AccountGate({ children }: AccountGateProps) {
     setPhotoUrl(await fileToDataUrl(file));
   }
 
-  if (account || hasStoredSession) {
+  if (pathname === "/loading-preview" || account || hasStoredSession) {
     return children;
   }
 

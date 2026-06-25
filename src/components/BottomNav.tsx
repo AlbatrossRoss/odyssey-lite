@@ -16,13 +16,15 @@ const navItems = [
 type BottomNavProps = {
   activeTab?: "Explore" | "Create" | "Post" | "Boards" | "Accounts" | "Profile";
   onExploreClick?: () => void;
+  profilePhotoUrl?: string | null;
 };
 
-export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
+export function BottomNav({ activeTab, onExploreClick, profilePhotoUrl }: BottomNavProps) {
   const pathname = usePathname();
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const tripPostingEnabled = false;
+  const displayedProfilePhotoUrl = profilePhotoUrl ?? account?.profilePhotoUrl ?? null;
 
   useEffect(() => {
     let active = true;
@@ -131,11 +133,11 @@ export function BottomNav({ activeTab, onExploreClick }: BottomNavProps) {
                       : "bg-transparent text-ink/72 hover:text-ink"
                 }`}
               >
-                {isAccounts && account?.profilePhotoUrl ? (
+                {isAccounts && displayedProfilePhotoUrl ? (
                   <img
                     alt=""
                     className={`rounded-full object-cover ${active ? "h-8 w-8 ring-2 ring-ink/8" : "h-7 w-7"}`}
-                    src={account.profilePhotoUrl}
+                    src={displayedProfilePhotoUrl}
                   />
                 ) : (
                   <Icon aria-hidden="true" size={22} strokeWidth={isCreate ? 2.8 : 2.2} />

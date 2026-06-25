@@ -20,6 +20,7 @@ type SearchBarProps = {
   value?: string;
   placeholder?: string;
   compact?: boolean;
+  showBackButtonOnFocus?: boolean;
   suggestions?: SearchSuggestion[];
   onFocusChange?: (focused: boolean) => void;
   onValueChange?: (value: string) => void;
@@ -32,6 +33,7 @@ export function SearchBar({
   value: controlledValue,
   placeholder = "Where to next?",
   compact = false,
+  showBackButtonOnFocus = true,
   suggestions = [],
   onFocusChange,
   onValueChange,
@@ -163,7 +165,7 @@ export function SearchBar({
         }`}
         onSubmit={handleSubmit}
       >
-        {focused ? (
+        {focused && showBackButtonOnFocus ? (
           <button
             aria-label="Close search"
             className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink"
