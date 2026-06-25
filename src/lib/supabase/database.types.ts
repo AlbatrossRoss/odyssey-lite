@@ -43,6 +43,22 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["account_follows"]["Insert"]>;
         Relationships: [];
       };
+      account_follow_reads: {
+        Row: {
+          id: string;
+          follow_id: string;
+          account_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          follow_id: string;
+          account_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["account_follow_reads"]["Insert"]>;
+        Relationships: [];
+      };
       app_posts: {
         Row: {
           id: string;

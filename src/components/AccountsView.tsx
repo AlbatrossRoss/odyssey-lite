@@ -193,7 +193,10 @@ export function AccountsView({ username }: AccountsViewProps) {
     return accounts.find((account) => account.username === username) ?? null;
   }, [accounts, username, viewer]);
   const otherAccounts = useMemo(() => accounts.filter((account) => account.id !== viewerId), [accounts, viewerId]);
-  const suggestedAccounts = useMemo(() => otherAccounts.filter((account) => !account.isFollowedByViewer).slice(0, 5), [otherAccounts]);
+  const suggestedAccounts = useMemo(
+    () => otherAccounts.filter((account) => account.id !== profile?.id && !account.isFollowedByViewer).slice(0, 5),
+    [otherAccounts, profile?.id],
+  );
   const filteredConnectionAccounts = useMemo(() => {
     const query = connectionSearch.trim().toLowerCase();
 
@@ -728,6 +731,15 @@ export function AccountsView({ username }: AccountsViewProps) {
                   ) : null}
                 </section>
 
+                {suggestedAccounts.length ? (
+                  <PeopleYouKnowSection
+                    accounts={suggestedAccounts}
+                    onFollow={toggleFollow}
+                    onRefresh={() => void loadAccounts()}
+                    status={status}
+                  />
+                ) : null}
+
               </section>
             </section>
           ) : (
@@ -744,47 +756,6 @@ export function AccountsView({ username }: AccountsViewProps) {
 
           {message ? <p className="mt-5 rounded-2xl bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{message}</p> : null}
 
-          {!username && suggestedAccounts.length ? (
-            <section className="mt-7">
-              <div className="mb-3 flex items-end justify-between">
-                <div>
-                  <h2 className="text-lg font-black text-ink">Accounts to follow</h2>
-                </div>
-                <button className="text-xs font-black text-ink/50" onClick={() => void loadAccounts()} type="button">
-                  Refresh
-                </button>
-              </div>
-              <div className="space-y-3">
-                {suggestedAccounts.map((account) => (
-                  <article className="flex items-center gap-3 rounded-[14px] bg-white p-3 shadow-sm ring-1 ring-ink/5" key={account.id}>
-                    <Link
-                      aria-label={`Open ${accountDisplayName(account)}`}
-                      className="flex min-w-0 flex-1 items-center gap-3"
-                      href={`/accounts/${account.username}`}
-                    >
-                      <Avatar account={account} />
-                      <div className="min-w-0">
-                        <h3 className="truncate text-base font-black text-ink">{accountDisplayName(account)}</h3>
-                        <p className="text-xs font-bold text-ink/48">
-                          {account.stats.followers} followers · {account.stats.posts} posts
-                        </p>
-                      </div>
-                    </Link>
-                    <button
-                      className={`h-10 rounded-full px-4 text-xs font-black ${
-                        account.isFollowedByViewer ? "bg-shell text-ink" : "bg-ink text-white"
-                      }`}
-                      disabled={status === "saving"}
-                      onClick={() => void toggleFollow(account)}
-                      type="button"
-                    >
-                      {account.isFollowedByViewer ? "Following" : "Follow"}
-                    </button>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
         </div>
       </section>
       {setupOpen && profile && isOwnProfile ? (
@@ -1372,6 +1343,60 @@ function ProfileStat({ label, onClick, value }: { label: string; onClick: () => 
       <span className="block text-[15px] font-black leading-none text-ink">{value}</span>
       <span className="mt-1 block text-[11px] font-semibold leading-tight text-ink/58">{label}</span>
     </button>
+  );
+}
+
+function PeopleYouKnowSection({
+  accounts,
+  onFollow,
+  onRefresh,
+  status,
+}: {
+  accounts: AccountWithStats[];
+  onFollow: (account: AccountWithStats) => void | Promise<void>;
+  onRefresh: () => void;
+  status: "loading" | "ready" | "saving";
+}) {
+  return (
+    <section className="mt-7 pb-2">
+      <div className="mb-3 flex items-end justify-between">
+        <div>
+          <h2 className="text-lg font-black text-ink">See people you know</h2>
+        </div>
+        <button className="text-xs font-black text-ink/50" onClick={onRefresh} type="button">
+          Refresh
+        </button>
+      </div>
+      <div className="space-y-3">
+        {accounts.map((account) => (
+          <article className="flex items-center gap-3 rounded-[14px] bg-white p-3 shadow-sm ring-1 ring-ink/5" key={account.id}>
+            <Link
+              aria-label={`Open ${accountDisplayName(account)}`}
+              className="flex min-w-0 flex-1 items-center gap-3"
+              href={`/accounts/${account.username}`}
+            >
+              <Avatar account={account} />
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-black text-ink">{accountDisplayName(account)}</h3>
+                <p className="text-xs font-bold text-ink/48">
+                  {account.stats.followers} followers · {account.stats.posts} posts
+                </p>
+              </div>
+            </Link>
+            <button
+              className={`h-10 rounded-full px-4 text-xs font-black ${
+                account.isFollowedByViewer ? "bg-shell text-ink" : "bg-ink text-white"
+              }`}
+              disabled={status === "saving"}
+              onClick={() => void onFollow(account)}
+              type="button"
+            >
+              {account.isFollowedByViewer ? "Following" : "Follow"}
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

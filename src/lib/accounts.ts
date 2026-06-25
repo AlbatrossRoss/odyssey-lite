@@ -23,6 +23,17 @@ export type AccountWithStats = AppAccount & {
   isFollowedByViewer: boolean;
 };
 
+export type AppFollowNotification = {
+  accountId: string;
+  createdAt: string;
+  followId: string;
+  id: string;
+  isRead: boolean;
+  profilePhotoUrl: string | null;
+  type: "follow";
+  username: string;
+};
+
 const SESSION_KEY = "odyssey-lite-account-id";
 const sessionCookieMaxAge = 60 * 60 * 24 * 365;
 
@@ -128,6 +139,18 @@ export function assertAccountsConfigured() {
   if (!isSupabaseConfigured()) {
     throw new Error("Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to use accounts.");
   }
+}
+
+function followReadsTableMissing(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+
+  return code === "42P01" || code === "PGRST205" || message.includes("account_follow_reads");
 }
 
 export async function fetchAccountById(accountId: string) {
@@ -280,6 +303,19 @@ export async function fetchAccountsWithStats(viewerId: string) {
   });
 }
 
+export async function fetchAccountsForSearch() {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase.from("app_accounts").select("*").order("username", { ascending: true }).limit(80);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapAccount);
+}
+
 export async function fetchAccountWithStats(accountId: string, viewerId: string | null = accountId) {
   const account = await fetchAccountById(accountId);
 
@@ -405,6 +441,82 @@ export async function fetchAccountConnections(accountId: string, type: "follower
   const accountsById = new Map(accounts.map((account) => [account.id, mapAccount(account)]));
 
   return accountIds.map((id) => accountsById.get(id)).filter((account): account is AppAccount => Boolean(account));
+}
+
+export async function fetchFollowNotifications(accountId: string) {
+  assertAccountsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const { data: follows, error: followsError } = await supabase
+    .from("account_follows")
+    .select("id, follower_id, following_id, created_at")
+    .eq("following_id", accountId)
+    .neq("follower_id", accountId)
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  if (followsError) {
+    throw followsError;
+  }
+
+  const followRows = (follows ?? []) as Array<{ id: string; follower_id: string; following_id: string; created_at: string }>;
+
+  if (!followRows.length) {
+    return [];
+  }
+
+  const [accountsResponse, readsResponse] = await Promise.all([
+    supabase.from("app_accounts").select("id, username, profile_photo_url").in("id", Array.from(new Set(followRows.map((follow) => follow.follower_id)))),
+    supabase.from("account_follow_reads").select("follow_id").eq("account_id", accountId).in("follow_id", followRows.map((follow) => follow.id)),
+  ]);
+
+  if (accountsResponse.error) {
+    throw accountsResponse.error;
+  }
+
+  if (readsResponse.error && !followReadsTableMissing(readsResponse.error)) {
+    throw readsResponse.error;
+  }
+
+  const accounts = new Map(
+    ((accountsResponse.data ?? []) as Array<{ id: string; username?: string; profile_photo_url?: string | null }>).map((account) => [account.id, account]),
+  );
+  const readFollowIds = new Set(((readsResponse.data ?? []) as Array<{ follow_id: string }>).map((read) => read.follow_id));
+
+  return followRows.map((follow): AppFollowNotification => {
+    const account = accounts.get(follow.follower_id);
+
+    return {
+      accountId: follow.follower_id,
+      createdAt: follow.created_at,
+      followId: follow.id,
+      id: follow.id,
+      isRead: readFollowIds.has(follow.id),
+      profilePhotoUrl: account?.profile_photo_url ?? null,
+      type: "follow",
+      username: account?.username ?? "traveler",
+    };
+  });
+}
+
+export async function markFollowNotificationsRead(accountId: string, followIds: string[]) {
+  assertAccountsConfigured();
+
+  if (!followIds.length) {
+    return;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("account_follow_reads").upsert(
+    followIds.map((followId) => ({
+      account_id: accountId,
+      follow_id: followId,
+    })) as never,
+  );
+
+  if (error && !followReadsTableMissing(error)) {
+    throw error;
+  }
 }
 
 export function normalizeUsername(username: string) {

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Bell, Heart, MapPin, MessageCircle, X } from "lucide-react";
+import { ArrowLeft, Bell, Heart, MapPin, MessageCircle, UserPlus, X } from "lucide-react";
 import { AppPostCard } from "@/components/AppPostCard";
 import { AppPostFeedCard } from "@/components/AppPostFeedCard";
 import { BottomNav } from "@/components/BottomNav";
@@ -12,7 +13,16 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import { consumeActionBanner, writeActionBanner, type ActionBanner } from "@/lib/actionBanner";
-import { fetchAccountById, fetchFollowingIds, readAccountSessionId } from "@/lib/accounts";
+import {
+  fetchAccountById,
+  fetchAccountsForSearch,
+  fetchFollowingIds,
+  fetchFollowNotifications,
+  markFollowNotificationsRead,
+  readAccountSessionId,
+  type AppAccount,
+  type AppFollowNotification,
+} from "@/lib/accounts";
 import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
 import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchLikeNotifications, markLikeNotificationsRead, type AppLikeNotification } from "@/lib/postLikes";
@@ -39,7 +49,7 @@ type MapArea = {
 };
 
 type SheetPosition = "minimized" | "peek" | "expanded";
-type ExploreNotification = (AppCommentNotification & { type: "comment" }) | AppLikeNotification;
+type ExploreNotification = (AppCommentNotification & { type: "comment" }) | AppLikeNotification | AppFollowNotification;
 
 type MapView = {
   center: [number, number];
@@ -296,6 +306,7 @@ function writeCachedAppPosts(posts: AppPost[]) {
 }
 
 export default function ExplorePage() {
+  const router = useRouter();
   const [restoredExploreState] = useState(() => readStoredExploreState());
   const [exploreSource, setExploreSource] = useState<"search" | "map">(restoredExploreState?.exploreSource ?? "search");
   const [defaultMapView, setDefaultMapView] = useState<MapView>(worldView);
@@ -305,10 +316,12 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState(restoredExploreState?.searchQuery ?? "");
   const [activeDestination, setActiveDestination] = useState(restoredExploreState?.activeDestination ?? "");
   const [appPosts, setAppPosts] = useState<AppPost[]>(() => readCachedAppPosts());
+  const [appPostsStatus, setAppPostsStatus] = useState<"loading" | "ready">("loading");
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
   const [commentNotifications, setCommentNotifications] = useState<AppCommentNotification[]>([]);
+  const [followNotifications, setFollowNotifications] = useState<AppFollowNotification[]>([]);
   const [likeNotifications, setLikeNotifications] = useState<AppLikeNotification[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -316,6 +329,8 @@ export default function ExplorePage() {
   const [notificationMessage, setNotificationMessage] = useState("");
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
+  const [accountSearchAccounts, setAccountSearchAccounts] = useState<AppAccount[]>([]);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
   const [activeCategoryFilters, setActiveCategoryFilters] = useState<ExploreCategoryFilter[]>(restoredExploreState?.activeCategoryFilters ?? []);
   const [profileAccountId, setProfileAccountId] = useState<string | null>(restoredExploreState?.profileAccountId ?? null);
@@ -330,6 +345,7 @@ export default function ExplorePage() {
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(() => new Set());
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const feedPostIdsRef = useRef<string[]>([]);
+  const userChangedFilterRef = useRef(false);
   const exploreStateRef = useRef<StoredExploreState>({
     activeDestination: restoredExploreState?.activeDestination ?? "",
     activeCategoryFilters: restoredExploreState?.activeCategoryFilters ?? [],
@@ -343,7 +359,7 @@ export default function ExplorePage() {
     selectedPostId: restoredExploreState?.selectedPostId ?? null,
     sheetPosition: "peek",
   });
-  const searchSuggestions = useMemo(() => {
+  const placeSearchSuggestions = useMemo(() => {
     const seen = new Set<string>();
 
     return mapboxSuggestions.filter((suggestion) => {
@@ -355,15 +371,39 @@ export default function ExplorePage() {
 
       seen.add(key);
       return true;
-    });
+    }).map((suggestion) => ({ ...suggestion, type: "place" as const }));
   }, [mapboxSuggestions]);
+  const userSearchSuggestions = useMemo(() => {
+    const query = searchQuery.trim().replace(/^@+/, "").toLowerCase();
+    const sourceAccounts = query
+      ? accountSearchAccounts.filter((account) =>
+        `${account.username} ${account.currentCity ?? ""}`.toLowerCase().includes(query),
+      )
+      : accountSearchAccounts;
+
+    return sourceAccounts.slice(0, 5).map((account) => ({
+      description: account.currentCity
+        ? account.currentCity
+        : "Traveler",
+      label: `@${account.username}`,
+      profilePhotoUrl: account.profilePhotoUrl,
+      query: `@${account.username}`,
+      type: "user" as const,
+      username: account.username,
+    }));
+  }, [accountSearchAccounts, searchQuery]);
+  const searchSuggestions = useMemo(
+    () => [...placeSearchSuggestions, ...userSearchSuggestions],
+    [placeSearchSuggestions, userSearchSuggestions],
+  );
   const notifications = useMemo<ExploreNotification[]>(
     () =>
       [
         ...commentNotifications.map((notification) => ({ ...notification, type: "comment" as const })),
+        ...followNotifications,
         ...likeNotifications,
       ].sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()),
-    [commentNotifications, likeNotifications],
+    [commentNotifications, followNotifications, likeNotifications],
   );
 
   useEffect(() => {
@@ -500,9 +540,13 @@ export default function ExplorePage() {
 
         writeCachedAppPosts(sharedPosts);
         setAppPosts(sharedPosts);
+        setAppPostsStatus("ready");
       })
       .catch(() => {
-        // Keep an empty recommendations feed if Supabase is unavailable.
+        if (active) {
+          // Keep an empty recommendations feed if Supabase is unavailable.
+          setAppPostsStatus("ready");
+        }
       });
 
     return () => {
@@ -527,6 +571,9 @@ export default function ExplorePage() {
         if (active) {
           setFollowingIds(ids);
           setViewerPhotoUrl(account?.profilePhotoUrl ?? null);
+          if (!restoredExploreState && !userChangedFilterRef.current && ids.length === 0) {
+            setActiveFilter("All");
+          }
         }
       })
       .catch(() => {
@@ -539,7 +586,7 @@ export default function ExplorePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [restoredExploreState]);
 
   useEffect(() => {
     if (!viewerId) {
@@ -567,8 +614,29 @@ export default function ExplorePage() {
   }, [viewerId]);
 
   useEffect(() => {
+    let active = true;
+
+    fetchAccountsForSearch()
+      .then((accounts) => {
+        if (active) {
+          setAccountSearchAccounts(accounts);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAccountSearchAccounts([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [viewerId]);
+
+  useEffect(() => {
     if (!viewerId) {
       setCommentNotifications([]);
+      setFollowNotifications([]);
       setLikeNotifications([]);
       setUnreadNotificationCount(0);
       setNotificationStatus("idle");
@@ -580,13 +648,15 @@ export default function ExplorePage() {
     setNotificationStatus("loading");
     setNotificationMessage("");
 
-    Promise.all([fetchCommentNotifications(viewerId), fetchLikeNotifications(viewerId)])
-      .then(([comments, likes]) => {
+    Promise.all([fetchCommentNotifications(viewerId), fetchFollowNotifications(viewerId), fetchLikeNotifications(viewerId)])
+      .then(([comments, follows, likes]) => {
         if (active) {
           setCommentNotifications(comments);
+          setFollowNotifications(follows);
           setLikeNotifications(likes);
           setUnreadNotificationCount(
             comments.filter((notification) => !notification.isRead).length +
+            follows.filter((notification) => !notification.isRead).length +
             likes.filter((notification) => !notification.isRead).length,
           );
           setNotificationStatus("idle");
@@ -665,6 +735,14 @@ export default function ExplorePage() {
 
   const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
     const query = suggestion.query ?? suggestion.label;
+
+    if (suggestion.type === "user" && suggestion.username) {
+      setSearchQuery("");
+      setSearchFocused(false);
+      router.push(`/accounts/${suggestion.username}`);
+      return;
+    }
+
     setSearchQuery(query);
 
     if (suggestion.center) {
@@ -673,7 +751,7 @@ export default function ExplorePage() {
     }
 
     void handleMapSearch(query);
-  }, [enterExploreAt, handleMapSearch]);
+  }, [enterExploreAt, handleMapSearch, router]);
 
   const handleResetToWorld = useCallback(() => {
     const nextView = userLocation ? { center: userLocation, zoom: 10.2 } : defaultMapView;
@@ -711,15 +789,60 @@ export default function ExplorePage() {
     });
   }, []);
 
+  const markVisibleNotificationsRead = useCallback(() => {
+    if (!viewerId || unreadNotificationCount === 0) {
+      return;
+    }
+
+    const unreadCommentIds = commentNotifications.filter((notification) => !notification.isRead).map((notification) => notification.id);
+    const unreadFollowIds = followNotifications.filter((notification) => !notification.isRead).map((notification) => notification.followId);
+    const unreadLikeIds = likeNotifications.filter((notification) => !notification.isRead).map((notification) => notification.id);
+
+    setCommentNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+    setFollowNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+    setLikeNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+    setUnreadNotificationCount(0);
+
+    void Promise.all([
+      markCommentNotificationsRead(viewerId, unreadCommentIds),
+      markFollowNotificationsRead(viewerId, unreadFollowIds),
+      markLikeNotificationsRead(viewerId, unreadLikeIds),
+    ]).catch((error) => {
+      setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
+    });
+  }, [commentNotifications, followNotifications, likeNotifications, unreadNotificationCount, viewerId]);
+
+  const closeNotifications = useCallback(() => {
+    setNotificationsOpen(false);
+    markVisibleNotificationsRead();
+  }, [markVisibleNotificationsRead]);
+
   const handleNotificationToggle = useCallback(() => {
-    setNotificationsOpen((open) => !open);
-  }, []);
+    setNotificationsOpen((open) => {
+      if (open) {
+        markVisibleNotificationsRead();
+      }
+
+      return !open;
+    });
+  }, [markVisibleNotificationsRead]);
 
   const handleNotificationOpen = useCallback(
     (notification: ExploreNotification) => {
       setNotificationsOpen(false);
 
       if (!viewerId || notification.isRead) {
+        return;
+      }
+
+      if (notification.type === "follow") {
+        setFollowNotifications((current) =>
+          current.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item)),
+        );
+        setUnreadNotificationCount((count) => Math.max(0, count - 1));
+        void markFollowNotificationsRead(viewerId, [notification.followId]).catch((error) => {
+          setNotificationMessage(error instanceof Error ? error.message : "Unable to update notifications.");
+        });
         return;
       }
 
@@ -832,6 +955,7 @@ export default function ExplorePage() {
   const peekPosts = feedPosts;
   const feedPostIds = useMemo(() => feedPosts.map((post) => post.id), [feedPosts]);
   const recommendationCount = visibleAppPosts.length;
+  const recommendationsLoading = appPostsStatus === "loading" && !feedPosts.length;
   const recommendationSubtitle =
     recommendationCount > 0
       ? `${recommendationCount} ${recommendationCount === 1 ? "recommendation" : "recommendations"} ${recommendationSubtitleSuffix(activeFilter, activeCategoryFilters, profileUsername)}`
@@ -969,9 +1093,13 @@ export default function ExplorePage() {
             </Link>
           </div>
         ) : null}
-        <div className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)]">
+        <div
+          className={`absolute inset-x-0 top-0 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)] ${
+            searchFocused ? "z-40" : "z-20"
+          }`}
+        >
           <div className="flex items-center gap-3">
-            {searchQuery || activeDestination || mapArea || profileAccountId ? (
+            {!searchFocused && (searchQuery || activeDestination || mapArea || profileAccountId) ? (
               <button
                 aria-label="Clear search and show world map"
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
@@ -984,6 +1112,7 @@ export default function ExplorePage() {
             <div className="min-w-0 flex-1">
               <SearchBar
                 compact
+                onFocusChange={setSearchFocused}
                 onSearch={handleMapSearch}
                 onSuggestionSelect={handleSuggestionSelect}
                 onValueChange={setSearchQuery}
@@ -1017,6 +1146,7 @@ export default function ExplorePage() {
               categoriesOpen={categoriesOpen}
               onCategoryToggle={handleCategoryToggle}
               onChange={(filter) => {
+                userChangedFilterRef.current = true;
                 setActiveFilter(filter);
                 setSelectedPostId(null);
                 setSheetPosition("peek");
@@ -1030,7 +1160,7 @@ export default function ExplorePage() {
           className={`absolute inset-0 z-50 bg-ink/24 transition-opacity duration-300 ${
             notificationsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           }`}
-          onClick={() => setNotificationsOpen(false)}
+          onClick={closeNotifications}
         />
         <aside
           className={`absolute bottom-0 right-0 top-0 z-50 flex w-[88%] max-w-sm flex-col bg-white shadow-[-18px_0_42px_rgba(24,35,31,0.18)] transition-transform duration-300 ease-out ${
@@ -1046,7 +1176,7 @@ export default function ExplorePage() {
               <button
                 aria-label="Close notifications"
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shell text-ink"
-                onClick={() => setNotificationsOpen(false)}
+                onClick={closeNotifications}
                 type="button"
               >
                 <X aria-hidden="true" size={18} />
@@ -1075,7 +1205,7 @@ export default function ExplorePage() {
                     className={`relative flex gap-3 rounded-[22px] p-3 ${
                       notification.isRead ? "bg-shell text-ink/76" : "bg-coral/10 text-ink ring-1 ring-coral/18"
                     }`}
-                    href={`/posts/${notification.postId}`}
+                    href={notification.type === "follow" ? `/accounts/${notification.username}` : `/posts/${notification.postId}`}
                     key={`${notification.type}-${notification.id}`}
                     onClick={() => handleNotificationOpen(notification)}
                   >
@@ -1085,15 +1215,24 @@ export default function ExplorePage() {
                         <img alt="" className="h-full w-full object-cover" src={notification.profilePhotoUrl} />
                       ) : notification.type === "like" ? (
                         <Heart aria-hidden="true" size={18} />
+                      ) : notification.type === "follow" ? (
+                        <UserPlus aria-hidden="true" size={18} />
                       ) : (
                         <MessageCircle aria-hidden="true" size={18} />
                       )}
                     </span>
                     <span className="min-w-0 flex-1 pr-3">
                       <span className="block text-sm font-black leading-tight">
-                        @{notification.username} {notification.type === "like" ? "liked your recommendation" : "commented"}
+                        @{notification.username}{" "}
+                        {notification.type === "follow"
+                          ? "started following you"
+                          : notification.type === "like"
+                            ? "liked your recommendation"
+                            : "commented"}
                       </span>
-                      <span className="mt-0.5 block truncate text-xs font-bold text-ink/50">on {notification.postTitle}</span>
+                      {notification.type !== "follow" ? (
+                        <span className="mt-0.5 block truncate text-xs font-bold text-ink/50">on {notification.postTitle}</span>
+                      ) : null}
                       {notification.type === "comment" ? (
                         <span className="mt-1 line-clamp-3 block text-xs font-semibold leading-snug text-ink/62">{notification.body}</span>
                       ) : null}
@@ -1159,11 +1298,7 @@ export default function ExplorePage() {
                 ))}
               </div>
             ) : (
-              <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
-                <p className="text-sm font-semibold leading-relaxed text-ink/54">
-                  {activeFilter === "Friends" ? "No followed accounts have recommendations here yet." : "No recommendations here yet."}
-                </p>
-              </div>
+              <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} />
             )
           ) : peekPosts.length ? (
             <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-2 pt-1">
@@ -1172,15 +1307,28 @@ export default function ExplorePage() {
               ))}
             </div>
           ) : (
-            <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
-              <p className="text-sm font-semibold leading-relaxed text-ink/54">
-                {activeFilter === "Friends" ? "No followed accounts have recommendations here yet." : "No recommendations here yet."}
-              </p>
-            </div>
+            <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} />
           )}
         </section>
         <BottomNav activeTab="Explore" onExploreClick={handleResetToWorld} />
       </section>
     </MobileFrame>
+  );
+}
+
+function RecommendationEmptyState({ activeFilter, isLoading }: { activeFilter: string; isLoading: boolean }) {
+  return (
+    <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
+      {isLoading ? (
+        <p className="text-sm font-semibold leading-relaxed text-ink/54">Prototype loading, please be patient.</p>
+      ) : activeFilter === "Friends" ? (
+        <p className="text-sm font-semibold leading-relaxed text-ink/54">
+          <span className="block">No followed accounts have recommendations here yet.</span>
+          <span className="mt-3 block">Swipe to the All page to browse everyone&apos;s recommendations.</span>
+        </p>
+      ) : (
+        <p className="text-sm font-semibold leading-relaxed text-ink/54">No recommendations here yet.</p>
+      )}
+    </div>
   );
 }

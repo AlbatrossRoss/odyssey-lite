@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { ArrowLeft, MapPin, Search, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
 
@@ -9,6 +9,9 @@ export type SearchSuggestion = {
   description?: string;
   query?: string;
   center?: [number, number];
+  profilePhotoUrl?: string | null;
+  type?: "place" | "user";
+  username?: string;
   zoom?: number;
 };
 
@@ -18,6 +21,7 @@ type SearchBarProps = {
   placeholder?: string;
   compact?: boolean;
   suggestions?: SearchSuggestion[];
+  onFocusChange?: (focused: boolean) => void;
   onValueChange?: (value: string) => void;
   onSuggestionSelect?: (suggestion: SearchSuggestion) => void | Promise<void>;
   onSearch?: (query: string) => void | Promise<void>;
@@ -29,6 +33,7 @@ export function SearchBar({
   placeholder = "Where to next?",
   compact = false,
   suggestions = [],
+  onFocusChange,
   onValueChange,
   onSuggestionSelect,
   onSearch,
@@ -42,8 +47,10 @@ export function SearchBar({
       return [];
     }
 
-    return suggestions.slice(0, 8);
+    return suggestions.slice(0, 10);
   }, [focused, suggestions]);
+  const placeSuggestions = filteredSuggestions.filter((suggestion) => (suggestion.type ?? "place") === "place").slice(0, 5);
+  const userSuggestions = filteredSuggestions.filter((suggestion) => suggestion.type === "user").slice(0, 5);
 
   useEffect(() => {
     setInternalValue(initialValue);
@@ -57,6 +64,11 @@ export function SearchBar({
     onValueChange?.(nextValue);
   }
 
+  function updateFocused(nextFocused: boolean) {
+    setFocused(nextFocused);
+    onFocusChange?.(nextFocused);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void executeSearch(value);
@@ -65,7 +77,7 @@ export function SearchBar({
   async function executeSearch(rawQuery: string) {
     const query = rawQuery.trim();
 
-    setFocused(false);
+    updateFocused(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -98,13 +110,49 @@ export function SearchBar({
     const nextValue = suggestion.query ?? suggestion.label;
 
     updateValue(nextValue);
-    setFocused(false);
+    updateFocused(false);
     if (onSuggestionSelect) {
       void onSuggestionSelect({ ...suggestion, query: nextValue });
       return;
     }
 
     void executeSearch(nextValue);
+  }
+
+  function closeSearchMode() {
+    updateFocused(false);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }
+
+  function renderSuggestionRow(suggestion: SearchSuggestion) {
+    const isUser = suggestion.type === "user";
+
+    return (
+      <button
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-shell"
+        key={`${suggestion.type ?? "place"}-${suggestion.label}-${suggestion.description ?? ""}`}
+        onClick={() => handleSuggestionSelect(suggestion)}
+        type="button"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-shell text-moss">
+          {isUser && suggestion.profilePhotoUrl ? (
+            <img alt="" className="h-full w-full object-cover" src={suggestion.profilePhotoUrl} />
+          ) : isUser ? (
+            <UserRound aria-hidden="true" size={18} />
+          ) : (
+            <MapPin aria-hidden="true" size={18} />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-extrabold text-ink">{suggestion.label}</span>
+          {suggestion.description ? (
+            <span className="mt-0.5 block truncate text-xs font-semibold text-ink/54">{suggestion.description}</span>
+          ) : null}
+        </span>
+      </button>
+    );
   }
 
   return (
@@ -115,33 +163,48 @@ export function SearchBar({
         }`}
         onSubmit={handleSubmit}
       >
-        <Search aria-hidden="true" className="text-moss" size={19} />
+        {focused ? (
+          <button
+            aria-label="Close search"
+            className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={closeSearchMode}
+            type="button"
+          >
+            <ArrowLeft aria-hidden="true" size={20} />
+          </button>
+        ) : (
+          <Search aria-hidden="true" className="text-moss" size={19} />
+        )}
         <input
-          aria-label="Search destination"
+          aria-label="Search places or people"
           className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-ink outline-none placeholder:text-ink/48"
-          onBlur={() => window.setTimeout(() => setFocused(false), 120)}
+          onBlur={() => window.setTimeout(() => updateFocused(false), 120)}
           onChange={(event) => updateValue(event.target.value)}
-          onFocus={() => setFocused(true)}
+          onFocus={() => updateFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           value={value}
         />
       </form>
-      {filteredSuggestions.length ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-[22px] border border-white/70 bg-white/96 py-1 shadow-soft backdrop-blur-xl">
-          {filteredSuggestions.map((suggestion) => (
-            <button
-              className="flex w-full flex-col px-4 py-3 text-left transition hover:bg-shell"
-              key={`${suggestion.label}-${suggestion.description ?? ""}`}
-              onClick={() => handleSuggestionSelect(suggestion)}
-              type="button"
-            >
-              <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
-              {suggestion.description ? (
-                <span className="mt-0.5 text-xs font-semibold text-ink/54">{suggestion.description}</span>
-              ) : null}
-            </button>
-          ))}
+      {focused ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[calc(100dvh-9.5rem)] overflow-y-auto rounded-[22px] border border-white/70 bg-white/96 py-2 shadow-soft backdrop-blur-xl">
+          <section>
+            <p className="px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-ink/36">Places</p>
+            {placeSuggestions.length ? (
+              placeSuggestions.map(renderSuggestionRow)
+            ) : (
+              <p className="px-4 py-3 text-sm font-semibold text-ink/42">Search a city, neighborhood, or place.</p>
+            )}
+          </section>
+          <section className="border-t border-ink/8 pt-1">
+            <p className="px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-ink/36">People</p>
+            {userSuggestions.length ? (
+              userSuggestions.map(renderSuggestionRow)
+            ) : (
+              <p className="px-4 py-3 text-sm font-semibold text-ink/42">Search by username.</p>
+            )}
+          </section>
         </div>
       ) : null}
     </div>

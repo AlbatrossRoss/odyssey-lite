@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "June 25, 2026",
+    id: "v8.3",
+    title: "Explore Search and Social Notifications",
+    summary:
+      "Added profile people suggestions, follow notifications, notification badge clearing on drawer close, improved Explore loading and empty-state copy, and upgraded Explore search with separate Places and People autosuggestions.",
+  },
+  {
     date: "June 18, 2026",
     id: "v8.2",
     title: "Recommendation Likes and Audio",
