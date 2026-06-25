@@ -178,7 +178,9 @@ export function SearchBar({
         )}
         <input
           aria-label="Search places or people"
-          className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-ink outline-none placeholder:text-ink/48"
+          className={`min-w-0 flex-1 bg-transparent font-semibold text-ink outline-none placeholder:text-ink/48 ${
+            compact ? "text-[13px]" : "text-[15px]"
+          }`}
           onBlur={() => window.setTimeout(() => updateFocused(false), 120)}
           onChange={(event) => updateValue(event.target.value)}
           onFocus={() => updateFocused(true)}
