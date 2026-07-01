@@ -158,19 +158,16 @@ async function fetchAccountSummaries(accountIds: string[]) {
 
   const supabase = createSupabaseBrowserClient();
   const uniqueAccountIds = Array.from(new Set(accountIds));
-  const missingAccountIds = uniqueAccountIds.filter((accountId) => !accountSummaryCache.has(accountId));
 
-  if (missingAccountIds.length) {
-    const { data, error } = await supabase.from("app_accounts").select("id, username, profile_photo_url").in("id", missingAccountIds);
+  const { data, error } = await supabase.from("app_accounts").select("id, username, profile_photo_url").in("id", uniqueAccountIds);
 
-    if (error) {
-      throw error;
-    }
-
-    (data as AppPostAccountRow[] | null)?.forEach((account) => {
-      accountSummaryCache.set(account.id, account);
-    });
+  if (error) {
+    throw error;
   }
+
+  (data as AppPostAccountRow[] | null)?.forEach((account) => {
+    accountSummaryCache.set(account.id, account);
+  });
 
   const accounts = new Map<string, AppPostAccountRow>();
 

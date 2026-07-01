@@ -33,8 +33,8 @@ import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilte
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
-const appPostsCacheKey = "odyssey-app-posts-cache-v2";
-const appPostsLocalCacheKey = "odyssey-app-posts-cache-v3";
+const appPostsCacheKey = "odyssey-app-posts-cache-v4";
+const appPostsLocalCacheKey = "odyssey-app-posts-cache-v5";
 const appPostsLocalCacheMaxAgeMs = 1000 * 60 * 60 * 6;
 let hasCompletedExploreColdLoad = false;
 
