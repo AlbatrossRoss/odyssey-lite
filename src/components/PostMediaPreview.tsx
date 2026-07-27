@@ -67,18 +67,12 @@ export function PostMediaPreview({
 
   if (useStreamThumbnail) {
     return (
-      <span className={`relative block overflow-hidden ${className}`}>
-        <img
-          alt={alt}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          src={cloudflareStreamThumbnailUrl(src)}
-        />
-        <span className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-ink/18 via-transparent to-white/5" />
-        <span className="pointer-events-none absolute right-2.5 top-2.5 grid h-8 w-8 place-items-center rounded-full border border-white/65 bg-ink/62 text-white shadow-lift backdrop-blur">
-          <span className="ml-0.5 block h-0 w-0 border-b-[5px] border-l-[8px] border-t-[5px] border-b-transparent border-l-white border-t-transparent" />
-        </span>
-      </span>
+      <img
+        alt={alt}
+        className={className}
+        loading="lazy"
+        src={cloudflareStreamThumbnailUrl(src)}
+      />
     );
   }
 

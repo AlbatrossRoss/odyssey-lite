@@ -19,7 +19,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
   if (!post.imageUrl) {
     return (
       <Link
-        className="odyssey-card relative block h-[254px] w-[148px] shrink-0 overflow-hidden p-3 text-left outline-none"
+        className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[14px] bg-white p-3 text-left shadow-soft outline-none"
         href={`/posts/${post.id}`}
         onClick={onOpen}
         onPointerDown={stopSheetDrag}
@@ -53,7 +53,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
 
   return (
     <Link
-      className="relative block h-[254px] w-[148px] shrink-0 overflow-hidden rounded-[20px] bg-ink text-left shadow-soft outline-none ring-1 ring-white/20"
+      className="relative block h-[254px] w-[142px] shrink-0 overflow-hidden rounded-[14px] bg-ink text-left shadow-soft outline-none"
       href={`/posts/${post.id}`}
       onClick={onOpen}
       onPointerDown={stopSheetDrag}
@@ -84,8 +84,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
         </span>
       </span>
       <span className="absolute bottom-3 left-3 right-3 text-white">
-        {post.tags[0] ? <span className="mb-2 inline-flex rounded-full bg-white/16 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur">{post.tags[0]}</span> : null}
-        <span className="line-clamp-3 block text-[16px] font-black leading-snug drop-shadow-sm">{post.title}</span>
+        <span className="line-clamp-3 block text-[15px] font-normal leading-snug drop-shadow-sm">{post.title}</span>
         <span className="mt-2 flex items-start gap-1.5 text-xs font-semibold leading-tight text-white/88">
           <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
           <span className="line-clamp-2">{post.location}</span>

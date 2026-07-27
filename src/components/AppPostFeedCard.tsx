@@ -39,7 +39,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, sa
 
   if (!post.imageUrl) {
     return (
-      <article className="odyssey-card relative mx-4 overflow-hidden">
+      <article className="relative overflow-hidden bg-white shadow-soft">
         {saveButton}
         <Link className="block min-h-[300px] p-5 text-left outline-none" href={`/posts/${post.id}`} onClick={onOpen} onPointerDown={stopSheetDrag}>
           <span className="flex items-center gap-3 pr-12">
@@ -69,7 +69,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, sa
   }
 
   return (
-    <article className="relative mx-4 overflow-hidden rounded-[24px] bg-ink shadow-soft">
+    <article className="relative overflow-hidden bg-ink shadow-soft">
       {saveButton}
       <Link
         className="relative block min-h-[430px] text-left outline-none"
@@ -103,8 +103,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, sa
           </span>
         </span>
         <span className="absolute bottom-5 left-4 right-4 text-white">
-          {post.tags[0] ? <span className="mb-2 inline-flex rounded-full bg-white/16 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] backdrop-blur">{post.tags[0]}</span> : null}
-          <span className="line-clamp-3 block text-xl font-black leading-snug tracking-[-0.015em] drop-shadow-sm">{post.title}</span>
+          <span className="line-clamp-3 block text-lg font-black leading-snug drop-shadow-sm">{post.title}</span>
           {post.caption ? (
             <span className="mt-2 line-clamp-3 block text-sm font-normal leading-snug text-white/82 drop-shadow-sm">{post.caption}</span>
           ) : null}
