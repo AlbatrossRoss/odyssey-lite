@@ -97,6 +97,64 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["app_posts"]["Insert"]>;
         Relationships: [];
       };
+      media_assets: {
+        Row: {
+          id: string;
+          owner_account_id: string;
+          provider: "cloudflare_images" | "cloudflare_stream" | "supabase";
+          provider_asset_id: string;
+          kind: "image" | "video";
+          status: "uploading" | "processing" | "ready" | "failed";
+          delivery_url: string | null;
+          legacy_url: string | null;
+          original_filename: string | null;
+          mime_type: string | null;
+          width: number | null;
+          height: number | null;
+          duration_seconds: number | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_account_id: string;
+          provider: "cloudflare_images" | "cloudflare_stream" | "supabase";
+          provider_asset_id: string;
+          kind: "image" | "video";
+          status?: "uploading" | "processing" | "ready" | "failed";
+          delivery_url?: string | null;
+          legacy_url?: string | null;
+          original_filename?: string | null;
+          mime_type?: string | null;
+          width?: number | null;
+          height?: number | null;
+          duration_seconds?: number | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["media_assets"]["Insert"]>;
+        Relationships: [];
+      };
+      app_post_media: {
+        Row: {
+          id: string;
+          post_id: string;
+          media_asset_id: string;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          post_id: string;
+          media_asset_id: string;
+          position: number;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["app_post_media"]["Insert"]>;
+        Relationships: [];
+      };
       app_boards: {
         Row: {
           id: string;

@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  cloudflareStreamPlayerUrl,
+  cloudflareStreamThumbnailUrl,
+  isCloudflareStreamIframe,
+  withCloudflareImageVariant,
+  type CloudflareImageVariant,
+} from "@/lib/mediaDelivery";
 import type { AppPostMediaType } from "@/lib/posts";
 
 type PostMediaPreviewProps = {
@@ -9,14 +16,27 @@ type PostMediaPreviewProps = {
   className: string;
   controls?: boolean;
   fallbackUrl?: string;
+  imageVariant?: CloudflareImageVariant;
   mediaType?: AppPostMediaType;
   muted?: boolean;
   src: string;
 };
 
-export function PostMediaPreview({ alt = "", autoPlay = true, className, controls = false, fallbackUrl, mediaType = "image", muted = true, src }: PostMediaPreviewProps) {
+export function PostMediaPreview({
+  alt = "",
+  autoPlay = true,
+  className,
+  controls = false,
+  fallbackUrl,
+  imageVariant = "hero",
+  mediaType = "image",
+  muted = true,
+  src,
+}: PostMediaPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const isVideo = mediaType === "video" || isVideoSrc(src);
+  const isStream = isCloudflareStreamIframe(src);
+  const useStreamThumbnail = isStream && (imageVariant === "card" || imageVariant === "thumbnail");
 
   useEffect(() => {
     const video = videoRef.current;
@@ -44,6 +64,30 @@ export function PostMediaPreview({ alt = "", autoPlay = true, className, control
       });
     });
   }, [autoPlay, isVideo, muted, src]);
+
+  if (useStreamThumbnail) {
+    return (
+      <img
+        alt={alt}
+        className={className}
+        loading="lazy"
+        src={cloudflareStreamThumbnailUrl(src)}
+      />
+    );
+  }
+
+  if (isStream) {
+    return (
+      <iframe
+        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        aria-label={alt}
+        className={`${className} ${controls ? "" : "pointer-events-none"}`}
+        loading="lazy"
+        src={cloudflareStreamPlayerUrl(src, { autoPlay, controls, muted })}
+      />
+    );
+  }
 
   if (isVideo) {
     return (
@@ -78,7 +122,7 @@ export function PostMediaPreview({ alt = "", autoPlay = true, className, control
           event.currentTarget.src = fallbackUrl;
         }
       }}
-      src={src}
+      src={withCloudflareImageVariant(src, imageVariant)}
     />
   );
 }

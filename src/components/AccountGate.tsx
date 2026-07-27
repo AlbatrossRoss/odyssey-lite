@@ -11,8 +11,10 @@ import {
   fetchAccountById,
   loginAccount,
   readAccountSessionId,
+  updateAccountPhoto,
   writeAccountSessionId,
 } from "@/lib/accounts";
+import { uploadPostMedia } from "@/lib/media";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 type AccountGateProps = {
@@ -20,21 +22,25 @@ type AccountGateProps = {
 };
 
 type Mode = "create" | "login";
+const publicPaths = new Set(["/", "/explore", "/destination/hawaii", "/loading-preview"]);
 
 export function AccountGate({ children }: AccountGateProps) {
   const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [hasStoredSession, setHasStoredSession] = useState(() => Boolean(readAccountSessionId() && isSupabaseConfigured()));
+  const [hasMounted, setHasMounted] = useState(false);
+  const [hasStoredSession, setHasStoredSession] = useState(false);
   const [account, setAccount] = useState<AppAccount | null>(null);
   const [mode, setMode] = useState<Mode>("create");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<"ready" | "saving">("ready");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     let active = true;
+    setHasMounted(true);
 
     async function restoreSession() {
       const accountId = readAccountSessionId();
@@ -84,15 +90,24 @@ export function AccountGate({ children }: AccountGateProps) {
     setStatus("saving");
 
     try {
-      const nextAccount =
+      let nextAccount =
         mode === "create"
-          ? await createAccount({ username, password, profilePhotoUrl: photoUrl })
+          ? await createAccount({ username, password, profilePhotoUrl: null })
           : await loginAccount(username, password);
 
       if (!nextAccount) {
         setMessage("No account matched that username and password.");
         setStatus("ready");
         return;
+      }
+
+      if (mode === "create" && photoFile) {
+        try {
+          const uploadedPhotoUrl = await uploadPostMedia(photoFile, nextAccount.id);
+          nextAccount = await updateAccountPhoto(nextAccount.id, uploadedPhotoUrl);
+        } catch {
+          // Account creation should still complete if the optional photo upload fails.
+        }
       }
 
       writeAccountSessionId(nextAccount.id);
@@ -111,10 +126,14 @@ export function AccountGate({ children }: AccountGateProps) {
       return;
     }
 
-    setPhotoUrl(await fileToDataUrl(file));
+    if (photoUrl?.startsWith("blob:")) URL.revokeObjectURL(photoUrl);
+    setPhotoFile(file);
+    setPhotoUrl(URL.createObjectURL(file));
   }
 
-  if (pathname === "/loading-preview" || account || hasStoredSession) {
+  if (!hasMounted) return children;
+
+  if (publicPaths.has(pathname) || account || hasStoredSession) {
     return children;
   }
 
@@ -222,15 +241,6 @@ export function AccountGate({ children }: AccountGateProps) {
       </section>
     </main>
   );
-}
-
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 function formatError(error: unknown) {

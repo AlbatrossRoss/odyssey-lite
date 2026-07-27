@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "next lint"
+    "lint": "next lint",
+    "media:migrate:dry-run": "node scripts/migrate-supabase-media-to-cloudflare.mjs",
+    "media:migrate": "node scripts/migrate-supabase-media-to-cloudflare.mjs --execute",
+    "media:migrate-profiles": "node scripts/migrate-profile-photos-to-cloudflare.mjs",
+    "media:repair-profiles": "node scripts/replace-broken-profile-photos.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",

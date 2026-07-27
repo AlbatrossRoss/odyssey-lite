@@ -442,7 +442,7 @@ function BoardSavedPostCard({ index, post }: { index: number; post: AppPost }) {
     <Link className="group block min-w-0 text-ink" href={`/posts/${post.id}`}>
       <span className={`relative block overflow-hidden rounded-[8px] bg-shell ${aspectClass}`}>
         {post.imageUrl ? (
-          <PostMediaPreview alt={post.title} className="h-full w-full object-cover transition duration-300 group-active:scale-[0.99]" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
+          <PostMediaPreview alt={post.title} className="h-full w-full object-cover transition duration-300 group-active:scale-[0.99]" imageVariant="thumbnail" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
         ) : (
           <span className="flex h-full items-center justify-center px-3 text-center text-xs font-bold leading-tight text-ink/48">{post.title}</span>
         )}

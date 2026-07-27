@@ -610,29 +610,15 @@ export default function PostDetailPage() {
                 ref={mediaScrollerRef}
               >
                 {postMediaItems.map((item, index) => (
-                  item.mediaType === "video" ? (
-                    <video
-                      aria-label={index === 0 ? post.title : `${post.title} media ${index + 1}`}
-                      autoPlay={activePhotoIndex === index}
-                      className="h-full w-full shrink-0 snap-center object-cover"
-                      controls
-                      data-media-index={index}
-                      data-post-detail-media
-                      key={`${item.url}-${index}`}
-                      loop
-                      playsInline
-                      preload={activePhotoIndex === index ? "auto" : "metadata"}
-                      src={item.url}
-                    />
-                  ) : (
-                    <PostMediaPreview
-                      alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
-                      className="h-full w-full shrink-0 snap-center object-cover"
-                      key={`${item.url}-${index}`}
-                      mediaType={item.mediaType}
-                      src={item.url}
-                    />
-                  )
+                  <PostMediaPreview
+                    alt={index === 0 ? post.title : `${post.title} media ${index + 1}`}
+                    autoPlay={activePhotoIndex === index}
+                    className="h-full w-full shrink-0 snap-center object-cover"
+                    controls={item.mediaType === "video"}
+                    key={`${item.url}-${index}`}
+                    mediaType={item.mediaType}
+                    src={item.url}
+                  />
                 ))}
               </div>
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink/12 via-transparent to-ink/42" />
@@ -910,22 +896,14 @@ export default function PostDetailPage() {
           >
             {postMediaItems.map((item, index) => (
               <div className="flex h-full w-full shrink-0 snap-center items-center justify-center" key={`${item.url}-expanded-${index}`}>
-                {item.mediaType === "video" ? (
-                  <video
-                    aria-label={index === 0 ? `${post.title} full size media` : `${post.title} full size media ${index + 1}`}
-                    className="max-h-full max-w-full object-contain"
-                    controls
-                    playsInline
-                    preload="metadata"
-                    src={item.url}
-                  />
-                ) : (
-                  <img
-                    alt={index === 0 ? `${post.title} full size media` : `${post.title} full size media ${index + 1}`}
-                    className="max-h-full max-w-full object-contain"
-                    src={item.url}
-                  />
-                )}
+                <PostMediaPreview
+                  alt={index === 0 ? `${post.title} full size media` : `${post.title} full size media ${index + 1}`}
+                  autoPlay={false}
+                  className="max-h-full max-w-full object-contain"
+                  controls={item.mediaType === "video"}
+                  mediaType={item.mediaType}
+                  src={item.url}
+                />
               </div>
             ))}
           </div>

@@ -24,7 +24,8 @@ import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { fetchBoardsByAccount, type AppBoard } from "@/lib/boards";
-import { createAppPost, fetchAppPostsByAccount, type AppPost } from "@/lib/posts";
+import { createAppPost, fetchAppPostsByAccount, fetchAppPostsPage, type AppPost } from "@/lib/posts";
+import { fetchProfileBundle } from "@/lib/profileBundle";
 import { uploadPostMedia } from "@/lib/media";
 import type { AppPostTag } from "@/lib/postTags";
 
@@ -95,6 +96,7 @@ export function AccountsView({ username }: AccountsViewProps) {
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "loading">("idle");
   const [connectionSearch, setConnectionSearch] = useState("");
   const [postsGridOpen, setPostsGridOpen] = useState(false);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>("photo");
   const [setupMessage, setSetupMessage] = useState("");
@@ -256,13 +258,15 @@ export function AccountsView({ username }: AccountsViewProps) {
   const setupTotal = 5;
   const setupPercent = Math.round((setupProgress / setupTotal) * 100);
   const showProfileSetup = isOwnProfile && status === "ready" && accountsHydrated && profilePostsHydrated && setupProgress < setupTotal;
+  const profileId = profile?.id;
+  const profileName = profile?.username;
 
   useEffect(() => {
     let active = true;
     setProfilePostsHydrated(false);
     setProfileBoardsHydrated(false);
 
-    if (!profile) {
+    if (!profileId || !profileName) {
       setProfilePosts([]);
       setProfileBoards([]);
       setProfilePostsHydrated(true);
@@ -270,8 +274,9 @@ export function AccountsView({ username }: AccountsViewProps) {
       return;
     }
 
-    const cachedBoards = readCachedProfileBoards(profile.id);
-    const cachedPosts = readCachedProfilePosts(profile.id);
+    const activeProfile = { id: profileId, username: profileName };
+    const cachedBoards = readCachedProfileBoards(activeProfile.id);
+    const cachedPosts = readCachedProfilePosts(activeProfile.id);
 
     if (cachedBoards.length) {
       setProfileBoards(cachedBoards);
@@ -283,48 +288,55 @@ export function AccountsView({ username }: AccountsViewProps) {
       setProfilePostsHydrated(true);
     }
 
-    withTimeout(fetchAppPostsByAccount(profile.id), profileHydrationTimeoutMs)
-      .then((posts) => {
-        if (active) {
-          if (posts) {
-            writeCachedProfilePosts(profile.id, posts);
-            setProfilePosts(posts);
-          }
-          setProfilePostsHydrated(true);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          if (!cachedPosts.length) {
-            setProfilePosts([]);
-          }
-          setProfilePostsHydrated(true);
-        }
-      });
+    async function hydrateProfileContent() {
+      try {
+        const bundle = await withTimeout(
+          fetchProfileBundle(activeProfile.username, viewerId),
+          profileHydrationTimeoutMs,
+        );
 
-    withTimeout(fetchBoardsByAccount(profile.id), profileHydrationTimeoutMs)
-      .then((boards) => {
+        if (bundle && active) {
+          writeCachedProfilePosts(activeProfile.id, bundle.posts);
+          writeCachedProfileBoards(activeProfile.id, bundle.boards);
+          setProfilePosts(bundle.posts);
+          setProfileBoards(bundle.boards);
+          setProfilePostsHydrated(true);
+          setProfileBoardsHydrated(true);
+          return;
+        }
+
+        const [posts, boards] = await Promise.all([
+          withTimeout(fetchAppPostsByAccount(activeProfile.id), profileHydrationTimeoutMs),
+          withTimeout(fetchBoardsByAccount(activeProfile.id), profileHydrationTimeoutMs),
+        ]);
+
+        if (!active) return;
+
+        const resolvedPosts = posts ?? [];
+        const resolvedBoards = boards ?? [];
+        writeCachedProfilePosts(activeProfile.id, resolvedPosts);
+        writeCachedProfileBoards(activeProfile.id, resolvedBoards);
+        setProfilePosts(resolvedPosts);
+        setProfileBoards(resolvedBoards);
+      } catch {
+        if (!active) return;
+
+        if (!cachedPosts.length) setProfilePosts([]);
+        if (!cachedBoards.length) setProfileBoards([]);
+      } finally {
         if (active) {
-          if (boards) {
-            writeCachedProfileBoards(profile.id, boards);
-            setProfileBoards(boards);
-          }
+          setProfilePostsHydrated(true);
           setProfileBoardsHydrated(true);
         }
-      })
-      .catch(() => {
-        if (active) {
-          if (!cachedBoards.length) {
-            setProfileBoards([]);
-          }
-          setProfileBoardsHydrated(true);
-        }
-      });
+      }
+    }
+
+    void hydrateProfileContent();
 
     return () => {
       active = false;
     };
-  }, [profile]);
+  }, [profileId, profileName, viewerId]);
 
   useEffect(() => {
     const query = cityInput.trim();
@@ -411,6 +423,29 @@ export function AccountsView({ username }: AccountsViewProps) {
 
   function scrollToPosts() {
     postsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function openPostsGrid() {
+    setPostsGridOpen(true);
+
+    if (!profile || loadingMorePosts || profilePosts.length >= profile.stats.posts) return;
+
+    setLoadingMorePosts(true);
+
+    try {
+      const nextPosts = await fetchAppPostsPage(profile.id, profilePosts.length);
+      setProfilePosts((current) => {
+        const merged = new Map(current.map((post) => [post.id, post]));
+        nextPosts.forEach((post) => merged.set(post.id, post));
+        return Array.from(merged.values()).sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt),
+        );
+      });
+    } catch {
+      // The first page remains available if a later page cannot load.
+    } finally {
+      setLoadingMorePosts(false);
+    }
   }
 
   async function handlePhotoSelect(file: File | undefined) {
@@ -687,8 +722,8 @@ export function AccountsView({ username }: AccountsViewProps) {
                     <div>
                       <h2 className="text-lg font-black text-ink">Recently Added</h2>
                     </div>
-                    <button className="text-xs font-black text-moss" onClick={() => setPostsGridOpen(true)} type="button">
-                      View all
+                    <button className="text-xs font-black text-moss" onClick={() => void openPostsGrid()} type="button">
+                      {loadingMorePosts ? "Loading…" : "View all"}
                     </button>
                   </div>
                   {profileRecentPosts.length ? (
@@ -1429,6 +1464,7 @@ function ProfileRecentCard({ post }: { post: AppPost }) {
             <PostMediaPreview
               alt={post.title}
               className="absolute inset-0 h-full w-full object-cover"
+              imageVariant="thumbnail"
               mediaType={post.mediaTypes[0]}
               src={post.imageUrl}
             />
@@ -1464,7 +1500,7 @@ function ProfileTripCard({ trip }: { trip: AppPost }) {
       <span className="relative block aspect-[1.35] bg-shell">
         {trip.imageUrl ? (
           <>
-            <PostMediaPreview alt={trip.title} className="h-full w-full object-cover" mediaType={trip.mediaTypes[0]} src={trip.imageUrl} />
+            <PostMediaPreview alt={trip.title} className="h-full w-full object-cover" imageVariant="card" mediaType={trip.mediaTypes[0]} src={trip.imageUrl} />
             <span className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-ink/88 via-ink/52 to-transparent" />
             <span className="absolute bottom-3 left-3 right-3 text-white">
               <span className="line-clamp-2 block text-base font-black leading-tight">{trip.title}</span>
@@ -1500,7 +1536,7 @@ function ProfileGridPostCard({ post }: { post: AppPost }) {
     >
       {post.imageUrl ? (
         <>
-          <PostMediaPreview alt={post.title} className="absolute inset-0 h-full w-full object-cover" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
+          <PostMediaPreview alt={post.title} className="absolute inset-0 h-full w-full object-cover" imageVariant="thumbnail" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
           <span className="absolute inset-x-0 bottom-0 h-[68%] bg-gradient-to-t from-ink/92 via-ink/58 to-transparent" />
           <span className="absolute bottom-3 left-3 right-3 flex max-h-[5.3rem] flex-col justify-end text-white">
             <span className="line-clamp-2 block text-sm font-black leading-tight">{post.title}</span>

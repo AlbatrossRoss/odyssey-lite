@@ -4,6 +4,7 @@ import { Calendar, Check, ImagePlus, MapPin, Send, Share2, X } from "lucide-reac
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MobileFrame } from "@/components/MobileFrame";
+import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { readAccountSessionId } from "@/lib/accounts";
 import { uploadPostMedia } from "@/lib/media";
 import { createAppPost, type AppPost } from "@/lib/posts";
@@ -751,7 +752,14 @@ function SuccessMedia({ imageUrl, mediaType }: { imageUrl: string | null; mediaT
   }
 
   if (mediaType === "video") {
-    return <video aria-label="Posted recommendation preview" autoPlay className="aspect-[2.15] w-full object-cover" loop muted playsInline src={imageUrl} />;
+    return (
+      <PostMediaPreview
+        alt="Posted recommendation preview"
+        className="aspect-[2.15] w-full object-cover"
+        mediaType="video"
+        src={imageUrl}
+      />
+    );
   }
 
   return <img alt="" className="aspect-[2.15] w-full object-cover" src={imageUrl} />;

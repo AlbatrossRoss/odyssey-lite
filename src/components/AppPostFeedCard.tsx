@@ -82,6 +82,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, sa
             alt={post.title}
             className="h-full w-full object-cover"
             fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+            imageVariant="feed"
             mediaType={post.mediaTypes[0]}
             src={post.imageUrl}
           />

@@ -69,6 +69,46 @@ function mapBoard(board: AppBoardRow, boardPosts: AppBoardPostRow[] = [], previe
   };
 }
 
+async function resolveBoardMedia(boardRows: AppBoardRow[], previewPosts: BoardPreviewPostRow[]) {
+  const legacyUrls = Array.from(
+    new Set(
+      [...boardRows.map((board) => board.cover_image_url), ...previewPosts.map((post) => post.image_url)]
+        .filter((url): url is string => Boolean(url))
+        .filter((url) => url.includes(".supabase.co/storage/")),
+    ),
+  );
+
+  if (!legacyUrls.length) {
+    return { boardRows, previewPosts };
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("media_assets")
+    .select("legacy_url, delivery_url")
+    .eq("status", "ready")
+    .in("legacy_url", legacyUrls);
+
+  if (error) {
+    throw error;
+  }
+
+  const mappings = new Map(
+    data?.flatMap((asset) => (asset.legacy_url && asset.delivery_url ? [[asset.legacy_url, asset.delivery_url] as const] : [])) ?? [],
+  );
+
+  return {
+    boardRows: boardRows.map((board) => ({
+      ...board,
+      cover_image_url: mappings.get(board.cover_image_url) ?? board.cover_image_url,
+    })),
+    previewPosts: previewPosts.map((post) => ({
+      ...post,
+      image_url: post.image_url ? mappings.get(post.image_url) ?? post.image_url : null,
+    })),
+  };
+}
+
 export function boardSlugFromTitle(title: string) {
   return (
     title
@@ -141,7 +181,9 @@ export async function fetchBoardsByAccount(accountId: string) {
     previewPosts = posts as BoardPreviewPostRow[];
   }
 
-  return boardRows.map((board) => mapBoard(board, boardPostRows, previewPosts));
+  const resolvedMedia = await resolveBoardMedia(boardRows, previewPosts);
+
+  return resolvedMedia.boardRows.map((board) => mapBoard(board, boardPostRows, resolvedMedia.previewPosts));
 }
 
 export async function fetchBoardBySlug(accountId: string, slug: string) {

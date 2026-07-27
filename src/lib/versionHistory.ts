@@ -7,6 +7,34 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "July 27, 2026",
+    id: "v8.9",
+    title: "Faster Cold Start",
+    summary:
+      "Shortened the branded Explore cold-start introduction from 2.5 seconds to 1.5 seconds while retaining its account, following, and notification readiness checks and one-time-per-session behavior.",
+  },
+  {
+    date: "July 27, 2026",
+    id: "v8.8",
+    title: "Durable Avatars and Cropped Thumbnails",
+    summary:
+      "Replaced expired third-party profile-photo links with durable Cloudflare-hosted avatars and changed compact Cloudflare Stream previews to cropped poster frames so profile, board, and recommendation thumbnails fill their cards without black bars.",
+  },
+  {
+    date: "July 27, 2026",
+    id: "v8.7",
+    title: "Map and Profile Performance",
+    summary:
+      "Added bounded and paginated recommendation queries, consolidated profile and Cloudflare media reads, short-lived edge caching, targeted database indexes, deferred secondary profile work, Cloudflare delivery for embedded profile photos, and a hydration-safe account gate.",
+  },
+  {
+    date: "July 27, 2026",
+    id: "v8.6",
+    title: "Cloudflare Media Migration",
+    summary:
+      "Moved new and existing recommendation images and videos to Cloudflare Images and Stream delivery, added direct uploads and signed Stream processing webhooks, preserved Supabase media as a rollback source, and resolved migrated post and board media without altering existing content.",
+  },
+  {
     date: "June 25, 2026",
     id: "v8.5",
     title: "Explore Cold Open Loading",

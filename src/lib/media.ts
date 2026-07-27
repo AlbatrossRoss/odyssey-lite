@@ -33,6 +33,179 @@ function extensionForFile(file: File) {
 }
 
 export async function uploadPostMedia(file: File, accountId: string) {
+  if (file.type.startsWith("image/")) {
+    return uploadImageToCloudflare(file, accountId);
+  }
+
+  if (file.type.startsWith("video/")) {
+    return uploadVideoToCloudflare(file, accountId);
+  }
+
+  return uploadLegacyPostMedia(file, accountId);
+}
+
+async function uploadImageToCloudflare(file: File, accountId: string) {
+  const uploadFile = await prepareMediaForUpload(file);
+  const response = await fetch("/api/media/images/direct-upload", {
+    body: JSON.stringify({
+      accountId,
+      filename: uploadFile.name,
+      mimeType: uploadFile.type,
+      size: uploadFile.size,
+    }),
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const directUpload = (await response.json()) as {
+    assetId?: string;
+    deliveryUrl?: string;
+    error?: string;
+    uploadUrl?: string;
+  };
+
+  if (!response.ok || !directUpload.assetId || !directUpload.deliveryUrl || !directUpload.uploadUrl) {
+    throw new Error(directUpload.error || "Unable to prepare the image upload.");
+  }
+
+  const form = new FormData();
+  form.set("file", uploadFile);
+  const uploadResponse = await fetch(directUpload.uploadUrl, {
+    body: form,
+    method: "POST",
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error("Cloudflare could not finish the image upload.");
+  }
+
+  await registerCloudflareImage({
+    accountId,
+    assetId: directUpload.assetId,
+    deliveryUrl: directUpload.deliveryUrl,
+    file: uploadFile,
+  });
+
+  return directUpload.deliveryUrl;
+}
+
+async function registerCloudflareImage({
+  accountId,
+  assetId,
+  deliveryUrl,
+  file,
+}: {
+  accountId: string;
+  assetId: string;
+  deliveryUrl: string;
+  file: File;
+}) {
+  if (!isSupabaseConfigured()) {
+    return;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("media_assets").upsert(
+    {
+      delivery_url: deliveryUrl,
+      kind: "image",
+      mime_type: file.type || null,
+      original_filename: file.name,
+      owner_account_id: accountId,
+      provider: "cloudflare_images",
+      provider_asset_id: assetId,
+      status: "ready",
+    },
+    { onConflict: "provider,provider_asset_id" },
+  );
+
+  if (error && !mediaAssetsTableMissing(error)) {
+    throw error;
+  }
+}
+
+function mediaAssetsTableMissing(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+
+  return code === "42P01" || code === "PGRST205" || message.includes("media_assets");
+}
+
+async function uploadVideoToCloudflare(file: File, accountId: string) {
+  const response = await fetch("/api/media/videos/direct-upload", {
+    body: JSON.stringify({
+      accountId,
+      filename: file.name,
+      mimeType: file.type,
+      size: file.size,
+    }),
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  const directUpload = (await response.json()) as { assetId?: string; error?: string; uploadUrl?: string };
+
+  if (!response.ok || !directUpload.assetId || !directUpload.uploadUrl) {
+    throw new Error(directUpload.error || "Unable to prepare the video upload.");
+  }
+
+  const form = new FormData();
+  form.set("file", file);
+  const uploadResponse = await fetch(directUpload.uploadUrl, { body: form, method: "POST" });
+
+  if (!uploadResponse.ok) {
+    throw new Error("Cloudflare could not finish the video upload.");
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("media_assets").upsert(
+    {
+      kind: "video",
+      mime_type: file.type || null,
+      original_filename: file.name,
+      owner_account_id: accountId,
+      provider: "cloudflare_stream",
+      provider_asset_id: directUpload.assetId,
+      status: "processing",
+    },
+    { onConflict: "provider,provider_asset_id" },
+  );
+
+  if (error) throw error;
+
+  return waitForStreamVideo(directUpload.assetId, accountId);
+}
+
+async function waitForStreamVideo(assetId: string, accountId: string) {
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    const response = await fetch(`/api/media/videos/${encodeURIComponent(assetId)}/status?accountId=${encodeURIComponent(accountId)}`, {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    const result = (await response.json()) as { deliveryUrl?: string | null; error?: string | null; status?: string };
+
+    if (!response.ok || result.status === "failed") {
+      throw new Error(result.error || "Cloudflare could not process this video.");
+    }
+
+    if (result.status === "ready" && result.deliveryUrl) {
+      return result.deliveryUrl;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+  }
+
+  throw new Error("The video is still processing. Try publishing again in a moment.");
+}
+
+async function uploadLegacyPostMedia(file: File, accountId: string) {
   if (!isSupabaseConfigured()) {
     throw new Error("Supabase is not configured. Add public Supabase environment variables to upload media.");
   }

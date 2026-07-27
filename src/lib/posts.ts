@@ -69,6 +69,7 @@ const postSelectColumnsWithMediaUrls = `${basePostSelectColumns}, media_urls`;
 const postSelectColumnsWithMediaTypes = `${postSelectColumnsWithMediaUrls}, media_types`;
 const postSelectColumns = `${postSelectColumnsWithMediaTypes}, tags`;
 const defaultPostFetchLimit = 80;
+const consolidatedPostFetchLimit = 40;
 
 function assertPostsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -182,9 +183,101 @@ async function fetchAccountSummaries(accountIds: string[]) {
 }
 
 async function hydratePosts(posts: AppPostRow[]) {
-  const accounts = await fetchAccountSummaries(posts.map((post) => post.account_id));
+  const resolvedPosts = await resolveLegacyMedia(posts);
+  const accounts = await fetchAccountSummaries(resolvedPosts.map((post) => post.account_id));
 
-  return posts.map((post) => mapPost(post, accounts.get(post.account_id)));
+  return resolvedPosts.map((post) => mapPost(post, accounts.get(post.account_id)));
+}
+
+async function resolveLegacyMedia(posts: AppPostRow[]) {
+  const legacyUrls = Array.from(
+    new Set(
+      posts
+        .flatMap((post) => [...(post.media_urls ?? []), ...(post.image_url ? [post.image_url] : [])])
+        .filter((url) => url.includes(".supabase.co/storage/")),
+    ),
+  );
+
+  if (!legacyUrls.length) {
+    return posts;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const mappings = new Map<string, string>();
+
+  for (let index = 0; index < legacyUrls.length; index += 25) {
+    const batch = legacyUrls.slice(index, index + 25);
+    const { data, error } = await supabase
+      .from("media_assets")
+      .select("legacy_url, delivery_url")
+      .eq("status", "ready")
+      .in("legacy_url", batch);
+
+    if (error) {
+      if (mediaTableMissing(error)) return posts;
+      throw error;
+    }
+
+    data?.forEach((asset) => {
+      if (asset.legacy_url && asset.delivery_url) {
+        mappings.set(asset.legacy_url, asset.delivery_url);
+      }
+    });
+  }
+
+  return posts.map((post) => ({
+    ...post,
+    image_url: post.image_url ? mappings.get(post.image_url) ?? post.image_url : null,
+    media_urls: post.media_urls?.map((url) => mappings.get(url) ?? url),
+  }));
+}
+
+function mediaTableMissing(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+
+  return candidate.code === "42P01" || candidate.code === "PGRST205" || message.includes("media_assets");
+}
+
+function normalizeConsolidatedPost(post: AppPost): AppPost {
+  return {
+    ...post,
+    dateLabel: formatPostMonthYear(post.dateLabel, post.createdAt),
+    mediaUrls: post.mediaUrls ?? [],
+    mediaTypes: post.mediaTypes ?? [],
+    tags: post.tags?.length
+      ? post.tags.map(normalizePostTag).filter((tag): tag is AppPostTag => Boolean(tag))
+      : [inferPostTagFromText(post.title, post.caption, post.location)],
+  };
+}
+
+async function fetchConsolidatedPosts(parameters: {
+  east?: number | null;
+  north?: number | null;
+  offset?: number;
+  profileAccountId?: string | null;
+  south?: number | null;
+  west?: number | null;
+}) {
+  const search = new URLSearchParams({
+    limit: String(consolidatedPostFetchLimit),
+    offset: String(parameters.offset ?? 0),
+  });
+
+  if (parameters.east != null) search.set("east", String(parameters.east));
+  if (parameters.north != null) search.set("north", String(parameters.north));
+  if (parameters.profileAccountId) search.set("accountId", parameters.profileAccountId);
+  if (parameters.south != null) search.set("south", String(parameters.south));
+  if (parameters.west != null) search.set("west", String(parameters.west));
+
+  const response = await fetch(`/api/recommendations?${search.toString()}`);
+
+  if (response.status === 501) return null;
+  if (!response.ok) throw new Error("Unable to load recommendations.");
+
+  return ((await response.json()) as AppPost[]).map(normalizeConsolidatedPost);
 }
 
 function missingPostColumnName(error: unknown) {
@@ -372,24 +465,107 @@ export async function createAppPost(draft: AppPostDraft) {
     throw error;
   }
 
-  return (await hydratePosts([data as unknown as AppPostRow]))[0];
+  const createdPost = (await hydratePosts([data as unknown as AppPostRow]))[0];
+  await attachPostMedia(createdPost.id, createdPost.mediaUrls);
+  return createdPost;
+}
+
+async function attachPostMedia(postId: string, mediaUrls: string[]) {
+  if (!mediaUrls.length) return;
+
+  const supabase = createSupabaseBrowserClient();
+  const { data: assets, error } = await supabase
+    .from("media_assets")
+    .select("id, delivery_url")
+    .in("delivery_url", mediaUrls);
+
+  if (error) {
+    if (mediaTableMissing(error)) return;
+    throw error;
+  }
+
+  const assetIdsByUrl = new Map(assets?.flatMap((asset) => (asset.delivery_url ? [[asset.delivery_url, asset.id] as const] : [])) ?? []);
+  const relationships = mediaUrls.flatMap((url, position) => {
+    const mediaAssetId = assetIdsByUrl.get(url);
+    return mediaAssetId ? [{ media_asset_id: mediaAssetId, position, post_id: postId }] : [];
+  });
+
+  if (!relationships.length) return;
+
+  const { error: relationshipError } = await supabase
+    .from("app_post_media")
+    .upsert(relationships, { onConflict: "post_id,position" });
+
+  if (relationshipError && !mediaTableMissing(relationshipError)) {
+    throw relationshipError;
+  }
 }
 
 export async function fetchAppPosts() {
   assertPostsConfigured();
 
-  return hydratePosts(await fetchPostRows((query) => query.order("created_at", { ascending: false }).limit(defaultPostFetchLimit)));
+  const consolidatedPosts = await fetchConsolidatedPosts({});
+
+  return consolidatedPosts ??
+    hydratePosts(await fetchPostRows((query) => query.order("created_at", { ascending: false }).limit(defaultPostFetchLimit)));
 }
 
 export async function fetchAppPostsByAccount(accountId: string) {
   assertPostsConfigured();
 
-  return hydratePosts(await fetchPostRows((query) =>
+  const consolidatedPosts = await fetchConsolidatedPosts({ profileAccountId: accountId });
+
+  return consolidatedPosts ?? hydratePosts(await fetchPostRows((query) =>
     query
     .eq("account_id", accountId)
     .order("created_at", { ascending: false })
     .limit(defaultPostFetchLimit),
   ));
+}
+
+export async function fetchAppPostsPage(accountId: string, offset: number) {
+  assertPostsConfigured();
+
+  const consolidatedPosts = await fetchConsolidatedPosts({
+    offset,
+    profileAccountId: accountId,
+  });
+
+  if (consolidatedPosts) return consolidatedPosts;
+
+  const posts = await fetchAppPostsByAccount(accountId);
+  return posts.slice(offset, offset + consolidatedPostFetchLimit);
+}
+
+export async function fetchAppPostsInBounds({
+  east,
+  north,
+  south,
+  west,
+}: {
+  east: number;
+  north: number;
+  south: number;
+  west: number;
+}) {
+  assertPostsConfigured();
+
+  const consolidatedPosts = await fetchConsolidatedPosts({ east, north, south, west });
+
+  if (consolidatedPosts) {
+    return consolidatedPosts;
+  }
+
+  const posts = await fetchAppPosts();
+
+  return posts.filter((post) => {
+    const [longitude, latitude] = post.coordinates;
+    const longitudeMatches = west <= east
+      ? longitude >= west && longitude <= east
+      : longitude >= west || longitude <= east;
+
+    return longitudeMatches && latitude >= south && latitude <= north;
+  });
 }
 
 export async function fetchAppPostsByIds(postIds: string[]) {

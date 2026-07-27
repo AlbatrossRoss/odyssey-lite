@@ -63,6 +63,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
           alt={post.title}
           className="h-full w-full object-cover"
           fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+          imageVariant="card"
           mediaType={post.mediaTypes[0]}
           src={post.imageUrl}
         />
@@ -127,6 +128,7 @@ export function AppPostExploreTile({ post, featured = false }: AppPostCardProps 
         alt={post.title}
         className="absolute inset-0 h-full w-full object-cover opacity-[0.84] transition duration-300 group-hover:scale-105"
         fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+        imageVariant={featured ? "card" : "thumbnail"}
         mediaType={post.mediaTypes[0]}
         src={post.imageUrl}
       />
@@ -167,6 +169,7 @@ export function AppPostTile({ post }: AppPostCardProps) {
         alt={post.title}
         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
         fallbackUrl={fallbackPostImageUrl(post.title, post.location)}
+        imageVariant="thumbnail"
         mediaType={post.mediaTypes[0]}
         src={post.imageUrl}
       />

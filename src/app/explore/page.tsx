@@ -14,6 +14,7 @@ import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import { SearchBar, type SearchSuggestion } from "@/components/SearchBar";
 import { consumeActionBanner, writeActionBanner, type ActionBanner } from "@/lib/actionBanner";
+import { experiences, users } from "@/lib/data";
 import {
   fetchAccountById,
   fetchAccountsForSearch,
@@ -27,15 +28,16 @@ import {
 import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
 import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchLikeNotifications, markLikeNotificationsRead, type AppLikeNotification } from "@/lib/postLikes";
-import { fetchAppPosts, type AppPost } from "@/lib/posts";
+import { fetchAppPosts, fetchAppPostsInBounds, type AppPost } from "@/lib/posts";
 import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
 const exploreStateStorageKey = "odyssey-explore-view-state-v1";
-const appPostsCacheKey = "odyssey-app-posts-cache-v4";
-const appPostsLocalCacheKey = "odyssey-app-posts-cache-v5";
+const appPostsCacheKey = "odyssey-app-posts-cache-v6";
+const appPostsLocalCacheKey = "odyssey-app-posts-cache-v6";
 const appPostsLocalCacheMaxAgeMs = 1000 * 60 * 60 * 6;
+const appPostsFetchTimeoutMs = 12000;
 let hasCompletedExploreColdLoad = false;
 
 type MapBounds = {
@@ -325,18 +327,64 @@ function writeCachedAppPosts(posts: AppPost[]) {
   }
 }
 
+function fallbackRecommendationPosts(): AppPost[] {
+  return experiences.map((experience) => {
+    const user = users.find((candidate) => candidate.id === experience.userId);
+
+    return {
+      accountId: experience.userId,
+      caption: experience.caption,
+      coordinates: experience.coordinates,
+      createdAt: "2025-06-01T12:00:00.000Z",
+      dateLabel: "June 2025",
+      id: `sample-${experience.id}`,
+      imageUrl: experience.imageUrl,
+      location: experience.location,
+      mediaTypes: ["image"],
+      mediaUrls: [experience.imageUrl],
+      profilePhotoUrl: user?.avatarUrl ?? null,
+      tags: [tagForExploreFilter("Experiences")],
+      title: experience.name,
+      type: "experience",
+      username: user?.handle.replace(/^@/, "") ?? "traveler",
+      visibility: "Public",
+    };
+  });
+}
+
+async function fetchAppPostsForExplore() {
+  return Promise.race([
+    fetchAppPosts(),
+    new Promise<AppPost[]>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Recommendations request timed out.")), appPostsFetchTimeoutMs);
+    }),
+  ]);
+}
+
+function initialExploreFilter(restoredState: StoredExploreState | null) {
+  if (restoredState?.profileAccountId) {
+    return restoredState.activeFilter;
+  }
+
+  if (restoredState?.activeFilter && restoredState.activeFilter !== "Friends") {
+    return restoredState.activeFilter;
+  }
+
+  return readAccountSessionId() ? restoredState?.activeFilter ?? "Friends" : "All";
+}
+
 export default function ExplorePage() {
   const router = useRouter();
-  const [restoredExploreState] = useState(() => readStoredExploreState());
-  const [exploreSource, setExploreSource] = useState<"search" | "map">(restoredExploreState?.exploreSource ?? "search");
+  const [restoredExploreState, setRestoredExploreState] = useState<StoredExploreState | null>(null);
+  const [exploreSource, setExploreSource] = useState<"search" | "map">("search");
   const [defaultMapView, setDefaultMapView] = useState<MapView>(worldView);
-  const [currentMapView, setCurrentMapView] = useState<MapView>(restoredExploreState?.currentMapView ?? worldView);
-  const [mapTarget, setMapTarget] = useState<MapView>(restoredExploreState?.currentMapView ?? worldView);
-  const [mapArea, setMapArea] = useState<MapArea | null>(restoredExploreState?.mapArea ?? null);
-  const [searchQuery, setSearchQuery] = useState(restoredExploreState?.searchQuery ?? "");
-  const [activeDestination, setActiveDestination] = useState(restoredExploreState?.activeDestination ?? "");
-  const [appPosts, setAppPosts] = useState<AppPost[]>(() => readCachedAppPosts());
-  const [appPostsStatus, setAppPostsStatus] = useState<"loading" | "ready">("loading");
+  const [currentMapView, setCurrentMapView] = useState<MapView>(worldView);
+  const [mapTarget, setMapTarget] = useState<MapView>(worldView);
+  const [mapArea, setMapArea] = useState<MapArea | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeDestination, setActiveDestination] = useState("");
+  const [appPosts, setAppPosts] = useState<AppPost[]>(() => fallbackRecommendationPosts());
+  const [appPostsStatus, setAppPostsStatus] = useState<"loading" | "ready">("ready");
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerPhotoUrl, setViewerPhotoUrl] = useState<string | null>(null);
@@ -353,14 +401,14 @@ export default function ExplorePage() {
   const [mapboxSuggestions, setMapboxSuggestions] = useState<SearchSuggestion[]>([]);
   const [accountSearchAccounts, setAccountSearchAccounts] = useState<AppAccount[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [activeFilter, setActiveFilter] = useState(restoredExploreState?.activeFilter ?? "Friends");
-  const [activeCategoryFilters, setActiveCategoryFilters] = useState<ExploreCategoryFilter[]>(restoredExploreState?.activeCategoryFilters ?? []);
-  const [profileAccountId, setProfileAccountId] = useState<string | null>(restoredExploreState?.profileAccountId ?? null);
-  const [profileUsername, setProfileUsername] = useState<string | null>(restoredExploreState?.profileUsername ?? null);
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeCategoryFilters, setActiveCategoryFilters] = useState<ExploreCategoryFilter[]>([]);
+  const [profileAccountId, setProfileAccountId] = useState<string | null>(null);
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("peek");
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(restoredExploreState?.selectedPostId ?? null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [actionBanner, setActionBanner] = useState<ActionBanner | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [savingPostId, setSavingPostId] = useState<string | null>(null);
@@ -369,18 +417,19 @@ export default function ExplorePage() {
   const [coldLoadIntroComplete, setColdLoadIntroComplete] = useState(() => hasCompletedExploreColdLoad);
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const feedPostIdsRef = useRef<string[]>([]);
+  const fetchedMapAreasRef = useRef(new Set<string>());
   const userChangedFilterRef = useRef(false);
   const exploreStateRef = useRef<StoredExploreState>({
-    activeDestination: restoredExploreState?.activeDestination ?? "",
-    activeCategoryFilters: restoredExploreState?.activeCategoryFilters ?? [],
-    activeFilter: restoredExploreState?.activeFilter ?? "Friends",
-    currentMapView: restoredExploreState?.currentMapView ?? worldView,
-    exploreSource: restoredExploreState?.exploreSource ?? "search",
-    mapArea: restoredExploreState?.mapArea ?? null,
-    profileAccountId: restoredExploreState?.profileAccountId ?? null,
-    profileUsername: restoredExploreState?.profileUsername ?? null,
-    searchQuery: restoredExploreState?.searchQuery ?? "",
-    selectedPostId: restoredExploreState?.selectedPostId ?? null,
+    activeDestination: "",
+    activeCategoryFilters: [],
+    activeFilter: "All",
+    currentMapView: worldView,
+    exploreSource: "search",
+    mapArea: null,
+    profileAccountId: null,
+    profileUsername: null,
+    searchQuery: "",
+    selectedPostId: null,
     sheetPosition: "peek",
   });
   const placeSearchSuggestions = useMemo(() => {
@@ -429,6 +478,33 @@ export default function ExplorePage() {
       ].sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()),
     [commentNotifications, followNotifications, likeNotifications],
   );
+
+  useEffect(() => {
+    const storedState = readStoredExploreState();
+
+    if (!storedState) {
+      return;
+    }
+
+    const nextFilter = initialExploreFilter(storedState);
+    setRestoredExploreState(storedState);
+    setExploreSource(storedState.exploreSource);
+    setCurrentMapView(storedState.currentMapView);
+    setMapTarget(storedState.currentMapView);
+    setMapArea(storedState.mapArea);
+    setSearchQuery(storedState.searchQuery);
+    setActiveDestination(storedState.activeDestination);
+    setActiveFilter(nextFilter);
+    setActiveCategoryFilters(storedState.activeCategoryFilters);
+    setProfileAccountId(storedState.profileAccountId);
+    setProfileUsername(storedState.profileUsername);
+    setSelectedPostId(storedState.selectedPostId);
+    setSheetPosition(storedState.sheetPosition);
+    exploreStateRef.current = {
+      ...storedState,
+      activeFilter: nextFilter,
+    };
+  }, []);
 
   useEffect(() => {
     const banner = consumeActionBanner();
@@ -555,26 +631,45 @@ export default function ExplorePage() {
 
   useEffect(() => {
     let active = true;
+    const cachedPosts = readCachedAppPosts();
+    const fallbackTimeoutId = window.setTimeout(() => {
+      if (!active) {
+        return;
+      }
 
-    fetchAppPosts()
+      setAppPosts((currentPosts) => (currentPosts.length ? currentPosts : fallbackRecommendationPosts()));
+      setAppPostsStatus("ready");
+    }, appPostsFetchTimeoutMs);
+
+    if (cachedPosts.length) {
+      setAppPosts(cachedPosts);
+    }
+
+    fetchAppPostsForExplore()
       .then((sharedPosts) => {
         if (!active) {
           return;
         }
 
-        writeCachedAppPosts(sharedPosts);
-        setAppPosts(sharedPosts);
+        const nextPosts = sharedPosts.length ? sharedPosts : fallbackRecommendationPosts();
+        if (sharedPosts.length) {
+          writeCachedAppPosts(sharedPosts);
+        }
+        window.clearTimeout(fallbackTimeoutId);
+        setAppPosts(nextPosts);
         setAppPostsStatus("ready");
       })
       .catch(() => {
         if (active) {
-          // Keep an empty recommendations feed if Supabase is unavailable.
+          window.clearTimeout(fallbackTimeoutId);
+          setAppPosts(fallbackRecommendationPosts());
           setAppPostsStatus("ready");
         }
       });
 
     return () => {
       active = false;
+      window.clearTimeout(fallbackTimeoutId);
     };
   }, []);
 
@@ -585,6 +680,9 @@ export default function ExplorePage() {
     if (!viewerId) {
       setFollowingIds([]);
       setViewerPhotoUrl(null);
+      if (!restoredExploreState && !userChangedFilterRef.current) {
+        setActiveFilter("All");
+      }
       setViewerStatus("ready");
       return;
     }
@@ -606,6 +704,9 @@ export default function ExplorePage() {
         if (active) {
           setFollowingIds([]);
           setViewerPhotoUrl(null);
+          if (!restoredExploreState && !userChangedFilterRef.current) {
+            setActiveFilter("All");
+          }
         }
       })
       .finally(() => {
@@ -957,9 +1058,39 @@ export default function ExplorePage() {
   const recommendationPosts = useMemo(() => appPosts.filter((post) => post.type !== "trip"), [appPosts]);
 
   const handleMapMoveEnd = useCallback(async ({ bounds, center, zoom }: { bounds: MapBounds; center: [number, number]; zoom: number }) => {
-    const sourcePosts = filterPostsByExploreFilter(recommendationPosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId);
-    const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
+    let availablePosts = recommendationPosts;
     const canUseMapArea = zoom >= mapExploreZoomThreshold;
+
+    if (canUseMapArea && !profileAccountId) {
+      const areaKey = [bounds.west, bounds.south, bounds.east, bounds.north]
+        .map((value) => value.toFixed(2))
+        .join(":");
+
+      if (!fetchedMapAreasRef.current.has(areaKey)) {
+        fetchedMapAreasRef.current.add(areaKey);
+
+        try {
+          const areaResults = await fetchAppPostsInBounds(bounds);
+          const mergedPosts = new Map(recommendationPosts.map((post) => [post.id, post]));
+          areaResults.forEach((post) => mergedPosts.set(post.id, post));
+          availablePosts = Array.from(mergedPosts.values()).sort((left, right) =>
+            right.createdAt.localeCompare(left.createdAt),
+          );
+          setAppPosts((currentPosts) => {
+            const nextPosts = new Map(currentPosts.map((post) => [post.id, post]));
+            areaResults.forEach((post) => nextPosts.set(post.id, post));
+            return Array.from(nextPosts.values()).sort((left, right) =>
+              right.createdAt.localeCompare(left.createdAt),
+            );
+          });
+        } catch {
+          fetchedMapAreasRef.current.delete(areaKey);
+        }
+      }
+    }
+
+    const sourcePosts = filterPostsByExploreFilter(availablePosts, activeFilter, activeCategoryFilters, followingIds, viewerId, profileAccountId);
+    const areaPosts = sourcePosts.filter((post) => coordinateInBounds(post.coordinates, bounds));
 
     setCurrentMapView({ center, zoom });
 
@@ -994,7 +1125,7 @@ export default function ExplorePage() {
   const peekPosts = feedPosts;
   const feedPostIds = useMemo(() => feedPosts.map((post) => post.id), [feedPosts]);
   const recommendationCount = visibleAppPosts.length;
-  const recommendationsLoading = appPostsStatus === "loading" && !feedPosts.length;
+  const recommendationsLoading = (appPostsStatus === "loading" || (activeFilter === "Friends" && viewerStatus === "loading")) && !feedPosts.length;
   const exploreReady = appPostsStatus === "ready" && viewerStatus === "ready" && notificationsHydrated;
   const showExploreColdLoadScreen = shouldShowColdLoadScreen && (!exploreReady || !coldLoadIntroComplete);
   const recommendationSubtitle =
@@ -1007,6 +1138,31 @@ export default function ExplorePage() {
           : activeFilter === "Mine"
             ? "Your recommendations will show up here"
             : "No recommendations in this area yet";
+
+  useEffect(() => {
+    if (
+      activeFilter !== "Friends" ||
+      appPostsStatus !== "ready" ||
+      viewerStatus !== "ready" ||
+      userChangedFilterRef.current ||
+      profileAccountId
+    ) {
+      return;
+    }
+
+    const friendPosts = filterPostsByExploreFilter(recommendationPosts, "Friends", activeCategoryFilters, followingIds, viewerId, null);
+    const allPosts = filterPostsByExploreFilter(recommendationPosts, "All", activeCategoryFilters, followingIds, viewerId, null);
+
+    if (friendPosts.length === 0 && allPosts.length > 0) {
+      setActiveFilter("All");
+    }
+  }, [activeCategoryFilters, activeFilter, appPostsStatus, followingIds, profileAccountId, recommendationPosts, viewerId, viewerStatus]);
+
+  useEffect(() => {
+    if (activeFilter === "Friends" && viewerStatus === "ready" && !viewerId && !userChangedFilterRef.current) {
+      setActiveFilter("All");
+    }
+  }, [activeFilter, viewerId, viewerStatus]);
 
   useEffect(() => {
     feedPostIdsRef.current = feedPostIds;
@@ -1040,7 +1196,7 @@ export default function ExplorePage() {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => setColdLoadIntroComplete(true), 2500);
+    const timeoutId = window.setTimeout(() => setColdLoadIntroComplete(true), 1500);
 
     return () => window.clearTimeout(timeoutId);
   }, [coldLoadIntroComplete, shouldShowColdLoadScreen]);
@@ -1349,7 +1505,7 @@ export default function ExplorePage() {
                 ))}
               </div>
             ) : (
-              <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} />
+              <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} viewerId={viewerId} />
             )
           ) : peekPosts.length ? (
             <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-2 pt-1">
@@ -1358,7 +1514,7 @@ export default function ExplorePage() {
               ))}
             </div>
           ) : (
-            <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} />
+            <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} viewerId={viewerId} />
           )}
         </section>
         {showExploreColdLoadScreen ? (
@@ -1372,11 +1528,23 @@ export default function ExplorePage() {
   );
 }
 
-function RecommendationEmptyState({ activeFilter, isLoading }: { activeFilter: string; isLoading: boolean }) {
+function RecommendationEmptyState({ activeFilter, isLoading, viewerId }: { activeFilter: string; isLoading: boolean; viewerId: string | null }) {
   return (
     <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
       {isLoading ? (
         <p className="text-sm font-semibold leading-relaxed text-ink/54">Prototype loading, please be patient.</p>
+      ) : activeFilter === "Friends" && !viewerId ? (
+        <div>
+          <p className="text-sm font-semibold leading-relaxed text-ink/54">
+            Log in to see recommendations from people you follow.
+          </p>
+          <Link
+            className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-black text-white shadow-lift"
+            href="/accounts"
+          >
+            Log in
+          </Link>
+        </div>
       ) : activeFilter === "Friends" ? (
         <p className="text-sm font-semibold leading-relaxed text-ink/54">
           <span className="block">No followed accounts have recommendations here yet.</span>

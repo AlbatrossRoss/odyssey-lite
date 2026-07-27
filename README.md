@@ -18,6 +18,10 @@ Create `.env.local` and add your Mapbox public token:
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.your_mapbox_token_here
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH=your_cloudflare_images_account_hash
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
+CLOUDFLARE_API_TOKEN=your_scoped_cloudflare_api_token
+CLOUDFLARE_STREAM_WEBHOOK_SECRET=your_stream_webhook_signing_secret
 ```
 
 ## Supabase Setup
