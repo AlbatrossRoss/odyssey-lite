@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Bookmark, MapPin, Search, SlidersHorizontal, UserRound, UsersRound } from "lucide-react";
+import { ArrowUpRight, MapPin, Search, SlidersHorizontal, UserRound, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
@@ -71,7 +71,7 @@ export default function HomePage() {
   return (
     <MobileFrame>
       <section className="relative h-full overflow-hidden bg-[#f8f6f1] text-ink">
-        <div className="relative h-[52%] min-h-[330px] overflow-hidden bg-[#b9ddec]">
+        <div className="relative h-[40%] min-h-[270px] overflow-hidden bg-[#b9ddec]">
           <DynamicMapboxMap
             appPosts={latestFriendPosts}
             className="h-full w-full"
@@ -107,15 +107,11 @@ export default function HomePage() {
           </div>
         </div>
 
-        <section className="relative -mt-5 h-[calc(48%+1.25rem)] overflow-hidden rounded-t-[30px] bg-white shadow-[0_-16px_40px_rgba(24,35,31,0.16)]">
+        <section className="relative -mt-5 h-[calc(60%+1.25rem)] overflow-hidden rounded-t-[30px] bg-white shadow-[0_-16px_40px_rgba(24,35,31,0.16)]">
           <div className="mx-auto mt-2.5 h-1 w-11 rounded-full bg-ink/20" />
           <div className="no-scrollbar h-[calc(100%-0.9rem)] overflow-y-auto pb-[calc(var(--bottom-nav-clearance)+1.25rem)] pt-4">
-            <div className="mb-4 flex items-center justify-between gap-4 px-5">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-coral">Newest first</p>
-                <h2 className="mt-1 text-[23px] font-black leading-tight">Friends&apos; latest posts</h2>
-              </div>
-              {posts.length ? <span className="text-xs font-black text-moss">Swipe</span> : null}
+            <div className="mb-4 px-5">
+              <h2 className="text-[23px] font-black leading-tight">Friends&apos; latest posts</h2>
             </div>
 
             {status === "loading" ? (
@@ -132,7 +128,7 @@ export default function HomePage() {
                 />
               </div>
             ) : posts.length ? (
-              <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto px-5 pb-3">
+              <div className="space-y-3 px-4 pb-3">
                 {posts.map((post) => <HomeFeedCard key={post.id} post={post} />)}
               </div>
             ) : (
@@ -156,8 +152,8 @@ export default function HomePage() {
 
 function HomeFeedCard({ post }: { post: AppPost }) {
   return (
-    <Link className="relative block w-[184px] shrink-0 snap-start overflow-hidden rounded-[19px] border border-ink/8 bg-white shadow-[0_10px_28px_rgba(24,35,31,0.09)]" href={`/posts/${post.id}`}>
-      <span className="relative block h-[142px] overflow-hidden bg-shell">
+    <Link className="flex min-h-[126px] gap-3 rounded-[20px] border border-ink/7 bg-white p-3 shadow-[0_10px_28px_rgba(24,35,31,0.08)]" href={`/posts/${post.id}`}>
+      <span className="relative h-[102px] w-[102px] shrink-0 overflow-hidden rounded-[15px] bg-shell">
         {post.imageUrl ? (
           <PostMediaPreview
             alt={post.title}
@@ -169,24 +165,23 @@ function HomeFeedCard({ post }: { post: AppPost }) {
         ) : (
           <span className="grid h-full place-items-center text-ink/32"><MapPin aria-hidden="true" size={24} /></span>
         )}
-        <span className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-ink/62 to-transparent" />
-        <span className="absolute left-2.5 top-2.5 flex min-w-0 items-center gap-2 text-white">
-          <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-shell text-ink/38">
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col py-0.5">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-shell text-ink/38">
             {post.profilePhotoUrl ? <img alt="" className="h-full w-full object-cover" src={post.profilePhotoUrl} /> : <UserRound aria-hidden="true" size={14} />}
           </span>
           <span className="min-w-0">
-            <span className="block max-w-[7rem] truncate text-[11px] font-black">@{post.username}</span>
-            <span className="block text-[10px] font-bold text-white/80">{relativePostTime(post.createdAt)} ago</span>
+            <span className="block max-w-[10rem] truncate text-[11px] font-black text-ink/62">@{post.username}</span>
+            <span className="block text-[10px] font-bold text-ink/38">{relativePostTime(post.createdAt)} ago</span>
           </span>
         </span>
-      </span>
-      <span className="block min-w-0 px-3 pb-3 pt-2.5">
-        <span className="line-clamp-1 text-[14px] font-black leading-tight text-ink">{post.title}</span>
-        <span className="mt-1.5 flex min-w-0 items-center gap-1 text-[10px] font-bold text-ink/48">
+        <span className="mt-2 line-clamp-2 text-[15px] font-black leading-tight text-ink">{post.title}</span>
+        {post.caption ? <span className="mt-1 line-clamp-2 text-[11px] font-semibold leading-snug text-ink/48">{post.caption}</span> : null}
+        <span className="mt-auto flex min-w-0 items-center gap-1 pt-1 text-[10px] font-bold text-moss">
           <MapPin aria-hidden="true" className="shrink-0" size={12} />
           <span className="truncate">{compactLocation(post.location)}</span>
         </span>
-        <span className="absolute bottom-2.5 right-2.5 text-ink/42"><Bookmark aria-hidden="true" size={15} /></span>
       </span>
     </Link>
   );
