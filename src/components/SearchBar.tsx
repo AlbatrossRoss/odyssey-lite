@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
 
 export type SearchSuggestion = {
+  category?: string;
   label: string;
   description?: string;
+  mapboxId?: string;
   query?: string;
+  sessionToken?: string;
   center?: [number, number];
   profilePhotoUrl?: string | null;
   type?: "place" | "user";
@@ -152,6 +155,9 @@ export function SearchBar({
           {suggestion.description ? (
             <span className="mt-0.5 block truncate text-xs font-semibold text-ink/54">{suggestion.description}</span>
           ) : null}
+          {suggestion.category ? (
+            <span className="mt-1 block truncate text-[10px] font-black uppercase tracking-[0.1em] text-moss/72">{suggestion.category}</span>
+          ) : null}
         </span>
       </button>
     );
@@ -184,7 +190,10 @@ export function SearchBar({
             compact ? "text-[13px]" : "text-[15px]"
           }`}
           onBlur={() => window.setTimeout(() => updateFocused(false), 120)}
-          onChange={(event) => updateValue(event.target.value)}
+          onChange={(event) => {
+            updateFocused(true);
+            updateValue(event.target.value);
+          }}
           onFocus={() => updateFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}

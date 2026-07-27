@@ -10,6 +10,7 @@ import { uploadPostMedia } from "@/lib/media";
 import { createAppPost, type AppPost } from "@/lib/posts";
 import { postTagOptions, type AppPostTag } from "@/lib/postTags";
 import type { SearchSuggestion } from "@/components/SearchBar";
+import { createMapboxSearchSessionToken, retrieveMapboxPlace, suggestMapboxPlaces } from "@/lib/mapboxSearch";
 
 type MediaMetadata = {
   date?: string;
@@ -51,6 +52,7 @@ export default function CreatePage() {
   const currentCoordinatesRef = useRef<[number, number] | undefined>(undefined);
   const currentLocationRef = useRef("");
   const selectedMediaRef = useRef<SelectedUpload[]>([]);
+  const locationSearchSessionRef = useRef(createMapboxSearchSessionToken());
   const [selectedMedia, setSelectedMedia] = useState<SelectedUpload[]>([]);
   const [activeMediaId, setActiveMediaId] = useState("");
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
@@ -130,40 +132,20 @@ export default function CreatePage() {
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
-      const params = new URLSearchParams({
-        access_token: token,
-        autocomplete: "true",
-        language: "en",
-        limit: "8",
-        types: "poi,address,neighborhood,locality,place,region,country",
-      });
       const proximity = coordinates ?? currentCoordinatesRef.current;
 
-      if (proximity) {
-        params.set("proximity", proximity.join(","));
-      }
-
       try {
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`,
-          { signal: controller.signal },
-        );
-        const data = (await response.json()) as {
-          features?: Array<{
-            center?: [number, number];
-            place_name?: string;
-            text?: string;
-          }>;
-        };
-
-        setLocationSuggestions(
-          data.features?.map((feature) => ({
-            center: feature.center,
-            description: feature.place_name,
-            label: feature.text ?? feature.place_name ?? query,
-            query: feature.place_name ?? feature.text ?? query,
-          })) ?? [],
-        );
+        const suggestions = await suggestMapboxPlaces({
+          proximity,
+          query,
+          sessionToken: locationSearchSessionRef.current,
+          signal: controller.signal,
+        });
+        setLocationSuggestions(suggestions.map((suggestion) => ({
+          ...suggestion,
+          query: suggestion.label,
+          sessionToken: locationSearchSessionRef.current,
+        })));
       } catch {
         if (!controller.signal.aborted) {
           setLocationSuggestions([]);
@@ -176,6 +158,36 @@ export default function CreatePage() {
       window.clearTimeout(timeoutId);
     };
   }, [coordinates, location, locationFocused]);
+
+  async function handleLocationSuggestionSelect(suggestion: SearchSuggestion) {
+    setLocationFocused(false);
+    setLocationSuggestions([]);
+
+    if (!suggestion.mapboxId || !suggestion.sessionToken) {
+      setLocation(suggestion.query ?? suggestion.label);
+      setCoordinates(suggestion.center);
+      return;
+    }
+
+    try {
+      const result = await retrieveMapboxPlace(
+        suggestion.mapboxId,
+        suggestion.sessionToken,
+        coordinates ?? currentCoordinatesRef.current,
+      );
+
+      if (result) {
+        setLocation(result.query);
+        setCoordinates(result.center);
+      } else {
+        setLocation(suggestion.query ?? suggestion.label);
+      }
+    } catch {
+      setLocation(suggestion.query ?? suggestion.label);
+    } finally {
+      locationSearchSessionRef.current = createMapboxSearchSessionToken();
+    }
+  }
 
   async function handleUpload(files: FileList | null) {
     const mediaFiles = Array.from(files ?? []).filter(isSupportedMediaFile);
@@ -593,6 +605,7 @@ export default function CreatePage() {
                     onChange={(event) => {
                       setLocation(event.target.value);
                       setCoordinates(undefined);
+                      setLocationFocused(true);
                     }}
                     onFocus={() => setLocationFocused(true)}
                     placeholder="Add a location"
@@ -605,16 +618,12 @@ export default function CreatePage() {
                       <button
                         className="flex min-h-12 w-full flex-col justify-center px-4 py-2 text-left transition hover:bg-shell"
                         key={`${suggestion.label}-${suggestion.description ?? ""}`}
-                        onClick={() => {
-                          setLocation(suggestion.query ?? suggestion.label);
-                          setCoordinates(suggestion.center);
-                          setLocationFocused(false);
-                          setLocationSuggestions([]);
-                        }}
+                        onClick={() => void handleLocationSuggestionSelect(suggestion)}
                         type="button"
                       >
                         <span className="text-sm font-extrabold text-ink">{suggestion.label}</span>
                         {suggestion.description ? <span className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink/54">{suggestion.description}</span> : null}
+                        {suggestion.category ? <span className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-moss/70">{suggestion.category}</span> : null}
                       </button>
                     ))}
                   </div>

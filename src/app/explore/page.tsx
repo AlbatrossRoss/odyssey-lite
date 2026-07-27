@@ -30,6 +30,12 @@ import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommen
 import { fetchLikeNotifications, markLikeNotificationsRead, type AppLikeNotification } from "@/lib/postLikes";
 import { fetchAppPosts, fetchAppPostsInBounds, type AppPost } from "@/lib/posts";
 import { isExploreCategoryFilter, tagForExploreFilter, type ExploreCategoryFilter } from "@/lib/postTags";
+import {
+  createMapboxSearchSessionToken,
+  forwardSearchMapboxPlace,
+  retrieveMapboxPlace,
+  suggestMapboxPlaces,
+} from "@/lib/mapboxSearch";
 
 const worldView = { center: [-25, 22] as [number, number], zoom: 1.35 };
 const mapExploreZoomThreshold = 3.25;
@@ -417,6 +423,7 @@ export default function ExplorePage() {
   const [coldLoadIntroComplete, setColdLoadIntroComplete] = useState(() => hasCompletedExploreColdLoad);
   const dragStartPoint = useRef<{ position: SheetPosition; x: number; y: number } | null>(null);
   const feedPostIdsRef = useRef<string[]>([]);
+  const placeSearchSessionRef = useRef(createMapboxSearchSessionToken());
   const fetchedMapAreasRef = useRef(new Set<string>());
   const userChangedFilterRef = useRef(false);
   const exploreStateRef = useRef<StoredExploreState>({
@@ -530,38 +537,18 @@ export default function ExplorePage() {
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
-      const params = new URLSearchParams({
-        access_token: token,
-        autocomplete: "true",
-        language: "en",
-        limit: "8",
-        proximity: currentMapView.center.join(","),
-        types: "poi,address,neighborhood,locality,place,region,country",
-      });
-
       try {
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`,
-          { signal: controller.signal },
-        );
-        const data = (await response.json()) as {
-          features?: Array<{
-            center?: [number, number];
-            place_name?: string;
-            text?: string;
-            place_type?: string[];
-          }>;
-        };
-
-        setMapboxSuggestions(
-          data.features?.map((feature) => ({
-            label: feature.text ?? feature.place_name ?? query,
-            description: feature.place_name,
-            query: feature.place_name ?? feature.text ?? query,
-            center: feature.center,
-            zoom: feature.place_type?.includes("country") ? 4 : feature.place_type?.includes("region") ? 6 : 10.5,
-          })) ?? [],
-        );
+        const suggestions = await suggestMapboxPlaces({
+          proximity: currentMapView.center,
+          query,
+          sessionToken: placeSearchSessionRef.current,
+          signal: controller.signal,
+        });
+        setMapboxSuggestions(suggestions.map((suggestion) => ({
+          ...suggestion,
+          query: suggestion.label,
+          sessionToken: placeSearchSessionRef.current,
+        })));
       } catch {
         if (!controller.signal.aborted) {
           setMapboxSuggestions([]);
@@ -847,33 +834,18 @@ export default function ExplorePage() {
       return;
     }
 
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-
-    if (!token) {
-      return;
-    }
-
-    const params = new URLSearchParams({
-      access_token: token,
-      limit: "1",
-      types: "poi,address,neighborhood,locality,place,region,country",
-    });
     try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`,
-      );
-      const data = (await response.json()) as { features?: Array<{ center?: [number, number] }> };
-      const center = data.features?.[0]?.center;
+      const result = await forwardSearchMapboxPlace(query, currentMapView.center);
 
-      if (center) {
-        enterExploreAt(center, 10.5, query);
+      if (result) {
+        enterExploreAt(result.center, result.zoom, result.query);
       }
     } catch {
       // Keep the current map position if geocoding is unavailable.
     }
-  }, [defaultMapView, enterExploreAt]);
+  }, [currentMapView.center, defaultMapView, enterExploreAt]);
 
-  const handleSuggestionSelect = useCallback((suggestion: SearchSuggestion) => {
+  const handleSuggestionSelect = useCallback(async (suggestion: SearchSuggestion) => {
     const query = suggestion.query ?? suggestion.label;
 
     if (suggestion.type === "user" && suggestion.username) {
@@ -883,15 +855,30 @@ export default function ExplorePage() {
       return;
     }
 
-    setSearchQuery(query);
+    if (suggestion.mapboxId && suggestion.sessionToken) {
+      try {
+        const result = await retrieveMapboxPlace(suggestion.mapboxId, suggestion.sessionToken, currentMapView.center);
 
+        if (result) {
+          setSearchQuery(result.label);
+          enterExploreAt(result.center, result.zoom, result.query);
+          return;
+        }
+      } catch {
+        // Fall back to a forward search below.
+      } finally {
+        placeSearchSessionRef.current = createMapboxSearchSessionToken();
+      }
+    }
+
+    setSearchQuery(query);
     if (suggestion.center) {
       enterExploreAt(suggestion.center, suggestion.zoom, query);
       return;
     }
 
     void handleMapSearch(query);
-  }, [enterExploreAt, handleMapSearch, router]);
+  }, [currentMapView.center, enterExploreAt, handleMapSearch, router]);
 
   const handleResetToWorld = useCallback(() => {
     const nextView = userLocation ? { center: userLocation, zoom: 10.2 } : defaultMapView;
