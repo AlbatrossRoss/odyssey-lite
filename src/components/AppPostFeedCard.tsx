@@ -5,6 +5,7 @@ import type { PointerEvent } from "react";
 import { Bookmark, MapPin, UserRound } from "lucide-react";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import type { AppPost } from "@/lib/posts";
+import { formatCompactLocation } from "@/lib/locationFormat";
 
 type AppPostFeedCardProps = {
   onOpen?: () => void;
@@ -61,7 +62,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, sa
           </span>
           <span className="mt-10 flex items-start gap-1.5 text-sm font-semibold leading-tight text-ink/58">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-coral" size={16} />
-            <span>{post.location}</span>
+            <span className="truncate">{formatCompactLocation(post.location)}</span>
           </span>
         </Link>
       </article>
@@ -109,7 +110,7 @@ export function AppPostFeedCard({ onOpen, onSave, post, saveDisabled = false, sa
           ) : null}
           <span className="mt-4 flex items-start gap-1.5 text-sm font-semibold leading-tight text-white/88">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={16} />
-            <span>{post.location}</span>
+            <span className="truncate">{formatCompactLocation(post.location)}</span>
           </span>
         </span>
       </Link>

@@ -10,6 +10,7 @@ import { createAppBoard, deleteAppBoard, fetchBoardsByAccount, updateAppBoard, t
 import { readAccountSessionId } from "@/lib/accounts";
 import { fetchAppPostsByIds, type AppPost } from "@/lib/posts";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
+import { formatCompactLocation } from "@/lib/locationFormat";
 
 type BoardFormState = {
   title: string;
@@ -452,7 +453,7 @@ function BoardSavedPostCard({ index, post }: { index: number; post: AppPost }) {
       </span>
       <span className="mt-2 block min-w-0">
           <span className="line-clamp-2 text-[11px] font-black leading-tight">{post.title}</span>
-          <span className="mt-1 block truncate text-[10px] font-semibold text-ink/52">{post.location}</span>
+          <span className="mt-1 block truncate text-[10px] font-semibold text-ink/52">{formatCompactLocation(post.location)}</span>
       </span>
     </Link>
   );

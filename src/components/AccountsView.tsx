@@ -23,6 +23,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
 import { MobileFrame } from "@/components/MobileFrame";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
+import { formatCompactLocation } from "@/lib/locationFormat";
 import { fetchBoardsByAccount, type AppBoard } from "@/lib/boards";
 import { createAppPost, fetchAppPostsByAccount, fetchAppPostsPage, type AppPost } from "@/lib/posts";
 import { fetchProfileBundle } from "@/lib/profileBundle";
@@ -1473,7 +1474,7 @@ function ProfileRecentCard({ post }: { post: AppPost }) {
               <span className="line-clamp-2 block text-xs font-black leading-tight">{post.title}</span>
               <span className="mt-1.5 flex items-start gap-1 text-[10px] font-semibold leading-tight text-white/88">
                 <MapPin aria-hidden="true" className="mt-px shrink-0" size={11} />
-                <span className="line-clamp-1">{post.location}</span>
+                <span className="truncate">{formatCompactLocation(post.location)}</span>
               </span>
             </span>
           </>
@@ -1483,7 +1484,7 @@ function ProfileRecentCard({ post }: { post: AppPost }) {
             <span className="mt-2 line-clamp-4 text-[10px] font-semibold leading-snug text-ink/56">{post.caption}</span>
             <span className="mt-auto flex items-start gap-1 text-[10px] font-bold leading-tight text-ink/42">
               <MapPin aria-hidden="true" className="mt-px shrink-0 text-coral" size={11} />
-              <span className="line-clamp-2">{post.location}</span>
+              <span className="truncate">{formatCompactLocation(post.location)}</span>
             </span>
           </span>
         )}
@@ -1542,7 +1543,7 @@ function ProfileGridPostCard({ post }: { post: AppPost }) {
             <span className="line-clamp-2 block text-sm font-black leading-tight">{post.title}</span>
             <span className="mt-1.5 flex min-h-[1rem] items-center gap-1 text-[11px] font-semibold leading-tight text-white/86">
               <MapPin aria-hidden="true" className="shrink-0" size={11} />
-              <span className="min-w-0 truncate">{post.location}</span>
+              <span className="min-w-0 truncate">{formatCompactLocation(post.location)}</span>
             </span>
           </span>
         </>
@@ -1554,7 +1555,7 @@ function ProfileGridPostCard({ post }: { post: AppPost }) {
           </span>
           <span className="flex min-h-[2rem] items-start gap-1 text-[11px] font-bold leading-tight text-ink/42">
             <MapPin aria-hidden="true" className="mt-px shrink-0 text-coral" size={11} />
-            <span className="line-clamp-2">{post.location}</span>
+            <span className="truncate">{formatCompactLocation(post.location)}</span>
           </span>
         </span>
       )}

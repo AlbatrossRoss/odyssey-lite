@@ -5,6 +5,7 @@ import type { PointerEvent } from "react";
 import { MapPin, UserRound } from "lucide-react";
 import { PostMediaPreview } from "@/components/PostMediaPreview";
 import type { AppPost } from "@/lib/posts";
+import { formatCompactLocation } from "@/lib/locationFormat";
 
 type AppPostCardProps = {
   onOpen?: () => void;
@@ -44,7 +45,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
         <span className="absolute bottom-3 left-3 right-3">
           <span className="flex items-start gap-1.5 text-xs font-semibold leading-tight text-ink/56">
             <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-coral" size={14} />
-            <span className="line-clamp-2">{post.location}</span>
+            <span className="truncate">{formatCompactLocation(post.location)}</span>
           </span>
         </span>
       </Link>
@@ -87,7 +88,7 @@ export function AppPostCard({ onOpen, post }: AppPostCardProps) {
         <span className="line-clamp-3 block text-[15px] font-normal leading-snug drop-shadow-sm">{post.title}</span>
         <span className="mt-2 flex items-start gap-1.5 text-xs font-semibold leading-tight text-white/88">
           <MapPin aria-hidden="true" className="mt-0.5 shrink-0" size={14} />
-          <span className="line-clamp-2">{post.location}</span>
+          <span className="truncate">{formatCompactLocation(post.location)}</span>
         </span>
       </span>
     </Link>
@@ -157,7 +158,7 @@ export function AppPostTile({ post }: AppPostCardProps) {
         ) : null}
         <span className="mt-auto flex items-start gap-1 text-[9px] font-bold leading-tight text-ink/38">
           <MapPin aria-hidden="true" className="mt-px shrink-0 text-coral" size={10} />
-          <span className="line-clamp-2">{post.location}</span>
+          <span className="truncate">{formatCompactLocation(post.location)}</span>
         </span>
       </Link>
     );
