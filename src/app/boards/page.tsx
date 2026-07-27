@@ -180,14 +180,18 @@ export default function BoardsPage() {
 
   return (
     <MobileFrame>
-      <section className="h-full overflow-y-auto bg-white pb-[calc(var(--bottom-nav-clearance)+1rem)] text-ink">
-        <header className="safe-top-bar px-5 pb-4">
+      <section className="h-full overflow-y-auto bg-[#fbfaf7] pb-[calc(var(--bottom-nav-clearance)+1rem)] text-ink">
+        <header className="safe-top-bar px-5 pb-5">
             <div className="flex items-center justify-between gap-4">
-            <h1 className="text-[24px] font-black leading-tight tracking-normal text-ink">My Boards</h1>
+            <div>
+              <p className="odyssey-eyebrow">Your travel library</p>
+              <h1 className="mt-1 text-[30px] font-black leading-none tracking-[-0.035em] text-ink">Curated guides</h1>
+              <p className="mt-2 text-sm font-semibold text-ink/52">Keep the places worth remembering together.</p>
+            </div>
             <div className="flex items-center gap-3">
               <button
                 aria-label="Create board"
-                className="grid h-12 w-12 place-items-center rounded-full bg-white text-ink shadow-sm ring-1 ring-ink/10"
+                className="grid h-12 w-12 place-items-center rounded-full bg-ink text-white shadow-lift"
                 onClick={openCreateBoard}
                 type="button"
               >
@@ -209,11 +213,11 @@ export default function BoardsPage() {
               ))}
             </section>
 
-            <section className="border-b border-ink/10 px-5">
-              <div className="mx-auto grid max-w-[20rem] grid-cols-2">
+            <section className="px-5">
+              <div className="mx-auto grid max-w-[20rem] grid-cols-2 rounded-full bg-ink/6 p-1">
                 <button
-                  className={`flex h-14 items-center justify-center gap-2 border-b-2 text-base font-black transition ${
-                    viewMode === "grid" ? "border-[#4b7df2] text-[#4b7df2]" : "border-transparent text-ink/42"
+                  className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black transition ${
+                    viewMode === "grid" ? "bg-white text-ink shadow-sm" : "text-ink/42"
                   }`}
                   onClick={() => setViewMode("grid")}
                   type="button"
@@ -222,8 +226,8 @@ export default function BoardsPage() {
                   Grid
                 </button>
                 <button
-                  className={`flex h-14 items-center justify-center gap-2 border-b-2 text-base font-black transition ${
-                    viewMode === "map" ? "border-[#4b7df2] text-[#4b7df2]" : "border-transparent text-ink/42"
+                  className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black transition ${
+                    viewMode === "map" ? "bg-white text-ink shadow-sm" : "text-ink/42"
                   }`}
                   onClick={() => setViewMode("map")}
                   type="button"
@@ -261,7 +265,8 @@ export default function BoardsPage() {
                 <section className="px-5 pt-7">
                   <div className="mb-5 flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="truncate text-[20px] font-black leading-tight text-ink">{selectedBoard.title}</h2>
+                      <p className="odyssey-eyebrow">Selected guide</p>
+                      <h2 className="mt-1 truncate text-[24px] font-black leading-tight tracking-[-0.025em] text-ink">{selectedBoard.title}</h2>
                       <p className="mt-1 text-sm font-semibold text-ink/52">
                         {selectedBoard.postIds.length} saved {selectedBoard.postIds.length === 1 ? "experience" : "experiences"}
                       </p>
@@ -414,8 +419,8 @@ function BoardHeroCard({ board, onSelect, selected }: { board: AppBoard; onSelec
 
   return (
     <button
-      className={`relative aspect-[3/4] h-[150px] shrink-0 overflow-hidden rounded-[14px] bg-ink text-left shadow-sm transition ${
-        selected ? "ring-2 ring-[#4b7df2]/70 ring-offset-2 ring-offset-white" : ""
+      className={`relative aspect-[3/4] h-[168px] shrink-0 overflow-hidden rounded-[22px] bg-ink text-left shadow-sm transition ${
+        selected ? "ring-2 ring-moss/65 ring-offset-2 ring-offset-[#fbfaf7]" : ""
       }`}
       onClick={onSelect}
       type="button"
@@ -440,7 +445,7 @@ function BoardSavedPostCard({ index, post }: { index: number; post: AppPost }) {
 
   return (
     <Link className="group block min-w-0 text-ink" href={`/posts/${post.id}`}>
-      <span className={`relative block overflow-hidden rounded-[8px] bg-shell ${aspectClass}`}>
+      <span className={`relative block overflow-hidden rounded-[16px] bg-shell shadow-[0_8px_24px_rgba(24,35,31,0.08)] ${aspectClass}`}>
         {post.imageUrl ? (
           <PostMediaPreview alt={post.title} className="h-full w-full object-cover transition duration-300 group-active:scale-[0.99]" imageVariant="thumbnail" mediaType={post.mediaTypes[0]} src={post.imageUrl} />
         ) : (

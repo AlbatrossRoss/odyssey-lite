@@ -231,6 +231,11 @@ export function AccountsView({ username }: AccountsViewProps) {
   const followingCount = viewer?.stats.following ?? 0;
   const profileTrips = useMemo(() => profilePosts.filter((post) => post.type === "trip"), [profilePosts]);
   const profileRecentPosts = useMemo(() => profilePosts.filter((post) => post.type !== "trip"), [profilePosts]);
+  const profileTasteTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    profileRecentPosts.forEach((post) => post.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1)));
+    return [...counts.entries()].sort((left, right) => right[1] - left[1]).slice(0, 3).map(([tag]) => tag);
+  }, [profileRecentPosts]);
   const completedLocalRecTags = useMemo(() => {
     const tags = new Set<AppPostTag>();
 
@@ -617,13 +622,13 @@ export function AccountsView({ username }: AccountsViewProps) {
             <section className="pt-2">
               <ProfileMapHero isOwnProfile={isOwnProfile} posts={profilePosts} profile={profile} />
 
-              <section className="-mt-24 relative z-10 bg-transparent px-1 pb-2 pt-0">
+              <section className="-mt-16 relative z-10 bg-transparent px-1 pb-2 pt-0">
                 <div className="px-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="relative shrink-0">
                       <button
                         aria-label="Change profile photo"
-                        className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-ink/52 shadow-lift"
+                        className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-ink/52 shadow-lift"
                         disabled={!isOwnProfile}
                         onClick={() => fileInputRef.current?.click()}
                         type="button"
@@ -649,7 +654,7 @@ export function AccountsView({ username }: AccountsViewProps) {
                       />
                     </div>
                     {isOwnProfile ? (
-                      <div className="mt-10 flex gap-2">
+                      <div className="mt-7 flex gap-2">
                         <Link
                           aria-label="Version history"
                           className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink shadow-lift"
@@ -670,11 +675,20 @@ export function AccountsView({ username }: AccountsViewProps) {
                   </div>
 
                   <div className="mt-4">
-                    <h1 className="min-w-0 truncate text-[30px] font-black leading-none text-ink">@{profile.username}</h1>
+                    <p className="odyssey-eyebrow">Odyssey profile</p>
+                    <h1 className="mt-1 min-w-0 truncate text-[32px] font-black leading-none tracking-[-0.035em] text-ink">@{profile.username}</h1>
                     {profile.currentCity ? <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-moss"><MapPin aria-hidden="true" size={14} />{profile.currentCity}</p> : null}
+                    <p className="mt-3 max-w-[19rem] text-sm font-semibold leading-relaxed text-ink/58">
+                      Collecting friend-tested places{profile.currentCity ? ` near ${profile.currentCity}` : ""} and everywhere the map leads.
+                    </p>
+                    {profileTasteTags.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {profileTasteTags.map((tag) => <span className="rounded-full bg-moss/9 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-moss" key={tag}>{tag}</span>)}
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="mt-4 flex items-start justify-start gap-8">
+                  <div className="mt-5 flex items-start justify-between rounded-[20px] bg-white/74 px-5 py-4 shadow-[0_10px_30px_rgba(24,35,31,0.06)] ring-1 ring-ink/5">
                     <ProfileStat label="Posts" onClick={scrollToPosts} value={profile.stats.posts} />
                     <ProfileStat label="Followers" onClick={() => void openConnections("followers")} value={profile.stats.followers} />
                     <ProfileStat label="Following" onClick={() => void openConnections("following")} value={profile.stats.following} />
@@ -703,9 +717,9 @@ export function AccountsView({ username }: AccountsViewProps) {
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.14em] text-coral">Profile Setup</p>
-                      <h2 className="mt-1 text-lg font-black text-ink">Set up your account!</h2>
-                      <p className="mt-1 text-sm font-semibold leading-relaxed text-ink/54">Add your basics and share local favorites people can find on the map.</p>
+                      <p className="odyssey-eyebrow">Your first odyssey</p>
+                      <h2 className="mt-1 text-lg font-black text-ink">Make this profile yours</h2>
+                      <p className="mt-1 text-sm font-semibold leading-relaxed text-ink/54">Add the details that help friends discover your taste.</p>
                     </div>
                     <span className="shrink-0 text-sm font-black text-ink/48">
                       {setupProgress}/{setupTotal}
@@ -720,7 +734,8 @@ export function AccountsView({ username }: AccountsViewProps) {
                 <section className="mt-7" ref={postsSectionRef}>
                   <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <h2 className="text-lg font-black text-ink">Recently Added</h2>
+                      <p className="odyssey-eyebrow">Recent recommendations</p>
+                      <h2 className="odyssey-section-title">Latest finds</h2>
                     </div>
                     <button className="text-xs font-black text-moss" onClick={() => void openPostsGrid()} type="button">
                       {loadingMorePosts ? "Loading…" : "View all"}
@@ -763,7 +778,8 @@ export function AccountsView({ username }: AccountsViewProps) {
                 <section className="mt-6">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <h2 className="text-lg font-black text-ink">{isOwnProfile ? "My Boards" : "Boards"}</h2>
+                      <p className="odyssey-eyebrow">Curated guides</p>
+                      <h2 className="odyssey-section-title">{isOwnProfile ? "My boards" : "Boards"}</h2>
                     </div>
                     <Link className="text-xs font-black text-moss" href="/boards">
                       View all
@@ -1363,7 +1379,7 @@ function ProfileMapHero({ isOwnProfile, posts, profile }: { isOwnProfile: boolea
   }, [profile.id]);
 
   return (
-    <div className="relative -mx-4 h-[207px] overflow-hidden bg-[#b9ddec]">
+    <div className="relative -mx-4 h-[176px] overflow-hidden bg-[#b9ddec]">
       {mapEnabled ? (
         <DynamicMapboxMap
           appPosts={posts}

@@ -1310,7 +1310,7 @@ export default function ExplorePage() {
           </div>
         ) : null}
         <div
-          className={`absolute inset-x-0 top-0 bg-gradient-to-b from-white/55 via-white/18 to-transparent px-4 pb-10 pt-[calc(var(--safe-area-top)+18px)] ${
+          className={`absolute inset-x-0 top-0 bg-gradient-to-b from-[rgba(250,248,243,0.82)] via-white/28 to-transparent px-4 pb-12 pt-[calc(var(--safe-area-top)+18px)] ${
             searchFocused ? "z-40" : "z-20"
           }`}
         >
@@ -1330,7 +1330,7 @@ export default function ExplorePage() {
             </div>
             <button
               aria-label="Open notifications"
-              className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lift"
+              className="odyssey-glass relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink"
               onClick={handleNotificationToggle}
               type="button"
             >
@@ -1456,7 +1456,7 @@ export default function ExplorePage() {
           </div>
         </aside>
         <section
-          className={`absolute inset-x-0 z-30 rounded-t-[30px] bg-white px-4 pt-0 shadow-[0_-18px_42px_rgba(24,35,31,0.15)] ${
+          className={`absolute inset-x-0 z-30 rounded-t-[32px] bg-[#fbfaf7] px-4 pt-0 shadow-[0_-20px_52px_rgba(24,35,31,0.13)] ring-1 ring-ink/5 ${
             sheetDragOffset ? "transition-none" : "transition-all duration-300 ease-out"
           } ${sheetClassName}`}
           onPointerCancel={handleSheetPointerCancel}
@@ -1473,12 +1473,13 @@ export default function ExplorePage() {
             }
             type="button"
           >
-            <span className="block h-1.5 w-[54px] rounded-full bg-[#8f8f8f] shadow-[0_1px_0_rgba(255,255,255,0.8)]" />
+            <span className="block h-1 w-[48px] rounded-full bg-ink/24" />
           </button>
           <div className={`mb-3 flex items-end justify-between px-1 ${sheetPosition === "minimized" ? "sr-only" : ""}`}>
             <div>
-              <h1 className="text-base font-black text-ink">Recommendations</h1>
-              <p className="text-[11px] font-semibold text-ink/52">{recommendationSubtitle}</p>
+              <p className="odyssey-eyebrow">Friend-tested places</p>
+              <h1 className="mt-0.5 text-[22px] font-black leading-tight tracking-[-0.025em] text-ink">Worth a detour</h1>
+              <p className="mt-0.5 text-[11px] font-semibold text-ink/52">{recommendationSubtitle}</p>
             </div>
           </div>
           {sheetPosition === "minimized" ? (
@@ -1532,7 +1533,7 @@ function RecommendationEmptyState({ activeFilter, isLoading, viewerId }: { activ
   return (
     <div className="flex h-[calc(100%-74px)] items-center justify-center px-8 text-center">
       {isLoading ? (
-        <p className="text-sm font-semibold leading-relaxed text-ink/54">Prototype loading, please be patient.</p>
+        <p className="text-sm font-semibold leading-relaxed text-ink/54">Finding places worth the detour…</p>
       ) : activeFilter === "Friends" && !viewerId ? (
         <div>
           <p className="text-sm font-semibold leading-relaxed text-ink/54">
@@ -1551,7 +1552,16 @@ function RecommendationEmptyState({ activeFilter, isLoading, viewerId }: { activ
           <span className="mt-3 block">Swipe to the All page to browse everyone&apos;s recommendations.</span>
         </p>
       ) : (
-        <p className="text-sm font-semibold leading-relaxed text-ink/54">No recommendations here yet.</p>
+        <div>
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-moss/10 text-moss">
+            <MapPin aria-hidden="true" size={20} />
+          </span>
+          <p className="mt-3 text-base font-black text-ink">Nothing pinned here yet</p>
+          <p className="mt-1 text-sm font-semibold leading-relaxed text-ink/54">Be the first to put a favorite place on the map.</p>
+          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-black text-white shadow-lift" href={viewerId ? "/create" : "/accounts"}>
+            {viewerId ? "Share a place" : "Log in"}
+          </Link>
+        </div>
       )}
     </div>
   );

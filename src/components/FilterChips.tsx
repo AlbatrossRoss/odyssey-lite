@@ -27,12 +27,12 @@ export function FilterChips({
   userPhotoUrl?: string | null;
 }) {
   return (
-    <div className="relative px-4 py-3">
+    <div className="relative px-0 py-3">
       <div className="no-scrollbar flex gap-2 overflow-x-auto pr-12">
         <button
           aria-label="My posts"
-          className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold shadow-sm transition ${
-            active === "Mine" ? "bg-ink text-white ring-2 ring-white opacity-100" : "bg-white/88 text-ink/42 opacity-45 hover:bg-white/80 hover:opacity-75"
+          className={`odyssey-glass flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold transition ${
+            active === "Mine" ? "bg-ink text-white ring-2 ring-white opacity-100" : "text-ink/58 opacity-75"
           }`}
           onClick={() => onChange?.("Mine")}
           type="button"
@@ -41,8 +41,8 @@ export function FilterChips({
         </button>
         {filters.map((filter) => (
           <button
-            className={`flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold shadow-sm transition ${
-              active === filter ? "bg-ink text-white" : "bg-white/88 text-ink/72 hover:bg-white"
+            className={`flex h-9 shrink-0 items-center gap-2 rounded-full px-4 text-[13px] font-bold transition ${
+              active === filter ? "bg-ink text-white shadow-lift" : "odyssey-glass text-ink/68"
             }`}
             key={filter}
             onClick={() => onChange?.(filter)}
@@ -54,8 +54,8 @@ export function FilterChips({
         ))}
         <button
           aria-label="Open category filters"
-          className={`absolute right-4 top-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition ${
-            activeCategoryFilters.length ? "bg-ink text-white" : "bg-white/92 text-ink"
+          className={`absolute right-0 top-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
+            activeCategoryFilters.length ? "bg-ink text-white shadow-lift" : "odyssey-glass text-ink"
           }`}
           onClick={onToggleCategories}
           type="button"
@@ -70,7 +70,7 @@ export function FilterChips({
       </div>
 
       {categoriesOpen ? (
-        <div className="absolute right-4 top-[58px] z-40 flex max-w-[205px] flex-wrap justify-end gap-2">
+        <div className="odyssey-glass absolute right-0 top-[54px] z-40 flex max-w-[235px] flex-wrap justify-end gap-2 rounded-[20px] p-3">
           {exploreFilterOptions.map((filter) => {
             const selected = activeCategoryFilters.includes(filter);
 
