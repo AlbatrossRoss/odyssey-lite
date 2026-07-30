@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Heart, MapPin, MessageCircle, UserPlus, X } from "lucide-react";
-import { AppPostCard } from "@/components/AppPostCard";
-import { AppPostFeedCard } from "@/components/AppPostFeedCard";
+import { AppPostCard, AppPostExploreTile } from "@/components/AppPostCard";
 import { BottomNav } from "@/components/BottomNav";
 import { FilterChips } from "@/components/FilterChips";
 import { DynamicMapboxMap } from "@/components/DynamicMapboxMap";
@@ -25,7 +24,14 @@ import {
   type AppAccount,
   type AppFollowNotification,
 } from "@/lib/accounts";
-import { fetchBoardsByAccount, savePostToBoard } from "@/lib/boards";
+import {
+  fetchBoardsByAccount,
+  readLastUsedBoardId,
+  removePostFromBoard,
+  savePostToBoard,
+  writeLastUsedBoardId,
+  type AppBoard,
+} from "@/lib/boards";
 import { fetchCommentNotifications, markCommentNotificationsRead, type AppCommentNotification } from "@/lib/postComments";
 import { fetchLikeNotifications, markLikeNotificationsRead, type AppLikeNotification } from "@/lib/postLikes";
 import { fetchAppPosts, fetchAppPostsInBounds, type AppPost } from "@/lib/posts";
@@ -62,6 +68,7 @@ type MapArea = {
 
 type SheetPosition = "minimized" | "peek" | "expanded";
 type ExploreNotification = (AppCommentNotification & { type: "comment" }) | AppLikeNotification | AppFollowNotification;
+type SaveablePost = Pick<AppPost, "id" | "imageUrl" | "mediaTypes" | "title">;
 
 type MapView = {
   center: [number, number];
@@ -416,6 +423,9 @@ export default function ExplorePage() {
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [actionBanner, setActionBanner] = useState<ActionBanner | null>(null);
+  const [viewerBoards, setViewerBoards] = useState<AppBoard[]>([]);
+  const [boardPickerPost, setBoardPickerPost] = useState<SaveablePost | null>(null);
+  const [boardPickerPreviousBoardId, setBoardPickerPreviousBoardId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [savingPostId, setSavingPostId] = useState<string | null>(null);
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(() => new Set());
@@ -710,6 +720,7 @@ export default function ExplorePage() {
   useEffect(() => {
     if (!viewerId) {
       setSavedPostIds(new Set());
+      setViewerBoards([]);
       return;
     }
 
@@ -718,11 +729,13 @@ export default function ExplorePage() {
     fetchBoardsByAccount(viewerId)
       .then((boards) => {
         if (active) {
+          setViewerBoards(boards);
           setSavedPostIds(new Set(boards.flatMap((board) => board.postIds)));
         }
       })
       .catch(() => {
         if (active) {
+          setViewerBoards([]);
           setSavedPostIds(new Set());
         }
       });
@@ -999,10 +1012,9 @@ export default function ExplorePage() {
     setSheetPosition("minimized");
   }, []);
 
-  const handleSaveToLatestBoard = useCallback(
-    async (post: AppPost) => {
+  const savePostToSelectedBoard = useCallback(
+    async (post: SaveablePost, board: AppBoard, previousBoardId?: string) => {
       if (!viewerId || savingPostId) {
-        setSaveMessage(viewerId ? "" : "Log in to save posts.");
         return;
       }
 
@@ -1010,22 +1022,36 @@ export default function ExplorePage() {
       setSaveMessage("");
 
       try {
-        const boards = await fetchBoardsByAccount(viewerId);
-        const latestBoard = [...boards].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+        await savePostToBoard(board.id, post.id, post.imageUrl ?? undefined);
 
-        if (!latestBoard) {
-          setSaveMessage("Create a board before saving posts.");
-          return;
+        if (previousBoardId && previousBoardId !== board.id) {
+          await removePostFromBoard(previousBoardId, post.id);
         }
 
-        await savePostToBoard(latestBoard.id, post.id, post.imageUrl ?? undefined);
+        writeLastUsedBoardId(viewerId, board.id);
+        setViewerBoards((current) =>
+          current.map((item) => {
+            if (item.id === board.id) {
+              return { ...item, postIds: Array.from(new Set([...item.postIds, post.id])) };
+            }
+
+            if (item.id === previousBoardId) {
+              return { ...item, postIds: item.postIds.filter((postId) => postId !== post.id) };
+            }
+
+            return item;
+          }),
+        );
         setSavedPostIds((current) => new Set([...current, post.id]));
+        setBoardPickerPost(null);
 
         const banner = {
+          boardId: board.id,
           href: `/posts/${post.id}`,
           imageUrl: post.imageUrl,
           mediaType: post.mediaTypes[0],
-          message: `Saved to ${latestBoard.title}`,
+          message: `Saved to ${board.title}`,
+          postId: post.id,
           title: post.title,
           type: "post-saved",
         } satisfies ActionBanner;
@@ -1040,6 +1066,36 @@ export default function ExplorePage() {
       }
     },
     [savingPostId, viewerId],
+  );
+
+  const handleSaveToLatestBoard = useCallback(
+    async (post: AppPost) => {
+      if (!viewerId || savingPostId) {
+        setSaveMessage(viewerId ? "" : "Log in to save posts.");
+        return;
+      }
+
+      try {
+        const boards = viewerBoards.length ? viewerBoards : await fetchBoardsByAccount(viewerId);
+        if (!viewerBoards.length) {
+          setViewerBoards(boards);
+        }
+        const lastUsedBoardId = readLastUsedBoardId(viewerId);
+        const preferredBoard =
+          boards.find((board) => board.id === lastUsedBoardId) ??
+          [...boards].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+
+        if (!preferredBoard) {
+          setSaveMessage("Create a board before saving posts.");
+          return;
+        }
+
+        await savePostToSelectedBoard(post, preferredBoard);
+      } catch (error) {
+        setSaveMessage(error instanceof Error ? error.message : "Unable to save this post.");
+      }
+    },
+    [savePostToSelectedBoard, savingPostId, viewerBoards, viewerId],
   );
 
   const recommendationPosts = useMemo(() => appPosts.filter((post) => post.type !== "trip"), [appPosts]);
@@ -1256,6 +1312,15 @@ export default function ExplorePage() {
     setSheetDragOffset(0);
   }
 
+  const actionBannerPost = actionBanner?.postId
+    ? appPosts.find((post) => post.id === actionBanner.postId) ?? {
+        id: actionBanner.postId,
+        imageUrl: actionBanner.imageUrl,
+        mediaTypes: actionBanner.mediaType ? [actionBanner.mediaType] : [],
+        title: actionBanner.title,
+      }
+    : null;
+
   return (
     <MobileFrame>
       <section className="relative h-full bg-white">
@@ -1273,27 +1338,37 @@ export default function ExplorePage() {
         />
         {actionBanner ? (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-[60] px-4 pt-[calc(var(--safe-area-top)+18px)]">
-            <Link
-              className="pointer-events-auto flex items-center gap-3 rounded-[24px] bg-white/96 p-2 pr-4 text-left shadow-lift backdrop-blur"
-              href={actionBanner.href}
-            >
-              {actionBanner.imageUrl ? (
-                <PostMediaPreview
-                  className="h-14 w-14 shrink-0 rounded-[18px] object-cover"
-                  mediaType={actionBanner.mediaType}
-                  src={actionBanner.imageUrl}
-                />
-              ) : (
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[18px] bg-shell text-coral">
-                  <MapPin aria-hidden="true" size={20} />
+            <div className="pointer-events-auto flex items-center gap-2 rounded-[20px] bg-white p-2 shadow-lift">
+              <Link className="flex min-w-0 flex-1 items-center gap-3 text-left" href={actionBanner.href}>
+                {actionBanner.imageUrl ? (
+                  <PostMediaPreview
+                    className="h-14 w-14 shrink-0 rounded-[14px] object-cover"
+                    mediaType={actionBanner.mediaType}
+                    src={actionBanner.imageUrl}
+                  />
+                ) : (
+                  <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[14px] bg-shell text-ink/46">
+                    <MapPin aria-hidden="true" size={20} />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-black text-ink">{actionBanner.message}</span>
+                  <span className="mt-0.5 block truncate text-sm font-semibold text-ink/58">{actionBanner.title}</span>
                 </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-black uppercase tracking-[0.12em] text-coral">{actionBanner.message}</span>
-                <span className="mt-0.5 block truncate text-sm font-black text-ink">{actionBanner.title}</span>
-              </span>
-              <span className="text-xs font-black text-ink/42">View</span>
-            </Link>
+              </Link>
+              {actionBanner.type === "post-saved" && actionBannerPost ? (
+                <button
+                  className="shrink-0 rounded-full bg-shell px-3 py-2 text-xs font-black text-ink"
+                  onClick={() => {
+                    setBoardPickerPost(actionBannerPost);
+                    setBoardPickerPreviousBoardId(actionBanner.boardId ?? null);
+                  }}
+                  type="button"
+                >
+                  Change board
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
         <div
@@ -1478,18 +1553,20 @@ export default function ExplorePage() {
             </button>
           ) : sheetPosition === "expanded" ? (
             feedPosts.length ? (
-              <div className="no-scrollbar -mx-4 h-[calc(100%-54px)] space-y-3 overflow-y-auto pb-5">
+              <div className="no-scrollbar -mx-1 h-[calc(100%-54px)] overflow-y-auto px-1 pb-5">
                 {saveMessage ? <p className="mx-4 rounded-[18px] bg-coral/10 px-4 py-3 text-sm font-bold text-coral">{saveMessage}</p> : null}
-                {feedPosts.map((post) => (
-                  <AppPostFeedCard
-                    key={post.id}
-                    onOpen={() => handlePostOpen(post)}
-                    onSave={handleSaveToLatestBoard}
-                    post={post}
-                    saveDisabled={savingPostId === post.id}
-                    saved={savedPostIds.has(post.id)}
-                  />
-                ))}
+                <div className="grid grid-cols-2 items-start gap-2">
+                  {feedPosts.map((post) => (
+                    <AppPostExploreTile
+                      key={post.id}
+                      onOpen={() => handlePostOpen(post)}
+                      onSave={handleSaveToLatestBoard}
+                      post={post}
+                      saveDisabled={savingPostId === post.id}
+                      saved={savedPostIds.has(post.id)}
+                    />
+                  ))}
+                </div>
               </div>
             ) : (
               <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} viewerId={viewerId} />
@@ -1504,6 +1581,62 @@ export default function ExplorePage() {
             <RecommendationEmptyState activeFilter={activeFilter} isLoading={recommendationsLoading} viewerId={viewerId} />
           )}
         </section>
+        {boardPickerPost ? (
+          <div className="absolute inset-0 z-[70] flex items-end bg-ink/28">
+            <button
+              aria-label="Close board picker"
+              className="absolute inset-0"
+              onClick={() => {
+                setBoardPickerPost(null);
+                setBoardPickerPreviousBoardId(null);
+              }}
+              type="button"
+            />
+            <section className="safe-modal-bottom relative z-10 max-h-[76%] w-full overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-soft">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-ink/48">Save recommendation</p>
+                  <h2 className="mt-1 text-2xl font-black text-ink">Choose a board</h2>
+                </div>
+                <button
+                  aria-label="Close board picker"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-shell text-ink"
+                  onClick={() => {
+                    setBoardPickerPost(null);
+                    setBoardPickerPreviousBoardId(null);
+                  }}
+                  type="button"
+                >
+                  <X aria-hidden="true" size={18} />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {viewerBoards.map((board) => {
+                  const isCurrentBoard = board.id === boardPickerPreviousBoardId;
+
+                  return (
+                    <button
+                      className="flex w-full items-center gap-3 border border-ink/8 bg-shell p-3 text-left disabled:opacity-60"
+                      disabled={savingPostId === boardPickerPost.id || isCurrentBoard}
+                      key={board.id}
+                      onClick={() => void savePostToSelectedBoard(boardPickerPost, board, boardPickerPreviousBoardId ?? undefined)}
+                      type="button"
+                    >
+                      <img alt="" className="h-14 w-14 object-cover" src={board.coverImageUrl} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-ink">{board.title}</span>
+                        <span className="mt-0.5 block text-xs font-semibold text-ink/48">
+                          {board.postIds.length} {board.postIds.length === 1 ? "post" : "posts"}
+                        </span>
+                      </span>
+                      {isCurrentBoard ? <span className="text-xs font-black text-ink/52">Current</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        ) : null}
         {showExploreColdLoadScreen ? (
           <div className="absolute inset-0 z-[80]">
             <LoadingScreen framed progress={coldLoadIntroComplete ? 74 : 28} />

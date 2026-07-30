@@ -7,6 +7,13 @@ export type VersionHistoryEntry = {
 
 export const versionHistory: VersionHistoryEntry[] = [
   {
+    date: "July 30, 2026",
+    id: "v9.0",
+    title: "Explore Discovery and Saving Refresh",
+    summary:
+      "Upgraded place search for specific businesses, introduced a portrait recommendation grid with readable gradient captions and compact geotags, reordered navigation around Explore, Boards, Post, and Profile, preserved the hidden Home prototype for later, and added last-used-board saving with a solid confirmation banner and an immediate Change board option.",
+  },
+  {
     date: "July 27, 2026",
     id: "v8.9",
     title: "Faster Cold Start",

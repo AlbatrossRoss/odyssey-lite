@@ -42,6 +42,25 @@ type BoardPreviewPostRow = {
 };
 
 const defaultBoardCover = "/hawaii-reference-map.png";
+const lastUsedBoardStorageKey = "odyssey-last-used-board-v1";
+
+export function readLastUsedBoardId(accountId: string) {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(lastUsedBoardStorageKey) ?? "{}") as Record<string, string>;
+    return stored[accountId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastUsedBoardId(accountId: string, boardId: string) {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(lastUsedBoardStorageKey) ?? "{}") as Record<string, string>;
+    window.localStorage.setItem(lastUsedBoardStorageKey, JSON.stringify({ ...stored, [accountId]: boardId }));
+  } catch {
+    // Saving still succeeds when browser storage is unavailable.
+  }
+}
 
 function assertBoardsConfigured() {
   if (!isSupabaseConfigured()) {
@@ -260,5 +279,16 @@ export async function savePostToBoard(boardId: string, postId: string, coverImag
 
   if (coverImageUrl) {
     await supabase.from("app_boards").update({ cover_image_url: coverImageUrl }).eq("id", boardId).eq("cover_image_url", defaultBoardCover);
+  }
+}
+
+export async function removePostFromBoard(boardId: string, postId: string) {
+  assertBoardsConfigured();
+
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("app_board_posts").delete().eq("board_id", boardId).eq("post_id", postId);
+
+  if (error) {
+    throw error;
   }
 }

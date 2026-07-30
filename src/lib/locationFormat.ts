@@ -25,22 +25,25 @@ export function formatCompactLocation(location: string) {
   const isUnitedStates = usCountryNames.has(country.toLowerCase());
 
   if (isUnitedStates && parts.length >= 3) {
-    const statePart = stripPostalCode(parts.at(-2) ?? "");
+    const localParts = parts.slice(0, -1);
+    const statePart = stripPostalCode(localParts.at(-1) ?? "");
     const state = usStateAbbreviations[statePart.toLowerCase()] ?? statePart;
-    const city = parts.at(-3) ?? parts[0];
-    return `${city}, ${state}`;
+    const city = localParts.at(-2) ?? localParts[0];
+    const specificPlace = localParts.length > 2 ? localParts[0] : null;
+    return specificPlace ? `${specificPlace}, ${city}, ${state}` : `${city}, ${state}`;
   }
 
   const finalPartWithoutPostalCode = stripPostalCode(country);
   const state = usStateAbbreviations[finalPartWithoutPostalCode.toLowerCase()];
 
   if (state) {
-    return `${parts.at(-2)}, ${state}`;
+    const city = parts.at(-2) ?? parts[0];
+    const specificPlace = parts.length > 2 ? parts[0] : null;
+    return specificPlace ? `${specificPlace}, ${city}, ${state}` : `${city}, ${state}`;
   }
 
   if (parts.length >= 3) {
-    const locality = parts.length === 3 ? parts[0] : parts.at(-3);
-    return `${locality}, ${country}`;
+    return `${parts[0]}, ${parts[1]}`;
   }
 
   return parts.join(", ");

@@ -14,7 +14,7 @@ const navItems = [
 ];
 
 type BottomNavProps = {
-  activeTab?: "Explore" | "Create" | "Post" | "Boards" | "Accounts" | "Profile";
+  activeTab?: "Home" | "Explore" | "Create" | "Post" | "Boards" | "Accounts" | "Profile";
   onExploreClick?: () => void;
   profilePhotoUrl?: string | null;
 };
@@ -72,7 +72,7 @@ export function BottomNav({ activeTab, onExploreClick, profilePhotoUrl }: Bottom
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 border-t border-transparent bg-transparent px-5 pt-3 sm:absolute">
       {tripPostingEnabled && createMenuOpen ? <CreateShareSheet onClose={() => setCreateMenuOpen(false)} /> : null}
       <div className="bottom-nav-surface" />
-      <div className="bottom-nav-content relative z-10 mx-auto grid max-w-[22rem] grid-cols-4 items-end gap-2">
+      <div className="bottom-nav-content relative z-10 mx-auto grid max-w-[23rem] grid-cols-4 items-end gap-0.5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab

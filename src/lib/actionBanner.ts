@@ -3,10 +3,12 @@
 import type { AppPostMediaType } from "@/lib/posts";
 
 export type ActionBanner = {
+  boardId?: string;
   href: string;
   imageUrl: string | null;
   mediaType?: AppPostMediaType;
   message: string;
+  postId?: string;
   title: string;
   type: "post-created" | "post-saved";
 };
