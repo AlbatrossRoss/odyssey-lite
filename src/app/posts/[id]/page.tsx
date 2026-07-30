@@ -27,7 +27,7 @@ import { deleteAppPost, fetchAppPostById, fetchAppPosts, type AppPost } from "@/
 import { createPostComment, fetchPostComments, type AppPostComment } from "@/lib/postComments";
 import { fetchPostLikeSummary, setPostLike } from "@/lib/postLikes";
 import type { Experience } from "@/lib/data";
-import { createAppBoard, fetchBoardsByAccount, savePostToBoard, type AppBoard } from "@/lib/boards";
+import { createAppBoard, fetchBoardsByAccount, savePostToBoard, writeLastUsedBoardId, type AppBoard } from "@/lib/boards";
 import { fetchFollowingIds, readAccountSessionId, setAccountFollow } from "@/lib/accounts";
 import { writeActionBanner } from "@/lib/actionBanner";
 
@@ -385,6 +385,9 @@ export default function PostDetailPage() {
 
     try {
       await savePostToBoard(board.id, post.id, post.imageUrl ?? undefined);
+      if (accountId) {
+        writeLastUsedBoardId(accountId, board.id);
+      }
       setBoards((current) =>
         current.map((item) =>
           item.id === board.id
@@ -398,10 +401,12 @@ export default function PostDetailPage() {
         ),
       );
       writeActionBanner({
+        boardId: board.id,
         href: `/posts/${post.id}`,
         imageUrl: post.imageUrl,
         mediaType: post.mediaTypes[0],
         message: `Saved to ${board.title}`,
+        postId: post.id,
         title: post.title,
         type: "post-saved",
       });
@@ -432,16 +437,19 @@ export default function PostDetailPage() {
       });
 
       await savePostToBoard(board.id, post.id, post.imageUrl ?? undefined);
+      writeLastUsedBoardId(accountId, board.id);
       const savedBoard = { ...board, previewImageUrls: post.imageUrl ? [post.imageUrl] : [], postIds: [post.id] };
       setBoards((current) => [...current, savedBoard]);
       setNewBoardTitle("");
       setNewBoardSubtitle("");
       setNewBoardOpen(false);
       writeActionBanner({
+        boardId: board.id,
         href: `/posts/${post.id}`,
         imageUrl: post.imageUrl,
         mediaType: post.mediaTypes[0],
         message: `Saved to ${board.title}`,
+        postId: post.id,
         title: post.title,
         type: "post-saved",
       });
